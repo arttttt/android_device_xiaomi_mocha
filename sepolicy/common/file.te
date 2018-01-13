@@ -147,7 +147,7 @@ type sysfs_tcp_window_divisor, fs_type, sysfs_type;
 # /sys/devices/platform/gamepad.*/gamepad_reset
 type sysfs_gamepad, fs_type, sysfs_type;
 
-# /sys/devices/platform/700b0*00.sdhci/mmc_host
+# /sys/devices/platform/sdhci-tegra.*/mmc_host
 type sysfs_mmc_host, fs_type, sysfs_type;
 
 # /sys/class/net
