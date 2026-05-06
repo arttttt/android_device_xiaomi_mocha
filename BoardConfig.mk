@@ -85,6 +85,11 @@ BOARD_HAVE_BLUETOOTH := true
 BOARD_HAVE_BLUETOOTH_BCM := true
 BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR ?= device/xiaomi/mocha/bluetooth
 
+# FM radio (Broadcom V4L2 over BT shared transport ldisc)
+BOARD_HAVE_BCM_FM := true
+BOARD_HAVE_BCM_FM_SYSFS := "/sys/devices/platform/bcm_ldisc/"
+BOARD_BRCM_HCI_NUM := 26
+
 # Graphics
 USE_OPENGL_RENDERER := true
 BOARD_DISABLE_TRIPLE_BUFFERED_DISPLAY_SURFACES := true
