@@ -219,6 +219,30 @@
 		</path>
     </device>
 
+    <device name="fm">
+        <!-- BCM4354 FM I2S → RT5671 AIF4 (IF4) → DAC1 → HPO mix → headphones.
+             FM bypasses Tegra AHUB; routing is fully internal to the codec.
+             HP enable bits live here because there is no PCM stream to fire
+             headphone's on_pcm path while FM is active. -->
+        <path name="on">
+            <ctl name="DAC1 L Mux" val="IF4 DAC"/>
+            <ctl name="DAC1 R Mux" val="IF4 DAC"/>
+            <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
+            <ctl name="DAC1 MIXL DAC1 Switch" val="1"/>
+            <ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
+            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
+            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
+            <ctl name="HPO MIX DAC1 Switch" val="1"/>
+            <ctl name="Headphone Jack Switch" val="1"/>
+            <ctl name="FM Switch" val="1"/>
+        </path>
+        <path name="off">
+            <ctl name="FM Switch" val="0"/>
+            <ctl name="HPO MIX DAC1 Switch" val="0"/>
+            <ctl name="Headphone Jack Switch" val="0"/>
+        </path>
+    </device>
+
 	<!-- Define PCM playback and capture streams @48kHz sample rate -->
 	<stream type="pcm" dir="out" card="1" device="0" rate="48000">
 
