@@ -241,6 +241,26 @@
         </path>
     </device>
 
+    <device name="fm_in">
+        <!-- Mirrors the stock NV nvaudio_conf.xml fm-rx capture path:
+             RT5671 ADC1 chain feeding the IF1 ADC mux for FM record.
+             Stock only defines the "on" path; "off" is intentionally absent
+             so the ADC chain is left up to whatever capture stream owns it
+             next (matches Vitaliy Tomin's original sound config). -->
+        <path name="on">
+            <ctl name="IF1 ADC Mux" val="IF1_ADC1"/>
+            <ctl name="IF1 ADC1 IN2 Mux" val="IF1_ADC1_IN1"/>
+            <ctl name="IF1 ADC1 IN1 Mux" val="IF_ADC1"/>
+            <ctl name="DRC Switch" val="Disable"/>
+            <ctl name="Sto1 ADC MIXL ADC1 Switch" val="1"/>
+            <ctl name="Sto1 ADC MIXR ADC1 Switch" val="1"/>
+            <ctl name="AD STO1 ASRC Switch" val="clk_sysy_div_out"/>
+            <ctl name="Stereo1 ADC1 Mux" val="ADC"/>
+            <ctl name="Stereo1 ADC Mux" val="ADC1L ADC2R"/>
+            <ctl name="ADC 1_2" val="Stereo DAC"/>
+        </path>
+    </device>
+
 	<!-- Define PCM playback and capture streams @48kHz sample rate -->
 	<stream type="pcm" dir="out" card="1" device="0" rate="48000">
 
