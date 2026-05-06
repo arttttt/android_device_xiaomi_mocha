@@ -1080,7 +1080,7 @@ static const struct parse_device device_table[] = {
     {"voice",       AUDIO_DEVICE_IN_VOICE_CALL},
     {"aux",         AUDIO_DEVICE_IN_AUX_DIGITAL},
     {"fm",          AUDIO_DEVICE_OUT_FM},
-    {"fm_in",       AUDIO_DEVICE_IN_FM}
+    {"fm_in",       AUDIO_DEVICE_IN_FM_TUNER}
 };
 
 static const char *predefined_path_name_table[] = {
