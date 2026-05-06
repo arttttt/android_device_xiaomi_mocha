@@ -74,7 +74,14 @@ PRODUCT_PACKAGES += \
 # Filesystem management tools
 PRODUCT_PACKAGES += \
     fsck.f2fs mkfs.f2fs
-    
+
+# FM radio (BCM4354 V4L2 path through hardware/broadcom/fmradio)
+PRODUCT_PACKAGES += \
+    FMRadio \
+    brcm-uim-sysfs \
+    libfmradio.v4l2-fm \
+    libfmjni
+
 # Graphics shim
 PRODUCT_PACKAGES += libs \
                     libshim_zw \
