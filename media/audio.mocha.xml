@@ -233,7 +233,7 @@
             <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
             <ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
             <ctl name="Mono DAC MIXL DAC L1 Switch" val="1"/>
-            <ctl name="Mono DAC MIXR DAC L1 Switch" val="1"/>
+            <ctl name="Mono DAC MIXR DAC R1 Switch" val="1"/>
             <ctl name="FM Switch" val="1"/>
         </path>
         <path name="off">
