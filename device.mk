@@ -131,6 +131,13 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/bluetooth/bt_vendor.conf:system/etc/bluetooth/bt_vendor.conf
 
+# FM radio (BCM4354 V4L2 path through hardware/broadcom/fmradio)
+PRODUCT_PACKAGES += \
+    FMRadio \
+    brcm-uim-sysfs \
+    libfmradio.v4l2-fm \
+    libfmjni
+
 # Camera
 PRODUCT_PACKAGES += \
     camera.tegra \
