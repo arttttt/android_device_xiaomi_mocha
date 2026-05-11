@@ -1,0 +1,3 @@
+# Cross-boundary handle for the NVIDIA Frost audio-RTP daemon (vendor process).
+# See sepolicy/public/ussrd.te for the design rationale.
+attribute frostaudiortp_domain;

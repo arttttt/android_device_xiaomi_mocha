@@ -1,0 +1,7 @@
+# Cross-boundary handle for the NVIDIA hubcore daemon (vendor process).
+# hubcore is unusual: vendor/hubcore.te declares it with both `domain` and
+# `service_manager_type`, so the same type plays both roles. The attribute
+# below is enough for the platform-side references (binder_call,
+# service_manager:find) because attributes resolve through both classes.
+# See sepolicy/public/ussrd.te for the broader design rationale.
+attribute hubcore_domain;

@@ -22,8 +22,8 @@ allow audioserver stats_share_file:file create_file_perms;
 # audioserver searches through sysfs, so we need to allow it to search all dirs we retag
 r_dir_file(audioserver, sysfs_ozmo);
 
-allow audioserver frostaudiortp:unix_stream_socket connectto;
-allow audioserver frostaudiortp:unix_dgram_socket { sendto read write setopt };
+allow audioserver frostaudiortp_domain:unix_stream_socket connectto;
+allow audioserver frostaudiortp_domain:unix_dgram_socket { sendto read write setopt };
 
 # access to frost routing property audio.frost_routing.priority
 set_prop(audioserver, frost_routing_prop)

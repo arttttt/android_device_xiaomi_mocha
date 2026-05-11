@@ -141,7 +141,7 @@ allow system_server sysfs_gpu_power_knobs:file rw_file_perms;
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-unix_socket_connect(system_server, gps, gpsd)
+unix_socket_connect(system_server, gps, gpsd_domain)
 allow system_server gps_device:chr_file rw_file_perms;
 
 allow system_server sysfs_pwm_backlight:file rw_file_perms;

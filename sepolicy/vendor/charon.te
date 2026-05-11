@@ -15,6 +15,7 @@
 # IKEv2 key management daemon
 type charon, domain;
 type charon_exec, exec_type, file_type;
+typeattribute charon charon_domain;
 
 init_daemon_domain(charon)
 typeattribute charon mlstrustedsubject;

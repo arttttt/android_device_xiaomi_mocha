@@ -15,6 +15,7 @@
 
 type hubcore, domain, service_manager_type;
 type hubcore_exec, exec_type, file_type;
+typeattribute hubcore hubcore_domain;
 
 init_daemon_domain(hubcore)
 net_domain(hubcore)

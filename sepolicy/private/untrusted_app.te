@@ -50,8 +50,8 @@ dontauditxperm untrusted_app self:udp_socket ioctl SIOCGIFHWADDR;
 # Allow untrusted_app to access hubcore. In this case, we have the
 # SmartThings app from the playstore which needs to access the
 # service published through hubcore.
-allow untrusted_app hubcore:service_manager find;
-binder_call(untrusted_app, hubcore)
+allow untrusted_app hubcore_domain:service_manager find;
+binder_call(untrusted_app, hubcore_domain)
 
 # Allow untrusted_app to access gamestreaming_prop
 get_prop(untrusted_app, gamestreaming_prop)

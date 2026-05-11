@@ -14,6 +14,7 @@
 
 type frostaudiortp, domain;
 type frostaudiortp_exec, exec_type, file_type;
+typeattribute frostaudiortp frostaudiortp_domain;
 
 init_daemon_domain(frostaudiortp)
 net_domain(frostaudiortp)

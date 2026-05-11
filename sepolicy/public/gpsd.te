@@ -1,0 +1,3 @@
+# Cross-boundary handle for the gpsd location daemon (vendor process).
+# See sepolicy/public/ussrd.te for the design rationale.
+attribute gpsd_domain;
