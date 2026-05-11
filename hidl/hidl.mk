@@ -71,4 +71,4 @@ PRODUCT_PACKAGES += \
 
 # HIDL
 PRODUCT_COPY_FILES += \
-    $(call my-dir)/manifest.xml:system/vendor/manifest.xml
+    device/xiaomi/mocha/hidl/manifest.xml:system/vendor/manifest.xml
