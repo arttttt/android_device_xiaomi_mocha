@@ -16,8 +16,6 @@ r_dir_file(domain, sysfs_bus_usb)
 r_dir_file(domain, sysfs_tegra_info)
 r_dir_file(domain, sysfs_tegrafuse_aid)
 
-allow { domain -hal_configstore_default } system_data_file:file { getattr read };
-
 # Allow domains to search for debugfs_clock/debugfs_edp
 allow domain debugfs_clock:dir search;
 allow domain debugfs_edp:dir search;
