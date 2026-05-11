@@ -1,0 +1,7 @@
+# Vendor-side augments to the AOSP shell domain.
+# Anything in here grants adb shell access to vendor-only types; rules
+# touching only public types stay in sepolicy/private/shell.te.
+
+# Allow adb shell to execute /vendor/bin/gpload (gamepad firmware loader)
+# without a domain transition, for hands-on debug/profiling sessions.
+allow shell gpload_exec:file { read getattr execute open execute_no_trans };

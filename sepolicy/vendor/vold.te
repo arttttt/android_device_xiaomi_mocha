@@ -1,0 +1,7 @@
+# Vendor-side augments to the AOSP vold domain.
+# Anything in here grants vold access to vendor-only types; rules
+# touching only public types stay in sepolicy/private/vold.te.
+
+# Allow vold to invoke /vendor/bin/make_f2fs when formatting f2fs
+# filesystems on this device.
+allow vold make_f2fs_exec:file rx_file_perms;

@@ -77,8 +77,5 @@ allow vold upnpfuse_cache_file:dir create_dir_perms;
 allow vold sysfs_mmc_host:file rw_file_perms;
 r_dir_file(vold, sysfs_mmc_host)
 
-# make_f2fs
-allow vold make_f2fs_exec:file rx_file_perms;
-
 # Allow vold to access its tmpfs
 allow vold tmpfs:file create_file_perms;
