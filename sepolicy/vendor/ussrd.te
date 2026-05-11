@@ -17,7 +17,9 @@
 #
 type ussrd, domain, mlstrustedsubject;
 type ussrd_exec, exec_type, file_type;
-type ussrd_service, service_manager_type;
+# ussrd_service moved to sepolicy/public/ussrd.te so plat_sepolicy can
+# resolve the type for the service_manager:find rules in private/.
+typeattribute ussrd ussrd_domain;
 
 init_daemon_domain(ussrd)
 

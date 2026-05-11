@@ -1,0 +1,15 @@
+# Cross-boundary declarations for ussrd (NVIDIA PHS power-management daemon).
+#
+# The ussrd process itself runs as a vendor daemon — its `type ussrd, domain`
+# and `init_daemon_domain(ussrd)` stay in sepolicy/vendor/ussrd.te. Platform
+# components (system_server, surfaceflinger, mediaserver, cameraserver, etc.)
+# need to reach it through service_manager and connect to /dev/socket/phsd,
+# so those touch-points are declared here in public/ where both compilation
+# units (plat_sepolicy and vendor_sepolicy) can see them.
+#
+# The `ussrd_domain` attribute is the platform-visible handle for the
+# concrete `ussrd` type; vendor/ussrd.te attaches it via typeattribute.
+# Putting `type ussrd` directly in public/ would auto-tag it `coredomain`
+# and trip AOSP neverallow rules, since ussrd is a /vendor/bin binary.
+attribute ussrd_domain;
+type ussrd_service, service_manager_type;

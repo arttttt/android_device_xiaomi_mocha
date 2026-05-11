@@ -15,10 +15,10 @@
 # allow_use_phs(clientdomain)
 # Allow clientdomain to connect to PHS.
 define(`allow_use_phs', `
-unix_socket_connect($1, phsd, ussrd)
-unix_socket_send($1, phsd, ussrd)
+unix_socket_connect($1, phsd, ussrd_domain)
+unix_socket_send($1, phsd, ussrd_domain)
 allow $1 phsd_socket:dir r_dir_perms;
 allow $1 phsd_data:dir r_dir_perms;
-binder_call(ussrd, $1)
-binder_call($1, ussrd)
+binder_call(ussrd_domain, $1)
+binder_call($1, ussrd_domain)
 ')
