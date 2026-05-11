@@ -10,7 +10,6 @@ cc_library_shared {
     },
     shared_libs: ["libcutils"],
     vendor: true,
-    recovery_available: true,
     arch: {
         arm: {
             version_script: "intrinsics_shim.arm.map",
