@@ -148,6 +148,7 @@ PRODUCT_PACKAGES += \
     fstab.tn8 \
     init.comms.rc \
     init.hdcp.rc \
+    init.mocha.debug.rc \
     init.t124.rc \
     init.tegra.rc \
     init.tlk.rc \
