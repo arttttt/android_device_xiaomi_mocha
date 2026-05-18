@@ -75,7 +75,7 @@ TARGET_INIT_VENDOR_LIB := mocha_init
 TARGET_RECOVERY_DEVICE_MODULES := mocha_init
 
 # Kernel
-BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive
+BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive console=ttyS0,115200n8
 BOARD_KERNEL_BASE := 0x10000000
 BOARD_RAMDISK_OFFSET := 0x02000000
 BOARD_KERNEL_PAGESIZE := 2048
