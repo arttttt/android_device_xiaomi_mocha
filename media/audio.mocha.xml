@@ -314,8 +314,13 @@
 	  Android is to scale DAC1 Playback Volume on the codec.
 	-->
 	<stream name="fm_volume" type="hw" dir="out">
-		<ctl function="leftvol"  name="DAC1 Playback Volume" min="0" max="175"/>
-		<ctl function="rightvol" name="DAC1 Playback Volume" min="0" max="175"/>
+		<!-- DAC1 Playback Volume is a 2-channel mixer ctl on RT5671.
+		     set_vol_ctl() in audio_config.c writes a single channel by
+		     index, so we have to declare left and right separately or
+		     the right speaker stays pinned at default while the left
+		     follows STREAM_MUSIC. -->
+		<ctl function="leftvol"  name="DAC1 Playback Volume" index="0" min="0" max="175"/>
+		<ctl function="rightvol" name="DAC1 Playback Volume" index="1" min="0" max="175"/>
 	</stream>
 
 </audiohal>
