@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Camera data files
-allow mediaserver nv_camera_data_file:dir create_dir_perms;
-allow mediaserver nv_camera_data_file:file create_file_perms;
-
 # audio stats files
 allow mediaserver stats_share_file:dir create_dir_perms;
 allow mediaserver stats_share_file:file create_file_perms;

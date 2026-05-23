@@ -46,8 +46,6 @@ on post-fs-data
     # Set SELinux security contexts on upgrade or policy update.
     restorecon_recursive /mnt/usercalib
 
-    mkdir /data/nvcam 0700 media camera
-
     mkdir /data/misc/wminput 0776 system system
 
     mkdir /data/media 0770 media_rw media_rw

@@ -217,8 +217,6 @@
 #############################
 # Data files
 
-# camera data folder
-/data/nvcam(/.*)?			u:object_r:nv_camera_data_file:s0
 # camera config folder
 /data/camera_config(/.*)?		u:object_r:camera_config_file:s0
 # tlk data folder
