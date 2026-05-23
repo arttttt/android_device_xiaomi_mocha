@@ -10,6 +10,7 @@
             <attachedDevices>
                 <item>Speaker</item>
                 <item>Built-In Mic</item>
+                <item>FM In</item>
             </attachedDevices>
             <defaultOutputDevice>Speaker</defaultOutputDevice>
 
