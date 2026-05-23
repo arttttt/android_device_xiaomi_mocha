@@ -304,5 +304,19 @@
         <disable path="off_pcm_rec"/>
 	</stream>
 
+	<!--
+	  Named "hw" stream that only exists to host the FM volume control.
+	  No PCM device is opened; the stream is looked up by name from
+	  audio_hw.c::adev_set_parameters() when a "fm_volume=<float>" key
+	  arrives, and set_hw_volume() rewrites the codec mixer ctls below.
+	  FM audio goes BCM4354 -> AIF4 -> IF4 DAC -> DAC1 -> speaker as a
+	  pure codec-internal path, so the only place to attenuate it from
+	  Android is to scale DAC1 Playback Volume on the codec.
+	-->
+	<stream name="fm_volume" type="hw" dir="out">
+		<ctl function="leftvol"  name="DAC1 Playback Volume" min="0" max="175"/>
+		<ctl function="rightvol" name="DAC1 Playback Volume" min="0" max="175"/>
+	</stream>
+
 </audiohal>
 

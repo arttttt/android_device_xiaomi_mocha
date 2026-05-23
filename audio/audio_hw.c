@@ -2778,6 +2778,34 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
 
     parms = str_parms_create_str(kvpairs);
     if (parms) {
+        /* fm_volume: FM audio runs codec-internal (BCM I2S -> AIF4 -> DAC1
+         * -> speaker) and never touches AudioFlinger's stream mixer, so the
+         * regular per-stream out_set_volume() never sees the system volume
+         * keys for FM. The Android-canonical workaround is for the FM app to
+         * forward STREAM_MUSIC volume here via setParameters("fm_volume=X").
+         * We look up the named hw stream "fm_volume" in audio_config.xml,
+         * which carries the DAC1 Playback Volume ctl mapping in its
+         * <ctl function="leftvol|rightvol"> children, and pump it via the
+         * existing set_hw_volume() pipe. No new XML element, no hard-coded
+         * mixer range here. */
+        if (str_parms_get_str(parms, "fm_volume", value, sizeof(value)) >= 0) {
+            float vol = strtof(value, NULL);
+            int pc;
+            const struct hw_stream *fm;
+
+            if (vol < 0.0f) vol = 0.0f;
+            if (vol > 1.0f) vol = 1.0f;
+            pc = (int)(vol * 100.0f + 0.5f);
+
+            fm = get_named_stream(adev->cm, "fm_volume");
+            if (fm) {
+                set_hw_volume(fm, pc, pc);
+                release_stream(fm);
+                ALOGV("fm_volume %.3f -> %d%%", vol, pc);
+            } else {
+                ALOGW("fm_volume: 'fm_volume' named stream not declared in audio config");
+            }
+        }
         voice_trigger_set_params(adev, parms);
         str_parms_destroy(parms);
     }
