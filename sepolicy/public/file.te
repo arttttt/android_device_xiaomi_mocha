@@ -45,9 +45,6 @@ type proc_wmem_max_writable, fs_type;
 # /proc/device-tree/chosen/nvidia,bluetooth-mac
 type proc_bluetooth_mac, fs_type;
 
-# /data/nvcam
-type nv_camera_data_file, file_type, data_file_type;
-
 # /data/misc/nvsipc
 type nvs_socket, file_type;
 

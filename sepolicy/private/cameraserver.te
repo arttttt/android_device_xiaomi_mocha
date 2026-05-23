@@ -16,10 +16,6 @@
 allow cameraserver gpu_device:chr_file rw_file_perms;
 allow cameraserver camera_device:chr_file rw_file_perms;
 
-# Camera data files
-allow cameraserver nv_camera_data_file:dir create_dir_perms;
-allow cameraserver nv_camera_data_file:file create_file_perms;
-
 # NVSensor socket files
 allow cameraserver nvs_socket:dir rw_dir_perms;
 allow cameraserver nvs_socket:sock_file rw_file_perms;

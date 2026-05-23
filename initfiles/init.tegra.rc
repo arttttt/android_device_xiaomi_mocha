@@ -35,7 +35,6 @@ on fs
 on post-fs-data
     mkdir /data/misc/dhcp 0770 dhcp dhcp
     mkdir /data/misc/hwc 0771 system graphics
-    mkdir /data/nvcam 0700 media camera
     chown dhcp dhcp /data/misc/dhcp
 
     # Set indication (checked by vold) that we have finished this action
