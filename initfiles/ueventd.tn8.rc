@@ -23,6 +23,9 @@
 /dev/video1     0660    media   camera
 # V4L2 sub-devices (sensor, focuser, ISP, etc.) — used by V4L2 camera HAL
 /dev/v4l-subdev* 0660   media   camera
+# Media controller — HAL walks /dev/media0 to discover the sensor↔focuser
+# pairing via MEDIA_IOC_ENUM_ENTITIES / MEDIA_IOC_ENUM_LINKS.
+/dev/media*      0660   media   camera
 /dev/mipi-cal   0660    media   camera
 /dev/spdif*     0660    system  audio
 /dev/adf*       0660    system  system
