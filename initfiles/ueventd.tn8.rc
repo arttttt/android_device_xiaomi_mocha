@@ -78,6 +78,9 @@
 /sys/devices/platform/ozwpan/usb*	mode	0660	system	system
 /dev/ttyTHS1	0664	root	system
 /dev/ttyTHS2	0660	bluetooth	bluetooth
+# BCM4354 BT chardev exposed by drivers/bluetooth/broadcom/bt_protocol_driver
+# (CONFIG_BT_PROTOCOL_DRIVER=y). libbt-vendor opens this directly.
+/dev/brcm_bt_drv	0660	bluetooth	bluetooth
 # pmqos
 /dev/constraint_cpu_freq 0660 root system
 /dev/constraint_gpu_freq 0660 root system
