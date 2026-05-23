@@ -21,6 +21,7 @@
 /dev/torch*     0660    media   camera
 /dev/video0     0660    media   camera
 /dev/video1     0660    media   camera
+# V4L2 sub-devices (sensor, focuser, ISP, etc.) — used by V4L2 camera HAL
 /dev/v4l-subdev* 0660   media   camera
 /dev/mipi-cal   0660    media   camera
 /dev/spdif*     0660    system  audio
@@ -48,8 +49,8 @@
 /dev/nvhost-dbg-gpu    0666   root   root
 /dev/nvhost-prof-gpu   0666   root   root
 /dev/tlk_device 0660    system  drmrpc
-# for FM V4L2 Radio
-/dev/radio      0666    system  radio
+# for FM V4L2 Radio — kernel creates /dev/radio0, not /dev/radio
+/dev/radio*     0660    system  radio
 /dev/mpu        0640    system  system
 /dev/mpuirq     0640    system  system
 /dev/accelirq   0640    system  system
