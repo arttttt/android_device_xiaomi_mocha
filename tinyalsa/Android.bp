@@ -16,3 +16,37 @@ cc_library {
         },
     },
 }
+
+cc_binary {
+    name: "tinyplay_mocha",
+    host_supported: true,
+    srcs: ["utils/tinyplay.c"],
+    shared_libs: ["libtinyalsa_mocha"],
+    cflags: ["-Werror"],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+}
+
+cc_binary {
+    name: "tinycap_mocha",
+    srcs: ["utils/tinycap.c"],
+    shared_libs: ["libtinyalsa_mocha"],
+    cflags: ["-Werror"],
+}
+
+cc_binary {
+    name: "tinymix_mocha",
+    srcs: ["utils/tinymix.c"],
+    shared_libs: ["libtinyalsa_mocha"],
+    cflags: ["-Werror", "-Wall"],
+}
+
+cc_binary {
+    name: "tinypcminfo_mocha",
+    srcs: ["utils/tinypcminfo.c"],
+    shared_libs: ["libtinyalsa_mocha"],
+    cflags: ["-Werror"],
+}
