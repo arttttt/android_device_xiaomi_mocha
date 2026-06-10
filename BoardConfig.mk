@@ -75,7 +75,12 @@ TARGET_INIT_VENDOR_LIB := mocha_init
 TARGET_RECOVERY_DEVICE_MODULES := mocha_init
 
 # Kernel
-BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive console=ttyS0,115200n8
+# loglevel=4: the kernel prints a dozen falcon/nvhost pin-debug lines
+# per msenc/vic job; at the default console loglevel every encoder job
+# serializes behind ~1.3 KB of synchronous 115200-baud UART printk,
+# capping video recording at ~5 fps. Level 4 keeps warnings/panics on
+# the wire and INFO spam off it.
+BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive console=ttyS0,115200n8 loglevel=4
 BOARD_KERNEL_BASE := 0x10000000
 BOARD_RAMDISK_OFFSET := 0x02000000
 BOARD_KERNEL_PAGESIZE := 2048
