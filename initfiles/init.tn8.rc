@@ -11,6 +11,7 @@ import init.tn8_common.rc
 import init.t124.rc
 import init.tn8.usb.rc
 import init.mocha.debug.rc
+import init.mocha.usbnet.rc
 
 on post-fs-data
     chmod 0644 /sys/kernel/cluster/active

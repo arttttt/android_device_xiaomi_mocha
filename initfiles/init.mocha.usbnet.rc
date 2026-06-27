@@ -1,0 +1,49 @@
+# Mocha early USB-net debug (postmarketOS-style).
+# Brings up a CDC-NCM USB gadget + a telnet shell as early as possible, straight
+# from the boot ramdisk, so the device is reachable for logs/debug over USB even
+# when /system or /data never mount (boot loop, init/zygote wedge, etc.).
+#
+# NCM is used (not RNDIS) because the host is macOS: RNDIS has no working macOS
+# driver, NCM works on macOS + Linux + Windows 11. SmokeR24.1 g_android already
+# registers the ncm function, so no kernel rebuild is needed.
+#
+# Gated by androidboot.usbdebug=1 (default on; set in BOARD_KERNEL_CMDLINE).
+# ro.boot.usbdebug is populated from the cmdline before the action queue runs, so
+# this fires in the early-init window. If that proves too late on real hardware,
+# escalate to a custom first-stage / init replacement.
+#
+# Host side: assign 172.16.42.2/24 on the USB-NCM interface, then `telnet 172.16.42.1`.
+# Needs a static busybox at /sbin/busybox in the ramdisk (toybox has no telnetd).
+
+on early-init
+    # busybox is multi-call; telnetd's login program must run as a shell
+    symlink /sbin/busybox /sbin/sh
+
+on property:ro.boot.usbdebug=1
+    # Bring up the NCM gadget directly via legacy android_usb sysfs,
+    # bypassing the sys.usb.config property machinery (which runs later).
+    write /sys/class/android_usb/android0/enable 0
+    write /sys/class/android_usb/android0/idVendor 18d1
+    write /sys/class/android_usb/android0/idProduct d001
+    write /sys/class/android_usb/android0/iManufacturer mocha
+    write /sys/class/android_usb/android0/iProduct mocha-usbdebug
+    write /sys/class/android_usb/android0/iSerial mochadebug
+    write /sys/class/android_usb/android0/functions ncm
+    write /sys/class/android_usb/android0/enable 1
+    start mocha_usbnet_ifup
+    start mocha_usbnet_telnetd
+
+# Assign the debug IP. The NCM netdev name varies (ncm0/usb0), so probe a few.
+service mocha_usbnet_ifup /sbin/busybox sh -c "for i in ncm0 usb0 eth0; do /sbin/busybox ifconfig $i 172.16.42.1 netmask 255.255.255.0 up && break; done"
+    class core
+    user root
+    oneshot
+    disabled
+
+# Telnet debug shell. Bind on all interfaces (0.0.0.0:23) so it does not race the
+# ifup; only reachable over the USB-net link anyway. Foreground so init supervises
+# and restarts it. Login program is the ramdisk busybox shell.
+service mocha_usbnet_telnetd /sbin/busybox telnetd -F -l /sbin/sh
+    class core
+    user root
+    disabled
