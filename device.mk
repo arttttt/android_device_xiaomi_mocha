@@ -49,8 +49,11 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/aptXHD/libaptXHD_encoder.so:$(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/libaptXHD_encoder.so
 
 # Bluetooth
+# system/etc, not vendor/etc: both readers -- /system/bin/brcm-uim-sysfs and
+# libbt-vendor.so -- have "/etc/bluetooth/bt_vendor.conf" compiled in, and /etc
+# is a symlink to /system/etc.
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/bluetooth/bt_vendor.conf:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth/bt_vendor.conf
+    $(LOCAL_PATH)/bluetooth/bt_vendor.conf:system/etc/bluetooth/bt_vendor.conf
 
 # Camera
 PRODUCT_PACKAGES += \
