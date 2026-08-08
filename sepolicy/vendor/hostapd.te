@@ -12,9 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Allow hostapd to access symlinks created by wifi_loader
-allow hostapd wifi_data_file:lnk_file read;
+# P turned the SoftAP daemon into a HIDL HAL: there is no `hostapd` domain any
+# more, and referencing it fails the policy build outright with
+#   ERROR 'unknown type hostapd'
+# The interface lives in system/sepolicy/public/hal_wifi_hostapd.te, the binary
+# runs as hal_wifi_hostapd_default (labelled from /vendor/bin/hw/hostapd), and
+# hal_wifi_hostapd_server is the attribute both carry.
+#
+# The rules below are the same three the NVIDIA policy had; only the domain
+# changed. What hostapd needs of the board did not: it still reads the symlinks
+# wifi_loader leaves in the wifi data directory, and still looks at the two
+# sysfs trees below. Granting them on the attribute rather than the concrete
+# domain keeps this working if the implementation is ever swapped.
 
-#allow hostapd to access sysfs_netcfg and sysfs_mmc_host
-r_dir_file(hostapd, sysfs_netcfg)
-r_dir_file(hostapd, sysfs_mmc_host)
+# Symlinks created by wifi_loader.
+allow hal_wifi_hostapd_server wifi_data_file:lnk_file read;
+
+# Interface configuration and the SDIO host the BCM4354 hangs off.
+r_dir_file(hal_wifi_hostapd_server, sysfs_netcfg)
+r_dir_file(hal_wifi_hostapd_server, sysfs_mmc_host)
