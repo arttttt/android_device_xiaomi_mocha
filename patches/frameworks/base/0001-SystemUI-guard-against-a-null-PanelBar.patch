@@ -1,0 +1,42 @@
+From: mocha device tree
+Subject: [PATCH] SystemUI: guard notifyBarPanelExpansionChanged against a null bar
+
+KeyguardViewMediator can ask for the notification panel to expand before
+StatusBar has finished building its view, so PanelView.mBar -- set by
+setBar() from makeStatusBarView() -- is still null:
+
+  FATAL EXCEPTION: main (com.android.systemui)
+  java.lang.NullPointerException: Attempt to invoke virtual method
+    'void PanelBar.panelExpansionChanged(float, boolean)' on a null object
+    at PanelView.notifyBarPanelExpansionChanged(PanelView.java:1173)
+    at PanelView.expand(PanelView.java:1002)
+    at StatusBar.instantExpandNotificationsPanel(StatusBar.java:5177)
+    at StatusBar.updatePanelExpansionForKeyguard(StatusBar.java:4696)
+    at StatusBarKeyguardViewManager.showBouncerOrKeyguard(...:183)
+    at KeyguardViewMediator.handleShow(KeyguardViewMediator.java:1772)
+
+On mocha this reproduces on every boot that reaches the lock screen, and
+SystemUI restarts in a loop, so the device comes up with no UI at all.
+
+Guard in notifyBarPanelExpansionChanged() rather than at the StatusBar call
+site: every caller reaches the bar through this one method, and there is
+nothing meaningful to notify before the bar exists -- the expansion state is
+pushed again once setBar() has run.
+
+The hunk deliberately carries no blank context lines: several editors strip
+the leading space from them and git then rejects the patch as corrupt.
+
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/PanelView.java
+@@ -1172,5 +1172,11 @@
+     protected void notifyBarPanelExpansionChanged() {
++        // The keyguard can ask the panel to expand before StatusBar has built
++        // its view and called setBar(). Nothing to report yet in that case;
++        // the state is pushed again once the bar is attached.
++        if (mBar == null) {
++            return;
++        }
+         mBar.panelExpansionChanged(mExpandedFraction, mExpandedFraction > 0f
+                 || mPeekAnimator != null || mInstantExpanding || isPanelVisibleBecauseOfHeadsUp()
+                 || mTracking || mHeightAnimator != null);
+     }
