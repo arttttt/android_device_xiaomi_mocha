@@ -430,7 +430,13 @@ do_build() {
         echo "==> ERROR: kernel gcc not found at $KERNEL_TOOLCHAIN/${TARGET_KERNEL_CROSS_COMPILE_PREFIX}gcc" >&2
         return 1
     fi
-    "$BUILD_DIR/prebuilts/sdk/tools/jack-admin" kill-server 2>/dev/null || true
+    # Jack is a 14.1/15.1-era thing: a leftover server holds stale state
+    # between builds and has to be killed first. P dropped it for d8/r8, so
+    # only call it where it exists rather than printing "Killing background
+    # server" from a binary that is not there.
+    if [ -x "$BUILD_DIR/prebuilts/sdk/tools/jack-admin" ]; then
+        "$BUILD_DIR/prebuilts/sdk/tools/jack-admin" kill-server 2>/dev/null || true
+    fi
     cd "$BUILD_DIR"
     source build/envsetup.sh
     brunch "$DEVICE" 2>&1 | tee "$LOG"
