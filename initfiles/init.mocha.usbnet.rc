@@ -28,15 +28,8 @@ on property:ro.boot.usbdebug=1
     write /sys/class/android_usb/android0/iManufacturer mocha
     write /sys/class/android_usb/android0/iProduct mocha-usbdebug
     write /sys/class/android_usb/android0/iSerial mochadebug
-    # Keep adb in the composition. This trigger fires after Android has already
-    # applied sys.usb.config, so writing a bare "ncm" here drops the adb
-    # function for the rest of the boot -- the device comes up healthy but is
-    # unreachable over adb, and the only way back in is recovery. adbd is
-    # started explicitly, exactly as the sys.usb.config=*,adb actions in
-    # init.tn8.usb.rc do.
-    write /sys/class/android_usb/android0/functions ncm,adb
+    write /sys/class/android_usb/android0/functions ncm
     write /sys/class/android_usb/android0/enable 1
-    start adbd
     start mocha_usbnet_ifup
     start mocha_usbnet_telnetd
 
