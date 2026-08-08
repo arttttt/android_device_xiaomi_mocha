@@ -42,6 +42,10 @@ static const std::string TAP_TO_WAKE_NODE = "/proc/touchpanel/double_tap_enable"
 static const std::string POWER_PROFILE_PROPERTY = "sys.perf.profile";
 static const int PROFILE_MAX = 4;
 
+/* Not declared by power.h on P; the LineageOS extension that used to
+ * provide it is gone, and Power.cpp still dispatches on it. */
+const static power_hint_t POWER_HINT_SET_PROFILE = (power_hint_t) 0x00000111;
+
 Power::Power() {
     ALOGI("power_init\n");
 }
