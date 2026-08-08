@@ -18,6 +18,12 @@
 # there, and walking all of TARGET_OUT would drag in unrelated system libraries
 # plus dangling symlinks such as app/LatinIME/lib/arm/libjni_latinime.so.
 
+# Both consumers of the staged tree have to be hooked. `mka systemimage` builds
+# INSTALLED_SYSTEMIMAGE, but `brunch` does not: it goes straight to the
+# target-files package, which depends on FULL_SYSTEMIMAGE_DEPS and never
+# produces system.img at all. Hooking only the former left the blobs unpatched
+# in every ROM zip.
+
 INTRINSICS_FIXUP_SCRIPT := device/xiaomi/mocha/intrinsics-fixup/fixup-intrinsics.py
 
 .PHONY: intrinsics-fixup
@@ -25,3 +31,4 @@ intrinsics-fixup: $(INTERNAL_SYSTEMIMAGE_FILES)
 	@python3 $(INTRINSICS_FIXUP_SCRIPT) $(TARGET_OUT_VENDOR)
 
 $(INSTALLED_SYSTEMIMAGE): intrinsics-fixup
+$(BUILT_TARGET_FILES_PACKAGE): intrinsics-fixup
