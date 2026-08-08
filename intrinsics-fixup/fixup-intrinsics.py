@@ -30,6 +30,8 @@ SUBS = [
 
 AEABI_MARKERS = [src for src, _ in SUBS[1:]]
 
+SHIM = "libw.so"
+
 
 def needs_fixup(data):
     if b"libm.so" not in data:
@@ -44,8 +46,19 @@ def patch(data):
 
 
 def process(path):
-    with open(path, "rb") as f:
-        data = f.read()
+    # Never rewrite the shim itself. libw.so carries the s_aeabi_* thunks, which
+    # branch to the real __aeabi_* it links from libgcc, and it depends on libm.so
+    # so the blobs keep reaching libm through it. Patching it renames the symbols
+    # it is supposed to provide and points its own DT_NEEDED at itself.
+    if os.path.basename(path) == SHIM:
+        return False
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        # os.walk lists dangling symlinks, which cannot be opened. Staging has a
+        # few, e.g. app/LatinIME/lib/arm/libjni_latinime.so.
+        return False
     if not needs_fixup(data):
         return False
     new = patch(data)
