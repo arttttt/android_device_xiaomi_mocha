@@ -32,8 +32,8 @@
        clang build fix turned out to be upstream already, the const array had
        been fixed there independently, and only the /vendor/etc conf path is
        genuinely ours. Note that upstream now installs brcm-uim-sysfs and
-       libfmradio.v4l2-fm as proprietary modules, so both live in /vendor --
-       init.comms.rc starts the daemon from /vendor/bin accordingly. -->
+       libfmradio.v4l2-fm as proprietary modules, so both live in /vendor,
+       and init.comms.rc starts the daemon from /vendor/bin accordingly. -->
   <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="lineage-16.0" />
 
   <!-- Our FM volume bridge, replayed onto upstream's 16.0. The BCM libfmjni
