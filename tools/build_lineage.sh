@@ -18,6 +18,7 @@ config_141() {
     REPO_INIT_URL="https://github.com/LineageOS/android.git"
     REPO_INIT_BRANCH="cm-14.1"
     REPO_INIT_FLAGS=""
+    DEVICE_TREE_BRANCH="cm-14.1"
 
     # Old JDK 8u252 (last release before TLS 1.3 / stricter SSL defaults).
     export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/linux-x86/jdk8u252-b09"
@@ -128,6 +129,7 @@ config_151() {
     REPO_INIT_URL="https://github.com/LineageOS/android.git"
     REPO_INIT_BRANCH="lineage-15.1"
     REPO_INIT_FLAGS="--git-lfs"
+    DEVICE_TREE_BRANCH="lineage-15.1"
 
     # OpenJDK 8 from prebuilts (LOS 15.1 requires 1.8).
     export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/jdk8/linux-x86"
@@ -255,6 +257,49 @@ patch_lfs_151() {
 #==============================================================================
 
 DEVICE="mocha"
+DEVICE_TREE_PATH="device/xiaomi/$DEVICE"
+DEVICE_TREE_URL="https://github.com/arttttt/android_device_xiaomi_mocha"
+
+# The local manifest is the list of every repository the build needs beyond
+# upstream LineageOS. Keeping it inside .repo means it exists on exactly one
+# machine and nowhere in history, which is how hardware/nvidia/libstagefrighthw
+# went missing on 15.1: device.mk asked for the package, no repo provided it,
+# and the build said nothing -- hardware video decode was simply absent.
+#
+# So the manifest lives in the device tree under manifests/mocha-<ver>.xml and
+# this installs it. Adding a repository becomes a one-line commit there.
+do_manifest() {
+    echo "==> local manifest ($VER)"
+    local src="$BUILD_DIR/$DEVICE_TREE_PATH/manifests/mocha-$VER.xml"
+
+    # Bootstrap: the manifest lives in the device tree, and the device tree is
+    # itself one of the projects that manifest declares. On a fresh tree take
+    # the file from a throwaway shallow clone rather than dropping a git
+    # checkout where repo expects to manage one.
+    if [ ! -f "$src" ]; then
+        echo "  device tree not checked out yet, fetching manifest directly"
+        local tmp
+        tmp=$(mktemp -d) || return 1
+        if git clone -q --depth 1 -b "$DEVICE_TREE_BRANCH" \
+                "$DEVICE_TREE_URL" "$tmp/dt"; then
+            src="$tmp/dt/manifests/mocha-$VER.xml"
+        fi
+    fi
+
+    if [ ! -f "$src" ]; then
+        echo "==> ERROR: no manifest for $VER (looked for manifests/mocha-$VER.xml)" >&2
+        return 1
+    fi
+
+    mkdir -p "$BUILD_DIR/.repo/local_manifests"
+    local dst="$BUILD_DIR/.repo/local_manifests/mocha.xml"
+    if [ -f "$dst" ] && ! cmp -s "$src" "$dst"; then
+        cp "$dst" "$dst.$(date +%Y%m%d-%H%M%S).bak"
+        echo "  previous manifest differed, backed up"
+    fi
+    cp "$src" "$dst"
+    echo "  installed mocha-$VER.xml ($(grep -c '<project ' "$dst") projects)"
+}
 
 do_sync() {
     echo "==> repo sync ($VER)"
@@ -263,6 +308,7 @@ do_sync() {
     if [ ! -d .repo ]; then
         repo init -u "$REPO_INIT_URL" -b "$REPO_INIT_BRANCH" $REPO_INIT_FLAGS
     fi
+    do_manifest || return 1
     repo sync -j$(nproc) --force-sync
     echo "==> sync OK"
 }
@@ -328,8 +374,11 @@ usage() {
 usage: $(basename "$0") [<version> <action>]
 
   version   14.1 | 15.1
-  action    sync | post-sync | clean | build | full | status
-            full = sync -> post-sync -> build
+  action    manifest | sync | post-sync | clean | build | full | status
+            manifest = install manifests/mocha-<ver>.xml as the local manifest
+                       (sync does this first, so it is only needed on its own
+                       when adding a repo without a full sync)
+            full     = sync -> post-sync -> build
 
 Without arguments the interactive menus below are shown, so this stays usable
 by hand. With arguments nothing is prompted, which is what lets it run over
@@ -347,6 +396,7 @@ select_version() {
 
 run_action() {
     case "$1" in
+        manifest)  do_manifest ;;
         sync)      do_sync ;;
         post-sync) do_post_sync ;;
         clean)     do_clean ;;
@@ -396,6 +446,7 @@ cat <<EOF
   4) build (brunch)
   5) full chain: sync -> post-sync -> build
   6) status (last ROM)
+  7) install local manifest only
   q) quit
 ==========================================================
 EOF
@@ -407,6 +458,7 @@ case "$ans" in
     4) do_build ;;
     5) do_sync && do_post_sync && do_build ;;
     6) do_status ;;
+    7) do_manifest ;;
     q|Q|"") echo "bye" ;;
     *) echo "unknown: $ans"; exit 1 ;;
 esac

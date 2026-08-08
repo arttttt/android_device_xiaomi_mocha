@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Local manifest for the LineageOS 15.1 tree, kept under version control so it
+  is not something that exists only inside one machine's .repo directory.
+  tools/build_lineage.sh installs it as .repo/local_manifests/mocha.xml.
+
+  Every repository the build needs beyond upstream LineageOS belongs here.
+  A missing entry does not fail the build: the package silently does not get
+  built and the file is simply absent from the image, which is how the NVIDIA
+  OMX plugin went missing on 15.1 for a long time.
+-->
+<manifest>
+  <!-- arttttt forks -->
+  <project name="arttttt/SmokeR24.1-kernel" path="kernel/xiaomi/mocha" remote="github" revision="SmokeR24.1-stable" />
+  <project name="arttttt/android_device_xiaomi_mocha" path="device/xiaomi/mocha" remote="github" revision="lineage-15.1" />
+  <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-15.1" />
+  <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-15.1" />
+  <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="lineage-15.1" />
+
+  <!-- FMRadio: the upstream entry lives in snippets/lineage.xml; replace it
+       with the arttttt fork (FM HW volume bridge + BCM libfmjni guard). -->
+  <remove-project name="LineageOS/android_packages_apps_FMRadio" />
+  <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-15.1" />
+
+  <!-- NVIDIA support repos, both listed in lineage.dependencies and both
+       present in the 14.1 manifest, but never carried over to 15.1.
+       libstagefrighthw is the OMX plugin: it dlopens libnvomx.so and
+       registers the OMX.Nvidia.* components. Without it every hardware codec
+       fails to allocate with OMX_ErrorInvalidComponentName and playback falls
+       back to the Google software decoders. -->
+  <project name="LineageOS/android_hardware_nvidia_libstagefrighthw" path="hardware/nvidia/libstagefrighthw" remote="github" revision="lineage-15.1" />
+  <project name="LineageOS/android_hardware_nvidia_thermal" path="hardware/nvidia/thermal" remote="github" revision="lineage-15.1" />
+</manifest>

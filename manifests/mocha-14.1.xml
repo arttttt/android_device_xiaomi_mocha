@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!-- arttttt forks (mocha-specific, kept) -->
+  <project name="arttttt/SmokeR24.1-kernel" path="kernel/xiaomi/mocha" remote="github" revision="SmokeR24.1-stable" />
+  <project name="arttttt/android_device_xiaomi_mocha" path="device/xiaomi/mocha" remote="github" revision="cm-14.1" />
+  <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="cm-14.1" />
+  <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-14.1" />
+  <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="cm-14.1" />
+  <!-- FMRadio: replace upstream LineageOS with arttttt fork (FM HW volume bridge) -->
+  <remove-project name="LineageOS/android_packages_apps_FMRadio" />
+  <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="cm-14.1" />
+
+
+  <!-- Switch LineageOS-mocha forks to upstream LineageOS cm-14.1 -->
+  <remove-project name="LineageOS-mocha/android" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_Launcher3" />
+  <remove-project name="LineageOS-mocha/android_vendor_cm" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_Settings" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_Contacts" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_ContactsCommon" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_Dialer" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_ExactCalculator" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_PackageInstaller" />
+  <remove-project name="LineageOS-mocha/android_packages_apps_PhoneCommon" />
+  <remove-project name="LineageOS-mocha/android_system_sepolicy" />
+  <remove-project name="LineageOS-mocha/android_frameworks_base" />
+  <remove-project name="LineageOS-mocha/android_frameworks_native" />
+  <remove-project name="LineageOS-mocha/android_hardware_nvidia_libstagefrighthw" />
+  <remove-project name="LineageOS-mocha/android_hardware_nvidia_thermal" />
+
+  <project path="android" name="LineageOS/android" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/Trebuchet" name="LineageOS/android_packages_apps_Trebuchet" remote="github" revision="cm-14.1" />
+  <project path="vendor/cm" name="LineageOS/android_vendor_cm" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/Settings" name="LineageOS/android_packages_apps_Settings" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/Contacts" name="LineageOS/android_packages_apps_Contacts" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/ContactsCommon" name="LineageOS/android_packages_apps_ContactsCommon" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/Dialer" name="LineageOS/android_packages_apps_Dialer" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/ExactCalculator" name="LineageOS/android_packages_apps_ExactCalculator" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/PackageInstaller" name="LineageOS/android_packages_apps_PackageInstaller" remote="github" revision="cm-14.1" />
+  <project path="packages/apps/PhoneCommon" name="LineageOS/android_packages_apps_PhoneCommon" remote="github" revision="cm-14.1" />
+  <project path="system/sepolicy" name="LineageOS/android_system_sepolicy" remote="github" revision="cm-14.1" />
+  <project path="frameworks/base" name="LineageOS/android_frameworks_base" remote="github" revision="cm-14.1" />
+  <project path="frameworks/native" name="LineageOS/android_frameworks_native" remote="github" revision="cm-14.1" />
+  <project path="hardware/nvidia/libstagefrighthw" name="LineageOS/android_hardware_nvidia_libstagefrighthw" remote="github" revision="cm-14.1" />
+  <project path="hardware/nvidia/thermal" name="LineageOS/android_hardware_nvidia_thermal" remote="github" revision="cm-14.1" />
+</manifest>
