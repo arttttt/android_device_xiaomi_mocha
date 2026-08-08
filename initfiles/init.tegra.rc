@@ -54,6 +54,12 @@ on boot
 # charger
     chown system system /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user
 
+# didim
+    chown system system /sys/devices/platform/host1x/tegradc.0/smartdimmer/enable
+    chown system system /sys/devices/platform/host1x/tegradc.0/smartdimmer/aggressiveness
+    chown system system /sys/devices/platform/host1x/tegradc.0/smartdimmer/sd_window
+    chown system system /sys/devices/platform/host1x/tegradc.0/smartdimmer/sd_window_enable
+
 #dt2w
     chown system system /sys/devices/platform/7000c700.i2c/i2c-3/3-004a/wakeup_mode
     chown system system /sys/devices/platform/7000c700.i2c/i2c-3/3-0020/input/input0/wake_gesture

@@ -24,3 +24,5 @@ persist.tegra.didim.video = 5
 persist.tegra.didim.normal = 3
 persist.sys.usb.config=adb,mtp
 persist.sys.isUsbOtgEnabled=1
+
+media.stagefright.less-secure=true
