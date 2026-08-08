@@ -43,6 +43,24 @@ PRODUCT_PACKAGES += \
     xaplay \
     enctune.conf
 
+# tinyhal, the open-source audio HAL this board switched to (BoardConfig sets
+# BOARD_USES_TINYHAL_AUDIO). audio.primary.tegra comes from hidl/audio,
+# libaudiohalcm from configmgr, and the *_mocha tools from our tinyalsa fork --
+# the HAL links libtinyalsa_mocha, not the upstream libtinyalsa above.
+PRODUCT_PACKAGES += \
+    audio.primary.tegra \
+    libaudiohalcm \
+    libtinyalsa_mocha \
+    tinycap_mocha \
+    tinymix_mocha \
+    tinypcminfo_mocha \
+    tinyplay_mocha
+
+# tinyhal's mixer configuration, including the fm_in path that routes FM audio.
+# configmgr/audio_config.c builds the name as "/vendor/etc/audio.%s.xml".
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/media/audio.mocha.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio.mocha.xml
+
 # aptXHD
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/aptXHD/libaptX_encoder.so:$(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/libaptX_encoder.so \
