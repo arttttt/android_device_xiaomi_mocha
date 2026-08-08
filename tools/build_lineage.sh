@@ -14,31 +14,41 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ERROR_FILE="$SCRIPT_DIR/error.txt"
 
-# Run one action, echoing as usual, and on failure leave the whole output in
-# $ERROR_FILE. On success the file is removed, so its presence always means
-# "the last run failed" and never "something failed at some point last week".
-run_logged() {
-    local tmp rc had_pipefail=0
-    tmp=$(mktemp) || return 1
-    [[ -o pipefail ]] && had_pipefail=1
-    set -o pipefail
-    "$@" 2>&1 | tee "$tmp"
-    rc=${PIPESTATUS[0]}
-    [ "$had_pipefail" -eq 0 ] && set +o pipefail
-
-    if [ "$rc" -ne 0 ]; then
+# Capture the whole run so a failure leaves something behind, and on success
+# remove the file, so its presence always means "the last run failed" rather
+# than "something failed at some point".
+#
+# Done by re-executing under script(1) rather than piping into tee. repo, git
+# and make print progress only when stdout is a terminal; a pipe silences them
+# completely, so `repo sync` would download for twenty minutes showing nothing
+# at all. script(1) gives the child a pty, so everything behaves as if run
+# directly, while the session is written to a file in parallel.
+#
+# The guard variable stops the re-exec from recursing. If script(1) is absent
+# or is not the util-linux one (its -e/-c options differ elsewhere), the run
+# simply proceeds unwrapped -- losing the error file is much better than
+# losing the ability to run at all.
+if [ -z "${BUILD_LINEAGE_LOGGED:-}" ] \
+   && script --version 2>/dev/null | grep -q util-linux; then
+    export BUILD_LINEAGE_LOGGED=1
+    _bl_tmp=$(mktemp)
+    script -q -e -c "$(printf '%q ' "$0" "$@")" "$_bl_tmp"
+    _bl_rc=$?
+    if [ "$_bl_rc" -ne 0 ]; then
         {
-            echo "=== $(date '+%Y-%m-%d %H:%M:%S')  FAILED: $*  (exit $rc)"
+            echo "=== $(date '+%Y-%m-%d %H:%M:%S')  FAILED: $0 $*  (exit $_bl_rc)"
             echo
-            cat "$tmp"
+            # col -b resolves the carriage returns that progress meters leave
+            # behind; without it the file is one long unreadable line.
+            if command -v col >/dev/null 2>&1; then col -bx < "$_bl_tmp"; else cat "$_bl_tmp"; fi
         } > "$ERROR_FILE"
         echo "==> FAILED — output written to $ERROR_FILE" >&2
     else
         rm -f "$ERROR_FILE"
     fi
-    rm -f "$tmp"
-    return "$rc"
-}
+    rm -f "$_bl_tmp"
+    exit "$_bl_rc"
+fi
 
 #==============================================================================
 # 14.1
@@ -489,13 +499,13 @@ do_full() {
 # error-file behaviour is identical however the script was started.
 run_action() {
     case "$1" in
-        manifest)  run_logged do_manifest ;;
-        sync)      run_logged do_sync ;;
-        post-sync) run_logged do_post_sync ;;
-        clean)     run_logged do_clean ;;
-        build)     run_logged do_build ;;
-        full)      run_logged do_full ;;
-        status)    run_logged do_status ;;
+        manifest)  do_manifest ;;
+        sync)      do_sync ;;
+        post-sync) do_post_sync ;;
+        clean)     do_clean ;;
+        build)     do_build ;;
+        full)      do_full ;;
+        status)    do_status ;;
         *) echo "unknown action: $1" >&2; return 1 ;;
     esac
 }
