@@ -302,7 +302,6 @@ config_160() {
     VER="16.0"
     V=160
     BUILD_DIR="/home/artem/DATA/projects/android/9.0.0"
-    LOG="$HOME/build_lineage_16.0.log"
     REPO_INIT_URL="https://github.com/LineageOS/android.git"
     REPO_INIT_BRANCH="lineage-16.0"
     REPO_INIT_FLAGS="--git-lfs"
