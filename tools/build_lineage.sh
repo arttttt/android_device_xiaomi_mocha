@@ -6,6 +6,40 @@
 
 export LC_ALL=C
 
+# Where a failing run leaves its output. Next to the script as invoked, not
+# next to the file the symlink resolves to -- the usual entry point is
+# ~/build_lineage.sh pointing into a checked-out device tree, and dropping a
+# log inside that tree would dirty the git working copy. Independent of the
+# working directory, which changes constantly as actions cd into $BUILD_DIR.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ERROR_FILE="$SCRIPT_DIR/error.txt"
+
+# Run one action, echoing as usual, and on failure leave the whole output in
+# $ERROR_FILE. On success the file is removed, so its presence always means
+# "the last run failed" and never "something failed at some point last week".
+run_logged() {
+    local tmp rc had_pipefail=0
+    tmp=$(mktemp) || return 1
+    [[ -o pipefail ]] && had_pipefail=1
+    set -o pipefail
+    "$@" 2>&1 | tee "$tmp"
+    rc=${PIPESTATUS[0]}
+    [ "$had_pipefail" -eq 0 ] && set +o pipefail
+
+    if [ "$rc" -ne 0 ]; then
+        {
+            echo "=== $(date '+%Y-%m-%d %H:%M:%S')  FAILED: $*  (exit $rc)"
+            echo
+            cat "$tmp"
+        } > "$ERROR_FILE"
+        echo "==> FAILED — output written to $ERROR_FILE" >&2
+    else
+        rm -f "$ERROR_FILE"
+    fi
+    rm -f "$tmp"
+    return "$rc"
+}
+
 #==============================================================================
 # 14.1
 #==============================================================================
@@ -332,6 +366,17 @@ do_manifest() {
         return 1
     fi
 
+    # Check it parses before handing it to repo. repo reports a malformed
+    # manifest only as "not well-formed (invalid token)" with a line and
+    # column, never the reason -- and the reason is usually a double hyphen
+    # inside a comment, which XML forbids and which reads as ordinary prose.
+    if ! python3 -c "import sys, xml.dom.minidom as m; m.parse(sys.argv[1])" "$src" 2>/dev/null; then
+        echo "==> ERROR: $src is not well-formed XML" >&2
+        python3 -c "import sys, xml.dom.minidom as m; m.parse(sys.argv[1])" "$src" 2>&1 \
+            | tail -2 | sed 's/^/    /' >&2
+        return 1
+    fi
+
     mkdir -p "$BUILD_DIR/.repo/local_manifests"
     local dst="$BUILD_DIR/.repo/local_manifests/mocha.xml"
     if [ -f "$dst" ] && ! cmp -s "$src" "$dst"; then
@@ -436,15 +481,21 @@ select_version() {
     esac
 }
 
+do_full() {
+    do_sync && do_post_sync && do_build
+}
+
+# Single dispatch point for both the argument form and the menu, so the
+# error-file behaviour is identical however the script was started.
 run_action() {
     case "$1" in
-        manifest)  do_manifest ;;
-        sync)      do_sync ;;
-        post-sync) do_post_sync ;;
-        clean)     do_clean ;;
-        build)     do_build ;;
-        full)      do_sync && do_post_sync && do_build ;;
-        status)    do_status ;;
+        manifest)  run_logged do_manifest ;;
+        sync)      run_logged do_sync ;;
+        post-sync) run_logged do_post_sync ;;
+        clean)     run_logged do_clean ;;
+        build)     run_logged do_build ;;
+        full)      run_logged do_full ;;
+        status)    run_logged do_status ;;
         *) echo "unknown action: $1" >&2; return 1 ;;
     esac
 }
@@ -496,13 +547,13 @@ cat <<EOF
 EOF
 read -p "> " ans
 case "$ans" in
-    1) do_sync ;;
-    2) do_post_sync ;;
-    3) do_clean ;;
-    4) do_build ;;
-    5) do_sync && do_post_sync && do_build ;;
-    6) do_status ;;
-    7) do_manifest ;;
+    1) run_action sync ;;
+    2) run_action post-sync ;;
+    3) run_action clean ;;
+    4) run_action build ;;
+    5) run_action full ;;
+    6) run_action status ;;
+    7) run_action manifest ;;
     q|Q|"") echo "bye" ;;
     *) echo "unknown: $ans"; exit 1 ;;
 esac

@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .mcp.json
 .claude/
+
+# build_lineage.sh drops the last failing run here when run in-tree
+tools/error.txt
