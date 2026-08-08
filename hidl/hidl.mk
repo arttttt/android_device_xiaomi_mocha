@@ -10,6 +10,15 @@ PRODUCT_PACKAGES += \
     android.hardware.bluetooth@1.0-impl \
     android.hardware.bluetooth@1.0-service
 
+# Camera
+# The legacy wrapper: it loads camera.tegra through libhardware and exposes it
+# over HIDL, which is the only way cameraserver reaches a camera HAL on O.
+# The device impls it needs (camera.device@1.0/3.2/3.3-impl) come in as its
+# shared_libs, so they need no entry of their own.
+PRODUCT_PACKAGES += \
+    android.hardware.camera.provider@2.4-impl \
+    android.hardware.camera.provider@2.4-service
+
 # DRM HAL
 PRODUCT_PACKAGES += \
     android.hardware.drm@1.0-impl \
