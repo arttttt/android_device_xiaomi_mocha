@@ -1,0 +1,23 @@
+# Build-time configuration for hardware/broadcom/libbt, turned into
+# vnd_buildcfg.h by its gen-buildcfg.sh. Selected by BOARD_CUSTOM_BT_CONFIG;
+# without it libbt falls back to its own include/vnd_generic.txt.
+#
+# The only reason this file exists is VENDOR_LIB_CONF_FILE. Everything the
+# device configures at runtime lives in bt_vendor.conf, which ships to
+# /vendor/etc/bluetooth/ like every other vendor config since Android 8 --
+# but libbt's default still points at the pre-Treble /etc/bluetooth/. The
+# header guards the define with #ifndef, so overriding it here is enough and
+# no fork of libbt is needed.
+VENDOR_LIB_CONF_FILE = "/vendor/etc/bluetooth/bt_vendor.conf"
+
+# Carried over from vnd_generic.txt: this file replaces it wholesale rather
+# than extending it. The port itself is only a default -- bt_vendor.conf sets
+# UartPort = /dev/brcm_bt_drv, the chardev of the kernel BT protocol driver.
+BLUETOOTH_UART_DEVICE_PORT = "/dev/brcm_bt_drv"
+FW_PATCHFILE_LOCATION = "/vendor/firmware/"
+LPM_IDLE_TIMEOUT_MULTIPLE = 5
+SCO_USE_I2S_INTERFACE = TRUE
+BTVND_DBG = FALSE
+BTHW_DBG = TRUE
+VNDUSERIAL_DBG = FALSE
+UPIO_DBG = FALSE
