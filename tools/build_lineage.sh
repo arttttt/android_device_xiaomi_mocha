@@ -1,8 +1,8 @@
 #!/bin/bash
 # LineageOS (mocha) — unified sync / post-sync / clean / build menu.
-# Version (14.1 / 15.1) is chosen via the first menu. Each version has its
-# own config and its own post-sync patches — patches are per-system, never
-# shared, even when they look similar.
+# Version (14.1 / 15.1 / 16.0) is chosen via the first menu. Each version has
+# its own config and its own post-sync patches — patches are per-system,
+# never shared, even when they look similar.
 
 export LC_ALL=C
 
@@ -151,9 +151,9 @@ config_151() {
 
 post_sync_151() {
     echo "==> post-sync patches (15.1)"
-    patch_zlib_151 || return 1
-    patch_lfs_151 || return 1
-    patch_trees_151 || return 1
+    patch_zlib_py27 || return 1
+    patch_lfs_webview || return 1
+    patch_trees || return 1
     echo "==> post-sync OK"
 }
 
@@ -163,7 +163,7 @@ post_sync_151() {
 # resets those projects, so this re-applies after every one.
 #
 # Idempotent: a patch that reverse-applies is already in, and is skipped.
-patch_trees_151() {
+patch_trees() {
     local root="$BUILD_DIR/device/xiaomi/mocha/patches"
     if [ ! -d "$root" ]; then
         echo "  patches: $root missing — sync the device tree first" >&2
@@ -193,7 +193,7 @@ patch_trees_151() {
 # `import gzip` -> `import zlib` and bomb out late with
 # `ImportError: No module named zlib`. Build the missing 32-bit .so from
 # upstream Python 2.7.5 source against the system libz.
-patch_zlib_151() {
+patch_zlib_py27() {
     local PY="$BUILD_DIR/prebuilts/python/linux-x86/2.7.5"
     if "$PY/bin/python" -c "import zlib" 2>/dev/null; then
         echo "  zlib.so: import works"
@@ -222,7 +222,7 @@ patch_zlib_151() {
 #   target Prebuilt: webview ... FAILED
 #   java.util.zip.ZipException: error in opening zip file
 # Requires git-lfs installed system-wide.
-patch_lfs_151() {
+patch_lfs_webview() {
     local LFS_PROJECTS=(
         external/chromium-webview/prebuilt/arm
         external/chromium-webview/prebuilt/arm64
@@ -250,6 +250,47 @@ patch_lfs_151() {
             echo "  $proj: already $((size / 1024 / 1024)) MB"
         fi
     done
+}
+
+#==============================================================================
+# 16.0
+#==============================================================================
+
+config_160() {
+    VER="16.0"
+    V=160
+    BUILD_DIR="/home/artem/DATA/projects/android/9.0.0"
+    LOG="$HOME/build_lineage_16.0.log"
+    REPO_INIT_URL="https://github.com/LineageOS/android.git"
+    REPO_INIT_BRANCH="lineage-16.0"
+    REPO_INIT_FLAGS="--git-lfs"
+    DEVICE_TREE_BRANCH="lineage-16.0"
+
+    # P moved off JDK 8: AOSP pie ships prebuilts/jdk/jdk9 and the build
+    # refuses anything else. Confirm against the tree after the first sync --
+    # this is the AOSP default, not something verified on this machine yet.
+    export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/jdk9/linux-x86"
+    export PATH="$JAVA_HOME/bin:$BUILD_DIR/prebuilts/python/linux-x86/2.7.5/bin:$PATH"
+
+    # Same kernel toolchain override as the other versions: the in-tree
+    # androideabi-4.9 pin miscompiles on this host, linaro-4.9.4 does not.
+    : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
+    : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
+    export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
+}
+
+# Same three as 15.1: both use the prebuilt python 2.7.5 that ships without
+# zlib, both package chromium-webview from LFS, and patch_trees picks up
+# whatever patches/ holds on the checked-out device tree branch -- so the
+# 16.0 branch carries its own set. The SystemUI patch inherited from 15.1
+# will need review there: a patch that no longer applies fails the sync
+# loudly, which is the intended behaviour.
+post_sync_160() {
+    echo "==> post-sync patches (16.0)"
+    patch_zlib_py27 || return 1
+    patch_lfs_webview || return 1
+    patch_trees || return 1
+    echo "==> post-sync OK"
 }
 
 #==============================================================================
@@ -373,7 +414,7 @@ usage() {
     cat <<EOF
 usage: $(basename "$0") [<version> <action>]
 
-  version   14.1 | 15.1
+  version   14.1 | 15.1 | 16.0
   action    manifest | sync | post-sync | clean | build | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
                        (sync does this first, so it is only needed on its own
@@ -390,6 +431,7 @@ select_version() {
     case "$1" in
         14.1|141) config_141 ;;
         15.1|151) config_151 ;;
+        16.0|160) config_160 ;;
         *) echo "unknown version: $1" >&2; return 1 ;;
     esac
 }
@@ -426,6 +468,7 @@ cat <<EOF
 ==================  LineageOS (mocha)  ===================
   1) 14.1
   2) 15.1
+  3) 16.0
   q) quit
 ==========================================================
 EOF
@@ -433,6 +476,7 @@ read -p "> " ver_ans
 case "$ver_ans" in
     1) config_141 ;;
     2) config_151 ;;
+    3) config_160 ;;
     q|Q|"") echo "bye"; exit 0 ;;
     *) echo "unknown: $ver_ans"; exit 1 ;;
 esac
