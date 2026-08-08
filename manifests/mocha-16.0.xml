@@ -6,8 +6,12 @@
 
   Branch each fork only when it actually needs to diverge. A repo that builds
   unchanged against P has no reason to carry a second branch, and an empty
-  lineage-16.0 branch is worse than none -- it hides which parts have really
-  been ported.
+  lineage-16.0 branch is worse than none, because it hides which parts have
+  really been ported.
+
+  Note for anyone editing this file: XML forbids a double hyphen inside a
+  comment, and repo reports it only as "not well-formed (invalid token)"
+  with a line and column, never as the reason.
 -->
 <manifest>
   <!-- Already branched -->
