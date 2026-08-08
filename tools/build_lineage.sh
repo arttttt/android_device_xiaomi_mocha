@@ -58,7 +58,6 @@ config_141() {
     VER="14.1"
     V=141
     BUILD_DIR="/home/artem/DATA/projects/android/7.1.2"
-    LOG="$HOME/build_lineage_14.1.log"
     REPO_INIT_URL="https://github.com/LineageOS/android.git"
     REPO_INIT_BRANCH="cm-14.1"
     REPO_INIT_FLAGS=""
@@ -169,7 +168,6 @@ config_151() {
     VER="15.1"
     V=151
     BUILD_DIR="/home/artem/DATA/projects/android/8.1.0"
-    LOG="$HOME/build_lineage_15.1.log"
     REPO_INIT_URL="https://github.com/LineageOS/android.git"
     REPO_INIT_BRANCH="lineage-15.1"
     REPO_INIT_FLAGS="--git-lfs"
@@ -439,14 +437,19 @@ do_build() {
     fi
     cd "$BUILD_DIR"
     source build/envsetup.sh
-    brunch "$DEVICE" 2>&1 | tee "$LOG"
+
+    # Not piped anywhere: the whole run is already captured by the pty wrapper
+    # at the top of this script, and a pipe here would silence the build's own
+    # progress exactly as it silenced repo sync. Its exit status is what
+    # decides success -- a stale zip from an earlier run must not read as one.
+    brunch "$DEVICE" || return 1
 
     local OUT="$BUILD_DIR/out/target/product/$DEVICE"
     local ZIP=$(ls -t "$OUT"/lineage-$VER-*.zip 2>/dev/null | head -1)
     if [ -n "$ZIP" ]; then
         echo "==> ROM: $(ls -lh "$ZIP" | awk '{print $5, $NF}')"
     else
-        echo "==> ROM not built — see $LOG" >&2
+        echo "==> build reported success but produced no zip" >&2
         return 1
     fi
 }
@@ -460,10 +463,10 @@ do_status() {
     else
         echo "  none"
     fi
-    if [ -f "$LOG" ]; then
+    if [ -f "$ERROR_FILE" ]; then
         echo
-        echo "  log $LOG (last lines):"
-        tail -3 "$LOG"
+        echo "  last run FAILED, $ERROR_FILE (last lines):"
+        tail -3 "$ERROR_FILE"
     fi
 }
 

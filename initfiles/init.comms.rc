@@ -53,7 +53,7 @@ service dns_masq /system/bin/dnsmasq --no-daemon --no-resolv --no-poll --dhcp-op
 # brcm-uim-sysfs (BT/FM/ANT+) — polls /sys/devices/platform/bcm_ldisc/install
 # and attaches N_BRCM_HCI ldisc on demand. Persistent daemon, idles in poll()
 # until something opens /dev/radio0 or the BT char device.
-service uim /system/bin/brcm-uim-sysfs
+service uim /vendor/bin/brcm-uim-sysfs
     class late_start
     user root
     group bluetooth net_bt

@@ -26,10 +26,21 @@
        module path currently provides. -->
   <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-15.1" />
   <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-15.1" />
-  <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="lineage-15.1" />
 
+  <!-- Branched for P. Upstream rebuilt its 16.0 line rather than continuing
+       15.1, so our three fixes were replayed onto it rather than merged: the
+       clang build fix turned out to be upstream already, the const array had
+       been fixed there independently, and only the /vendor/etc conf path is
+       genuinely ours. Note that upstream now installs brcm-uim-sysfs and
+       libfmradio.v4l2-fm as proprietary modules, so both live in /vendor --
+       init.comms.rc starts the daemon from /vendor/bin accordingly. -->
+  <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="lineage-16.0" />
+
+  <!-- Our FM volume bridge, replayed onto upstream's 16.0. The BCM libfmjni
+       guard we used to carry is upstream there already (5a56adc), so only the
+       two volume commits remain ours. -->
   <remove-project name="LineageOS/android_packages_apps_FMRadio" />
-  <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-15.1" />
+  <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-16.0" />
 
   <!-- NVIDIA support repos. Both have real lineage-16.0 branches upstream,
        so take those rather than the 15.1 ones. libstagefrighthw is the OMX
