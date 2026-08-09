@@ -36,23 +36,34 @@ type sysfs_sata, fs_type, sysfs_type;
 # /sys/devices/virtual/misc/uhid/0005:0955:7213.*/timeout
 type sysfs_pepper_timeout, fs_type, sysfs_type;
 
-# /sys/net/core/wmem_default
-type proc_wmem_default_writable, fs_type;
+# sepolicy_tests requires every type labelled through genfscon on proc to
+# carry proc_type, and every type labelled under /data to carry both
+# data_file_type and core_data_file_type. The exemption is /data/vendor,
+# which none of these are.
 
-# /sys/net/core/wmem_max
-type proc_wmem_max_writable, fs_type;
+# /proc/sys/net/core/wmem_default
+type proc_wmem_default_writable, fs_type, proc_type;
+
+# /proc/sys/net/core/wmem_max
+type proc_wmem_max_writable, fs_type, proc_type;
 
 # /proc/device-tree/chosen/nvidia,bluetooth-mac
-type proc_bluetooth_mac, fs_type;
+type proc_bluetooth_mac, fs_type, proc_type;
 
 # /data/misc/nvsipc
-type nvs_socket, file_type;
+type nvs_socket, file_type, data_file_type, core_data_file_type;
 
 # /data/core
-type coredump_data_file, file_type, data_file_type;
+type coredump_data_file, file_type, data_file_type, core_data_file_type;
 
 # /data/misc
-type phsd_data, file_type;
+type phsd_data, file_type, data_file_type, core_data_file_type;
+
+# tee_data_file is declared by system/sepolicy without core_data_file_type,
+# because nothing in the platform file_contexts puts it under /data. Our
+# vendor file_contexts does, for /data/tlk and /data/ss, so the attribute
+# has to be added here rather than at the declaration.
+typeattribute tee_data_file core_data_file_type;
 
 # /dev/socket/phsd
 type phsd_socket, file_type;
@@ -125,17 +136,17 @@ type surfaceflinger_fc, file_type;
 type factory_file, fs_type, contextmount_type;
 
 # /usercalib
-type user_calib_file, file_type, data_file_type;
+type user_calib_file, file_type, data_file_type, core_data_file_type;
 
 # /hubcore
-type hubcore_data_file, file_type, data_file_type;
+type hubcore_data_file, file_type, data_file_type, core_data_file_type;
 
 # /sys/devices/platform/tegra.*i2c\.[0-9]+(/.*)?
 # /sys/devices/platform/[0-9a-f]+\.i2c(/.*)?
 type sysfs_nvi2c, fs_type, sysfs_type, mlstrustedobject;
 
 # /data/misc/cvc(/.*)
-type cvc_data_file, file_type, data_file_type;
+type cvc_data_file, file_type, data_file_type, core_data_file_type;
 type sysfs_cvc, fs_type, sysfs_type;
 
 # /sys/module/tcp_output/parameters
@@ -188,16 +199,16 @@ type sysfs_tegrafuse_aid, fs_type, sysfs_type;
 type oem_media_file, file_type;
 
 # /data/stats_share
-type stats_share_file, file_type, data_file_type;
+type stats_share_file, file_type, data_file_type, core_data_file_type;
 
 # /data/misc/hwc(/.*)
-type hwc_data_file, file_type, data_file_type;
+type hwc_data_file, file_type, data_file_type, core_data_file_type;
 
 # /vendor/bin/upnpfuse
 type upnpfused_exec, exec_type, file_type;
 
 # /data/upnpfuse(/.*)
-type upnpfuse_cache_file, file_type, data_file_type;
+type upnpfuse_cache_file, file_type, data_file_type, core_data_file_type;
 
 # /sys/kernel/debugfs/clock
 type debugfs_clock, fs_type, debugfs_type, mlstrustedobject;
@@ -215,12 +226,12 @@ type debugfs_emc_load, fs_type, debugfs_type, mlstrustedobject;
 type debugfs_wake_irq_stats, fs_type, debugfs_type, mlstrustedobject;
 
 # /data/misc/bluedroid_log
-type bluetooth_log_file, file_type, data_file_type;
+type bluetooth_log_file, file_type, data_file_type, core_data_file_type;
 
 typeattribute property_socket mlstrustedobject;
 
 # /data/camera_config(/.*)?
-type camera_config_file, file_type, data_file_type;
+type camera_config_file, file_type, data_file_type, core_data_file_type;
 
 # UART debug port for reading current buffer count
 type debugfs_serial_ttybuffercount, fs_type, debugfs_type, mlstrustedobject;
@@ -229,16 +240,16 @@ type debugfs_serial_ttybuffercount, fs_type, debugfs_type, mlstrustedobject;
 type debugfs_cluster, fs_type, debugfs_type, mlstrustedobject;
 
 # /data/system/devices/keylayout(/.*)?
-type keylayout_data_file, file_type, data_file_type;
+type keylayout_data_file, file_type, data_file_type, core_data_file_type;
 
 # /cache/last_boot_(.*).txt
 type cache_log_dumper_file, file_type, mlstrustedobject;
 
 # /data/misc/frostlog(/.*)?
-type frostlog_file, file_type, data_file_type;
+type frostlog_file, file_type, data_file_type, core_data_file_type;
 
 # /data/provTest(/.*)?
-type dx_data_file, file_type, data_file_type;
+type dx_data_file, file_type, data_file_type, core_data_file_type;
 
 # /sys/module/xhci_hcd/parameters/...
 type sysfs_usb_blacklist, fs_type, sysfs_type;
@@ -260,5 +271,5 @@ type sysfs_usb_blacklist, fs_type, sysfs_type;
 type sysfs_pwm_backlight, fs_type, sysfs_type;
 
 # /data/gps
-type gps_data_file, file_type, data_file_type;
+type gps_data_file, file_type, data_file_type, core_data_file_type;
 type gps_socket, file_type;
