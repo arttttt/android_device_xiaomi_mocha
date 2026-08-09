@@ -52,7 +52,8 @@ allow ussrd tmpfs:file r_file_perms;
 allow ussrd surfaceflinger_fc:file r_file_perms;
 
 # thermal
-allow ussrd sysfs_thermal:dir rw_dir_perms;
+# Read only: sysfs dirs take no new entries, and P neverallows asking for it.
+allow ussrd sysfs_thermal:dir r_dir_perms;
 allow ussrd sysfs_thermal:file rw_file_perms;
 
 # Allow to write to nvfeedback log file

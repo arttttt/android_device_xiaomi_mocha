@@ -23,6 +23,9 @@ allow cyupdate cyupdate_exec:file execute_no_trans;
 allow cyupdate i2c_device:chr_file rw_file_perms;
 allow cyupdate sysfs_nvi2c:{ file lnk_file } rw_file_perms;
 allow cyupdate sysfs_nvi2c:dir r_dir_perms;
-allow cyupdate self:capability { net_admin dac_override chown sys_module fowner fsetid };
+# dac_override is neverallowed in P outside a whitelist a device tree cannot
+# join. This domain covers the Cypress touch controller firmware updater,
+# which mocha does not have, so nothing on this device loses anything.
+allow cyupdate self:capability { net_admin chown sys_module fowner fsetid };
 allow cyupdate cy8c_device:dir r_dir_perms;
 allow cyupdate cy8c_device:chr_file rw_file_perms;

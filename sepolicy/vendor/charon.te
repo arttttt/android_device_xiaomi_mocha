@@ -35,7 +35,11 @@ allow charon self:tun_socket create_socket_perms_no_ioctl;
 allow charon self:netlink_socket create_socket_perms_no_ioctl;
 allow charon self:netlink_xfrm_socket { create_socket_perms_no_ioctl nlmsg_read nlmsg_write };
 allow charon self:netlink_route_socket nlmsg_write;
-allow charon self:capability { net_admin net_bind_service net_raw setuid setgid chown dac_override dac_read_search };
+# P neverallows dac_override and dac_read_search outside a whitelist that a
+# device tree cannot extend. No loss here: strongswan is not part of P, so
+# /system/bin/charon is never built and this domain has no executable. The
+# rest of the set is left intact for the day the daemon comes back.
+allow charon self:capability { net_admin net_bind_service net_raw setuid setgid chown };
 
 allow charon system_file:file rx_file_perms;
 allow charon vpn_data_file:file create_file_perms;

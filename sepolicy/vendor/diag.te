@@ -24,6 +24,12 @@ permissive diag;
 allow diag fuse:dir { write search add_name };
 allow diag fuse:file { write read open create };
 allow diag system_file:file { execute_no_trans };
-allow diag self:capability { dac_override };
+
+# dac_override was the only capability this domain asked for, and P neverallows
+# it outside a whitelist that a device tree cannot join. Left here as a comment
+# rather than dropped silently, so it is clear the rule was removed on purpose
+# and what it used to grant. The domain labels NVIDIA's stress_test.sh and
+# diag_perm.sh, neither of which mocha ships.
+# allow diag self:capability { dac_override };
 
 ')

@@ -31,7 +31,14 @@ allow wifi_loader gps_data_file:lnk_file create_file_perms;
 allow wifi_loader { device hci_attach_dev gps_device }:chr_file { setattr getattr };
 allow wifi_loader devpts:chr_file rw_file_perms;
 allow wifi_loader kernel:system module_request;
-allow wifi_loader self:capability { net_admin dac_override chown sys_module fowner fsetid };
+# dac_override is neverallowed in P outside a fixed whitelist of core domains,
+# and that whitelist is an m4 define inside system/sepolicy, so a device tree
+# cannot join it. Dropping it costs mocha nothing: this domain labels
+# /system/bin/wifi_loader.sh, an NVIDIA Shield helper we never install. Wi-Fi
+# here is brought up by conn_init in the conn_wifi domain. Should the script
+# ever come back, the symlinks it plants under the bluetooth and gps data
+# directories want the owning group, not a capability that bypasses the mode.
+allow wifi_loader self:capability { net_admin chown sys_module fowner fsetid };
 allow wifi_loader sysfs_wifi:file r_file_perms;
 allow wifi_loader system_file:file execute_no_trans;
 allow wifi_loader proc_wmem_default_writable:file w_file_perms;

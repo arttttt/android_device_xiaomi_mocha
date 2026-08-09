@@ -35,7 +35,10 @@ userdebug_or_eng(`
   allow qvs domain:dir search;
   allow qvs domain:{ file lnk_file } read;
   allow qvs gpu_device:chr_file rw_file_perms;
-  allow qvs self:capability dac_override;
+  # Same as in diag.te: dac_override is neverallowed in P outside a whitelist
+  # a device tree cannot join, and it was this domain's only capability. The
+  # entry point is NVIDIA's /system/xbin/qvs_post_boot.sh, absent on mocha.
+  # allow qvs self:capability dac_override;
   allow qvs appdomain:dir search;
   allow qvs appdomain:lnk_file read;
   allow qvs sysfs_thermal:dir search;

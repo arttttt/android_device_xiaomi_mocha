@@ -58,7 +58,9 @@ allow system_app sysfs_bus_usb:file w_file_perms;
 allow system_app sysfs_sound:{ file lnk_file } r_file_perms;
 allow system_app sysfs_sound:dir r_dir_perms;
 allow system_app sysfs_ozmo:lnk_file read;
-allow system_app sysfs_ozmo:dir rw_dir_perms;
+# sysfs cannot have entries created or removed in it, so P neverallows the
+# write half of rw_dir_perms on any sysfs dir. The files inside stay writable.
+allow system_app sysfs_ozmo:dir r_dir_perms;
 allow system_app sysfs_ozmo:file rw_file_perms;
 allow system_app sysfs_hid:dir r_dir_perms;
 allow system_app sysfs_hid:file rw_file_perms;
