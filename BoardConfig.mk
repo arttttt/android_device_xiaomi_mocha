@@ -87,6 +87,10 @@ BOARD_RAMDISK_OFFSET := 0x02000000
 BOARD_KERNEL_PAGESIZE := 2048
 BOARD_KERNEL_TAGS_OFFSET := 0x00000100
 
+# Per-frame tracing in the hardware composer. On while it is being brought
+# up; set to false for a quiet log. Nothing else changes with it.
+TARGET_HWC_TRACE := true
+
 TARGET_KERNEL_SOURCE := kernel/xiaomi/mocha
 TARGET_KERNEL_CONFIG := tegra12_android_defconfig
 # Relative to the tree root, which is where the build always runs from.
