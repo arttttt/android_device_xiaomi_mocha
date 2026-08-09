@@ -92,6 +92,26 @@ USE_OPENGL_RENDERER := true
 VSYNC_EVENT_PHASE_OFFSET_NS := 7500000
 SF_VSYNC_EVENT_PHASE_OFFSET_NS := 5000000
 
+# How many buffers the compositor's own frame gets.
+#
+# Unset it is two, and two is a ceiling of half the refresh rate on any frame
+# the compositor has to draw itself: with only two it cannot begin the next one
+# until the display lets go of the one it is showing, so drawing and scanning
+# out take turns instead of overlapping.
+#
+# It only bites on some frames, which is why it looks like a fault in the
+# animations rather than a setting. This controller has three windows. An
+# ordinary screen -- the application, the status bar, the navigation bar --
+# fits in them exactly and never touches the compositor's own drawing. Pulling
+# the shade down or opening the drawer adds a window, a scrim and a dim layer,
+# the three windows are not enough, and what does not fit is drawn by the
+# compositor. So the ceiling appears exactly when something is moving.
+#
+# The third buffer lets the drawing of one frame overlap the display of the
+# last. It costs one screen of memory. Every other board of this family sets
+# this and only this one had been left on the default.
+NUM_FRAMEBUFFER_SURFACE_BUFFERS := 3
+
 # Include an expanded selection of fonts
 EXTENDED_FONT_FOOTPRINT := true
 
