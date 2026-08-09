@@ -4,6 +4,25 @@ ap.interface=wlan0
 persist.tegra.nvmmlite = 1
 ro.sf.lcd_density=320
 persist.tegra.compositor=glcomposer
+
+# Do not compress what the display cannot read.
+#
+# The allocator hands the graphics processor memory it may compress: beside the
+# pixels it keeps a smaller record of each tile and writes only that where it
+# can. The processor understands the arrangement and gains from it. This
+# display controller does not -- it reads the record as though it were pixels,
+# which shows as a regular grid laid over a recognisable picture.
+#
+# So every buffer going to the panel had to be flattened first, which is a
+# whole pass over the screen, on the same processor the applications need for
+# their own drawing, on every frame. Not compressing in the first place costs
+# the processor some memory bandwidth and saves everything else: measured here
+# as forty frames a second becoming forty-eight, and the flattening pass
+# disappearing from the frame entirely.
+#
+# The Pixel C, the nearest relative of this board, does the same.
+persist.tegra.compression=0
+persist.tegra.decompression=disabled
 ro.input.noresample=1
 ro.zygote.disable_gl_preload=true
 pbc.enabled=0

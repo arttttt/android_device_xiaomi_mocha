@@ -66,7 +66,31 @@ TARGET_USES_MKE2FS := true
 
 # Graphics
 USE_OPENGL_RENDERER := true
-BOARD_DISABLE_TRIPLE_BUFFERED_DISPLAY_SURFACES := true
+
+# How long after a vertical blank each side of the compositor wakes up.
+#
+# Left unset these are one millisecond each, which is the framework's own
+# default and is too tight for this hardware. The compositor's check that the
+# previous frame has actually reached the panel is made at its offset, and the
+# fence that answers it cannot be ready by then: between the frame boundary and
+# the fence being signalled there are two scheduler hops -- the display
+# controller's flip thread and the host1x threaded interrupt. The check
+# therefore failed on most frames, and a failed check makes the compositor skip
+# the whole refresh. Measured: forty frames a second where the panel does
+# sixty, and fifty-eight once the compositor is given five milliseconds instead
+# of one.
+#
+# The application is woken later still, so that what it draws is picked up in
+# the same cycle rather than the next. The pair is Google's own on both the
+# Pixel C, which is the nearest relative of this board, and the Nexus 5, which
+# shares nothing with it but the year -- so it is a sensible starting point
+# rather than a value tuned to one panel.
+#
+# Read at build time only on this release: they are compiled into
+# android.hardware.configstore@1.1-service, which the compositor then asks over
+# its interface. `dumpsys SurfaceFlinger | grep DispSync` says what is in force.
+VSYNC_EVENT_PHASE_OFFSET_NS := 7500000
+SF_VSYNC_EVENT_PHASE_OFFSET_NS := 5000000
 
 # Include an expanded selection of fonts
 EXTENDED_FONT_FOOTPRINT := true
@@ -87,8 +111,19 @@ BOARD_RAMDISK_OFFSET := 0x02000000
 BOARD_KERNEL_PAGESIZE := 2048
 BOARD_KERNEL_TAGS_OFFSET := 0x00000100
 
-# Per-frame tracing in the hardware composer. On while it is being brought
-# up; set to false for a quiet log. Nothing else changes with it.
+# Per-frame tracing in the hardware composer, compiled in but not running.
+#
+# It is worth carrying: it says which buffer went to which window of the
+# controller, and nothing else answers that. It is not worth paying for
+# unasked. A line of it is a message to another process and there are five in
+# every frame, which measured here as three and a half milliseconds out of
+# sixteen -- taken quietly out of the client's share of the frame, and out of
+# every measurement made through it.
+#
+# So this only decides whether it exists. Whether it runs is decided on the
+# device, and the answer is no unless asked:
+#
+#     setprop vendor.hwc.trace 1
 TARGET_HWC_TRACE := true
 
 TARGET_KERNEL_SOURCE := kernel/xiaomi/mocha
