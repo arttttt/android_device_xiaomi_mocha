@@ -206,10 +206,19 @@ post_sync_151() {
 #
 # Idempotent: a patch that reverse-applies is already in, and is skipped.
 patch_trees() {
-    local root="$BUILD_DIR/device/xiaomi/mocha/patches"
-    if [ ! -d "$root" ]; then
-        echo "  patches: $root missing — sync the device tree first" >&2
+    local tree="$BUILD_DIR/device/xiaomi/mocha"
+    local root="$tree/patches"
+    # A branch with nothing to patch is a normal state, not an error: each
+    # device tree branch carries its own patches/ and some carry none. Only
+    # a missing device tree is worth failing over, and that is a different
+    # thing entirely -- it means the sync did not happen.
+    if [ ! -d "$tree" ]; then
+        echo "  patches: $tree missing - sync the device tree first" >&2
         return 1
+    fi
+    if [ ! -d "$root" ]; then
+        echo "  patches: none on this branch"
+        return 0
     fi
     local p proj
     for p in $(find "$root" -name '*.patch' | sort); do
@@ -228,6 +237,7 @@ patch_trees() {
             return 1
         fi
     done
+    return 0
 }
 
 # Python 2.7.5 zlib.so — the AOSP prebuilt at prebuilts/python/linux-x86/2.7.5
