@@ -5,7 +5,7 @@
   at its 15.1 branch and moves over as the work reaches it.
 
   Branch each fork only when it actually needs to diverge. A repo that builds
-  unchanged against P has no reason to carry a second branch, and an empty
+  unchanged against this branch has no reason to carry a second one, and an empty
   lineage-16.0 branch is worse than none, because it hides which parts have
   really been ported.
 
@@ -22,7 +22,7 @@
   <project name="arttttt/SmokeR24.1-kernel" path="kernel/xiaomi/mocha" remote="github" revision="SmokeR24.1-stable" />
 
   <!-- Still on their 15.1 branches. The camera HAL will need at least a look
-       at the Vulkan loader, since P may expose the gralloc interop the HAL
+       at the Vulkan loader, since the platform may now expose the gralloc interop the HAL
        module path currently provides. -->
   <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-15.1" />
   <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-15.1" />

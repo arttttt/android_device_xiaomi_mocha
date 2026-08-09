@@ -31,7 +31,7 @@ allow wifi_loader gps_data_file:lnk_file create_file_perms;
 allow wifi_loader { device hci_attach_dev gps_device }:chr_file { setattr getattr };
 allow wifi_loader devpts:chr_file rw_file_perms;
 allow wifi_loader kernel:system module_request;
-# dac_override is neverallowed in P outside a fixed whitelist of core domains,
+# dac_override is neverallowed outside a fixed whitelist of core domains,
 # and that whitelist is an m4 define inside system/sepolicy, so a device tree
 # cannot join it. Dropping it costs mocha nothing: this domain labels
 # /system/bin/wifi_loader.sh, an NVIDIA Shield helper we never install. Wi-Fi

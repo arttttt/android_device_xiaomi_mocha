@@ -24,7 +24,7 @@ allow system_server gps_data_file:fifo_file create_file_perms;
 # Blake specific
 allow system_server sysfs_bus_usb:file w_file_perms;
 allow system_server sysfs_sound:file r_file_perms;
-# Read only: sysfs dirs take no new entries, and P neverallows asking for it.
+# Read only: sysfs dirs take no new entries, and policy neverallows asking.
 allow system_server sysfs_ozmo:dir r_dir_perms;
 allow system_server sysfs_ozmo:file rw_file_perms;
 allow system_server sysfs_hid:dir r_dir_perms;

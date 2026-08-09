@@ -307,7 +307,7 @@ config_160() {
     REPO_INIT_FLAGS="--git-lfs"
     DEVICE_TREE_BRANCH="lineage-16.0"
 
-    # P moved off JDK 8: AOSP pie ships prebuilts/jdk/jdk9 and the build
+    # This release moved off JDK 8: the tree ships prebuilts/jdk/jdk9 and the build
     # refuses anything else. Confirm against the tree after the first sync --
     # this is the AOSP default, not something verified on this machine yet.
     export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/jdk9/linux-x86"
@@ -428,7 +428,7 @@ do_build() {
         return 1
     fi
     # Jack is a 14.1/15.1-era thing: a leftover server holds stale state
-    # between builds and has to be killed first. P dropped it for d8/r8, so
+    # between builds and has to be killed first. Newer releases dropped it for d8/r8, so
     # only call it where it exists rather than printing "Killing background
     # server" from a binary that is not there.
     if [ -x "$BUILD_DIR/prebuilts/sdk/tools/jack-admin" ]; then

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# P narrowed the sysfs surface isolated_app is allowed to see down to
+# Current policy narrows the sysfs surface isolated_app is allowed to see down to
 # sysfs_devices_system_cpu and sysfs_usb, and enforces it with a neverallow
 # (system/sepolicy/private/isolated_app.te). `domain` includes isolated_app,
 # so these three blanket grants failed the policy build outright.

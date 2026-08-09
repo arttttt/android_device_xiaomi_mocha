@@ -16,7 +16,7 @@ allow_use_phs(appdomain)
 allow { appdomain -isolated_app } ussrd_service:service_manager find;
 
 # Same isolated_app carve-out as in domain.te: appdomain covers isolated_app,
-# and P forbids it any sysfs file outside the cpu and usb trees. The GPU
+# and policy forbids it any sysfs file outside the cpu and usb trees. The GPU
 # ptimer scale factor is read by the EGL driver, which never runs in an
 # isolated process.
 allow { appdomain -isolated_app } sysfs_gpu:file r_file_perms;

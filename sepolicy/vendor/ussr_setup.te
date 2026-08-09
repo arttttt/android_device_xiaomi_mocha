@@ -20,8 +20,8 @@ type ussr_setup_exec, exec_type, file_type;
 
 init_daemon_domain(ussr_setup)
 
-# P restricts dac_override to a fixed whitelist of core domains and enforces
-# it with a neverallow in public/domain.te, so it has to go. Nothing here
+# dac_override is restricted to a fixed whitelist of core domains by a
+# neverallow in public/domain.te, so it has to go. Nothing here
 # needs it: the script runs as root and only chowns and chmods thermal zone
 # nodes, which is chown and fowner, both kept. dac_override would only matter
 # if it had to read or write through permission bits it does not own, and it
@@ -36,8 +36,8 @@ allow ussr_setup shell_exec:file rx_file_perms;
 allow ussr_setup toolbox_exec:file rx_file_perms;
 
 # thermal
-# setattr stays for the chmod pass; the write half of rw_dir_perms is what P
-# neverallows, and sysfs has no use for it anyway.
+# setattr stays for the chmod pass; the write half of rw_dir_perms is the
+# neverallowed part, and sysfs has no use for it anyway.
 allow ussr_setup sysfs_thermal:dir { setattr r_dir_perms };
 allow ussr_setup sysfs_thermal:{file lnk_file} { setattr rw_file_perms };
 

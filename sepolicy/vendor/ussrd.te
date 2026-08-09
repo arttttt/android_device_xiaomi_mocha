@@ -52,7 +52,7 @@ allow ussrd tmpfs:file r_file_perms;
 allow ussrd surfaceflinger_fc:file r_file_perms;
 
 # thermal
-# Read only: sysfs dirs take no new entries, and P neverallows asking for it.
+# Read only: sysfs dirs take no new entries, and policy neverallows asking.
 allow ussrd sysfs_thermal:dir r_dir_perms;
 allow ussrd sysfs_thermal:file rw_file_perms;
 

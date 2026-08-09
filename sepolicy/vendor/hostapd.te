@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# P turned the SoftAP daemon into a HIDL HAL: there is no `hostapd` domain any
+# The SoftAP daemon became a HIDL HAL: there is no `hostapd` domain any
 # more, and referencing it fails the policy build outright with
 #   ERROR 'unknown type hostapd'
 # The interface lives in system/sepolicy/public/hal_wifi_hostapd.te, the binary
