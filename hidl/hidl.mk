@@ -25,10 +25,16 @@ PRODUCT_PACKAGES += \
     android.hardware.drm@1.0-service
 
 # Graphics
+# The composer pair works like the camera one above: the passthrough impl
+# loads hwcomposer.tegra through libhardware and the service exposes it over
+# HIDL, which is the only way SurfaceFlinger reaches a composer here. The
+# module itself is declared with the other hardware modules in device.mk.
 PRODUCT_PACKAGES += \
     android.hardware.graphics.allocator@2.0-impl \
     android.hardware.graphics.allocator@2.0-service \
-    android.hardware.graphics.mapper@2.0-impl
+    android.hardware.graphics.mapper@2.0-impl \
+    android.hardware.graphics.composer@2.1-impl \
+    android.hardware.graphics.composer@2.1-service
 
 # Health HAL
 PRODUCT_PACKAGES += \
