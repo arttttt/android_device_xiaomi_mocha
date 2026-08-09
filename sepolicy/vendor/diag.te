@@ -28,8 +28,12 @@ allow diag system_file:file { execute_no_trans };
 # dac_override was the only capability this domain asked for, and P neverallows
 # it outside a whitelist that a device tree cannot join. Left here as a comment
 # rather than dropped silently, so it is clear the rule was removed on purpose
-# and what it used to grant. The domain labels NVIDIA's stress_test.sh and
+# and what it used to grant. The domain labels the NVIDIA stress_test.sh and
 # diag_perm.sh, neither of which mocha ships.
+#
+# Note for anyone editing a .te file: keep apostrophes out of comments. The
+# policy is run through m4, where a single quote closes a quoted block, so an
+# apostrophe inside userdebug_or_eng() ends the block early.
 # allow diag self:capability { dac_override };
 
 ')

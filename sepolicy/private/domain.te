@@ -18,7 +18,7 @@
 # so these three blanket grants failed the policy build outright.
 #
 # The types themselves stay: every other domain still reads the chip id, the
-# fuse AID and the USB bus the way NVIDIA's stack expects. Only isolated_app
+# fuse AID and the USB bus the way the NVIDIA stack expects. Only isolated_app
 # is carved out, which is exactly what the neverallow asks for and costs us
 # nothing -- an isolated process has no business reading the SoC serial.
 r_dir_file({ domain -isolated_app }, sysfs_bus_usb)
