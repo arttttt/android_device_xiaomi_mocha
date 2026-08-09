@@ -1,0 +1,31 @@
+# Copyright (C) 2026 The LineageOS Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The hardware composer service loads hwcomposer.tegra.so, which drives the
+# display controller directly. Three kinds of access follow from that, and
+# the platform policy grants none of them, since it knows nothing about this
+# controller.
+
+# Posting frames and owning display windows: /dev/tegra_dc_ctrl for the event
+# stream, /dev/tegra_dc_N for the flips themselves. Both carry the same label.
+allow hal_graphics_composer_server tegradc_device:chr_file rw_file_perms;
+
+# The panel timing and the backlight are the framebuffer device's business,
+# not the controller's, so that node is read and blanked through here as well.
+allow hal_graphics_composer_server graphics_device:chr_file rw_file_perms;
+
+# Buffers arrive as dma-buf descriptors from gralloc and are handed straight
+# to the flip. The composer never allocates, but the memory it scans out is
+# nvmap memory and the descriptors carry that label.
+allow hal_graphics_composer_server gpu_device:chr_file rw_file_perms;

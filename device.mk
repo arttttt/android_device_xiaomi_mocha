@@ -101,6 +101,14 @@ PRODUCT_PACKAGES += \
     libfmradio.v4l2-fm \
     libfmjni
 
+# Hardware composer. Our own, in hardware/nvidia/hwcomposer: the module the
+# framework loads, plus the passthrough wrapper and the binderized service
+# that carry it across to SurfaceFlinger.
+PRODUCT_PACKAGES += \
+    hwcomposer.tegra \
+    android.hardware.graphics.composer@2.1-impl \
+    android.hardware.graphics.composer@2.1-service
+
 # Graphics shim
 PRODUCT_PACKAGES += libs \
                     libshim_zw \
