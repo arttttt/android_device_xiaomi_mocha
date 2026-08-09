@@ -89,7 +89,13 @@ BOARD_KERNEL_TAGS_OFFSET := 0x00000100
 
 TARGET_KERNEL_SOURCE := kernel/xiaomi/mocha
 TARGET_KERNEL_CONFIG := tegra12_android_defconfig
-KERNEL_TOOLCHAIN ?= $(ANDROID_BUILD_TOP)/prebuilts/gcc/$(HOST_OS)-x86/arm/arm-linux-androideabi-4.9/bin
+# Relative to the tree root, which is where the build always runs from.
+# ANDROID_BUILD_TOP used to spell this and is now a hard error, so any build
+# that did not already carry KERNEL_TOOLCHAIN in its environment died in
+# dumpvars with "ANDROID_BUILD_TOP is obsolete" and no product spec. The `?=`
+# hid it: with the variable set outside, the right-hand side was never
+# expanded and the error never appeared.
+KERNEL_TOOLCHAIN ?= ./prebuilts/gcc/$(HOST_OS)-x86/arm/arm-linux-androideabi-4.9/bin
 TARGET_KERNEL_CROSS_COMPILE_PREFIX ?= arm-linux-androideabi-
 BOARD_KERNEL_IMAGE_NAME := zImage
 BOARD_KERNEL_SEPARATED_DT := true
