@@ -42,6 +42,10 @@
   <remove-project name="LineageOS/android_packages_apps_FMRadio" />
   <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-16.0" />
 
+  <!-- Our hardware composer. Ours alone and needed by this branch only, so it
+       carries no per-release branches and is pinned to main. -->
+  <project name="arttttt/android_hardware_nvidia_hwcomposer" path="hardware/nvidia/hwcomposer" remote="github" revision="main" />
+
   <!-- NVIDIA support repos. Both have real lineage-16.0 branches upstream,
        so take those rather than the 15.1 ones. libstagefrighthw is the OMX
        plugin without which every hardware codec fails to allocate; thermal
