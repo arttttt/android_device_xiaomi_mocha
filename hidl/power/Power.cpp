@@ -18,7 +18,12 @@
 
 #include <android/log.h>
 #include <cutils/properties.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <cerrno>
+#include <cstring>
 #include <fstream>
+#include <mutex>
 #include <string>
 #include <utils/Log.h>
 #include "Power.h"
@@ -44,19 +49,70 @@ static const int PROFILE_MAX = 4;
 
 /* Where the framework's hints land.
  *
- * The interactive governor takes two kinds of nudge: a pulse, which raises the
- * frequency for its own configured duration and then lets go, and a hold,
- * which keeps it raised until told otherwise. Touching is a pulse; starting an
- * application is a hold, because the framework says when it began and when it
- * finished.
+ * A pulse raises the frequency and lets the governor drop it again after a
+ * duration the governor itself was configured with -- so how long a touch is
+ * worth is decided by the performance profile, not here. That is the right
+ * division: this file knows WHEN, the profile knows HOW MUCH.
  *
  * Writing these fails harmlessly when another governor is in charge, since the
- * files only exist while interactive is. That is the honest behaviour: the
- * hint is then simply not acted on, rather than being acted on wrongly.
+ * files exist only while interactive does. That is the honest failure: the
+ * hint is not acted on, rather than acted on wrongly.
  */
 static const std::string CPUFREQ_INTERACTIVE = "/sys/devices/system/cpu/cpufreq/interactive/";
 static const std::string BOOSTPULSE_NODE = CPUFREQ_INTERACTIVE + "boostpulse";
-static const std::string BOOST_NODE = CPUFREQ_INTERACTIVE + "boost";
+static const std::string IO_IS_BUSY_NODE = CPUFREQ_INTERACTIVE + "io_is_busy";
+
+/* The profiles, as the quick settings tile numbers them. */
+static const int PROFILE_POWER_SAVE = 0;
+static const int PROFILE_BALANCED = 1;
+
+/* The descriptor is kept open rather than reopened per hint. Touching produces
+ * these continuously, and an open-write-close for each is three system calls
+ * spent on saying something that costs one. Every implementation surveyed that
+ * takes this hint seriously does the same. */
+static std::mutex boost_lock;
+static int boostpulse_fd = -1;
+static bool boostpulse_complained = false;
+
+/* What the profile was before the battery saver took over, so it can be given
+ * back. The framework only says "low power on" and "low power off"; it does
+ * not remember what the user had chosen, and neither would we if this were
+ * not kept. */
+static int profile_before_low_power = -1;
+
+static void SendBoostPulse() {
+    const std::lock_guard<std::mutex> lock(boost_lock);
+
+    if (boostpulse_fd < 0) {
+        boostpulse_fd = open(BOOSTPULSE_NODE.c_str(), O_WRONLY | O_CLOEXEC);
+        if (boostpulse_fd < 0) {
+            /* Said once. Under a governor without this node it would otherwise
+             * be said on every touch, which is the sort of logging that costs
+             * more than what it reports on. */
+            if (!boostpulse_complained) {
+                boostpulse_complained = true;
+                ALOGW("no %s; touch and launch hints will not raise the clock",
+                      BOOSTPULSE_NODE.c_str());
+            }
+            return;
+        }
+    }
+
+    if (write(boostpulse_fd, "1", 1) < 0) {
+        ALOGE("cannot pulse the boost: %s", strerror(errno));
+        close(boostpulse_fd);
+        boostpulse_fd = -1;
+    }
+}
+
+static int CurrentProfile() {
+    return property_get_int32(POWER_PROFILE_PROPERTY.c_str(), PROFILE_BALANCED);
+}
+
+static void SetProfile(int profile) {
+    property_set(POWER_PROFILE_PROPERTY.c_str(),
+                 std::to_string(profile).c_str());
+}
 
 /* Not declared by power.h on P; the LineageOS extension that used to
  * provide it is gone, and Power.cpp still dispatches on it. */
@@ -67,8 +123,22 @@ Power::Power() {
 }
 
 // Methods from ::android::hardware::power::V1_0::IPower follow.
-Return<void> Power::setInteractive(bool /*interactive*/)  {
-    ALOGI("power_set_interactive\n");
+Return<void> Power::setInteractive(bool interactive)  {
+    /* Whether anything is being shown to anyone.
+     *
+     * With the screen off, time spent waiting on storage should no longer be
+     * counted as the processor being busy: there is no frame waiting on it,
+     * and counting it holds the clock up for work nobody is watching. With
+     * the screen on it should be counted, since a frame stalled on a read is
+     * still a frame the user is waiting for.
+     *
+     * Deliberately not lowering the frequency ceiling here, although the
+     * implementations surveyed do. The ceiling belongs to the performance
+     * profile, which the user chooses; picking a second one here would be
+     * inventing a number and then quietly overruling them with it.
+     */
+    utils::sysfs_write(IO_IS_BUSY_NODE, interactive ? "1" : "0");
+
     return Void();
 }
 
@@ -82,22 +152,46 @@ Return<void> Power::powerHint(PowerHint hint, int32_t data) {
 
     switch (hint) {
         case PowerHint::INTERACTION:
-            /* The user touched something. Raise the clock for as long as the
-             * governor was configured to hold it, and let go by itself. */
-            utils::sysfs_write(BOOSTPULSE_NODE, "1");
+        case PowerHint::LAUNCH:
+            /* Someone is waiting on this: a finger on the glass, or an
+             * application being opened. The same answer serves both -- pulse
+             * the clock up and let the governor drop it again.
+             *
+             * Not while the battery saver is on. Being asked to hurry and
+             * being told to save power are contradictory instructions, and
+             * the one the user chose wins.
+             */
+            if (CurrentProfile() != PROFILE_POWER_SAVE) {
+                SendBoostPulse();
+            }
             break;
 
-        case PowerHint::LAUNCH:
-            /* An application is starting. Unlike a touch this has a beginning
-             * and an end, and the framework tells us both, so it is held
-             * rather than pulsed. */
-            utils::sysfs_write(BOOST_NODE, data != 0 ? "1" : "0");
+        case PowerHint::LOW_POWER:
+            /* The battery saver going on and off. It is the same thing the
+             * profile tile already expresses, so it is expressed that way --
+             * one notion of how hard this device should try, not two that can
+             * disagree.
+             *
+             * The profile in force is remembered on the way in and given back
+             * on the way out, since the framework does not carry it and would
+             * otherwise leave whatever was chosen replaced for good.
+             */
+            if (data != 0) {
+                if (profile_before_low_power < 0) {
+                    profile_before_low_power = CurrentProfile();
+                }
+                SetProfile(PROFILE_POWER_SAVE);
+            } else if (profile_before_low_power >= 0) {
+                SetProfile(profile_before_low_power);
+                profile_before_low_power = -1;
+            }
             break;
 
         default:
-            /* VSYNC arrives constantly and means only that someone is
+            /* VSYNC arrives constantly and says only that something is
              * watching for blanks; the rest do not apply to this board.
-             * Deliberately nothing. */
+             * Deliberately nothing.
+             */
             break;
     }
 
