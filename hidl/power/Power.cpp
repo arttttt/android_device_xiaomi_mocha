@@ -42,6 +42,22 @@ static const std::string TAP_TO_WAKE_NODE = "/proc/touchpanel/double_tap_enable"
 static const std::string POWER_PROFILE_PROPERTY = "sys.perf.profile";
 static const int PROFILE_MAX = 4;
 
+/* Where the framework's hints land.
+ *
+ * The interactive governor takes two kinds of nudge: a pulse, which raises the
+ * frequency for its own configured duration and then lets go, and a hold,
+ * which keeps it raised until told otherwise. Touching is a pulse; starting an
+ * application is a hold, because the framework says when it began and when it
+ * finished.
+ *
+ * Writing these fails harmlessly when another governor is in charge, since the
+ * files only exist while interactive is. That is the honest behaviour: the
+ * hint is then simply not acted on, rather than being acted on wrongly.
+ */
+static const std::string CPUFREQ_INTERACTIVE = "/sys/devices/system/cpu/cpufreq/interactive/";
+static const std::string BOOSTPULSE_NODE = CPUFREQ_INTERACTIVE + "boostpulse";
+static const std::string BOOST_NODE = CPUFREQ_INTERACTIVE + "boost";
+
 /* Not declared by power.h on P; the LineageOS extension that used to
  * provide it is gone, and Power.cpp still dispatches on it. */
 const static power_hint_t POWER_HINT_SET_PROFILE = (power_hint_t) 0x00000111;
@@ -61,7 +77,30 @@ Return<void> Power::powerHint(PowerHint hint, int32_t data) {
         std::string value = std::to_string(data);
         property_set(POWER_PROFILE_PROPERTY.c_str(), value.c_str());
         ALOGI("set power profile = %d", data);
+        return Void();
     }
+
+    switch (hint) {
+        case PowerHint::INTERACTION:
+            /* The user touched something. Raise the clock for as long as the
+             * governor was configured to hold it, and let go by itself. */
+            utils::sysfs_write(BOOSTPULSE_NODE, "1");
+            break;
+
+        case PowerHint::LAUNCH:
+            /* An application is starting. Unlike a touch this has a beginning
+             * and an end, and the framework tells us both, so it is held
+             * rather than pulsed. */
+            utils::sysfs_write(BOOST_NODE, data != 0 ? "1" : "0");
+            break;
+
+        default:
+            /* VSYNC arrives constantly and means only that someone is
+             * watching for blanks; the rest do not apply to this board.
+             * Deliberately nothing. */
+            break;
+    }
+
     return Void();
 }
 
