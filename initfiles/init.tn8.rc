@@ -17,6 +17,27 @@ on post-fs-data
     mkdir /data/sensors 0777 system system
 
 on init
+    # Which cores each kind of work may run on.
+    #
+    # The platform's own init.rc creates these groups and copies the whole set
+    # of cores into every one of them, then says outright that the device is
+    # expected to narrow them: "this ensures that the cpusets are present and
+    # usable, but the device's init.rc must actually set the correct cpus".
+    # Nobody had. Left as copied, all five groups hold every core and the
+    # framework's whole notion of foreground and background means nothing --
+    # a media scan carries exactly the weight of the thread drawing the frame
+    # the user is looking at.
+    #
+    # The four cores here are identical, so this is not the big.LITTLE
+    # arrangement these groups were designed around. It still decides who may
+    # crowd whom: what the user is looking at may use everything, and what
+    # they are not is kept to one core so it cannot take all four.
+    write /dev/cpuset/top-app/cpus 0-3
+    write /dev/cpuset/foreground/cpus 0-3
+    write /dev/cpuset/background/cpus 0
+    write /dev/cpuset/system-background/cpus 0-1
+    write /dev/cpuset/restricted/cpus 0-1
+
     # Mount a tmpfs into /mnt/tmp for hosting nvram, phs shared memory
     mkdir /mnt/tmp 0770 system system
     mount tmpfs tmpfs /mnt/tmp mode=0775,gid=1003
