@@ -32,13 +32,13 @@ on property:sys.perf.profile=0
   write /sys/devices/system/cpu/cpu2/online 0
   write /sys/devices/system/cpu/cpu3/online 0
   write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 20000
-  write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 20000
-  write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 80000
+  write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 80000
+  write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 40000
   write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 20000
   write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
   write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 696000
   write /sys/devices/system/cpu/cpufreq/interactive/target_loads "80 204000:85 564000:90"
-  write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 200000
+  write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 250000
 
 # bias power save
 on property:sys.perf.profile=3
@@ -55,13 +55,13 @@ on property:sys.perf.profile=3
   write /sys/devices/system/cpu/cpu2/online 1
   write /sys/devices/system/cpu/cpu3/online 0
   write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 20000
-  write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 20000
-  write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 80000
+  write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 80000
+  write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 60000
   write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 20000
   write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
   write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 828000
   write /sys/devices/system/cpu/cpufreq/interactive/target_loads "75 204000:80 564000:88"
-  write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 500000
+  write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 400000
 
 # balanced
 on property:sys.perf.profile=1
@@ -77,13 +77,22 @@ on property:sys.perf.profile=1
   write /sys/devices/system/cpu/cpu1/online 1
   write /sys/devices/system/cpu/cpu2/online 1
   write /sys/devices/system/cpu/cpu3/online 1
-  # The only set below that has been measured. Everything the frame needs is
-  # raised by the boost the power HAL pulses on touch and on launch, not by
-  # the load path -- which is why go_hispeed_load is left where it cannot be
-  # reached, exactly as the Tegra devices that shipped with this governor do.
-  # Measured against the same hand test: presents arriving one refresh apart
-  # rose from 52 % to 97 %, and SystemUI's frame came in at 16.6 ms against a
-  # budget of 16.7.
+  # The only set below that has been measured; the other three profiles are
+  # this shape scaled to their own ceilings and are not.
+  #
+  # Everything the frame needs is raised by the boost the power HAL pulses on
+  # touch and on launch, not by the load path -- which is why go_hispeed_load
+  # is left where it cannot be reached, exactly as the two Tegra devices that
+  # shipped with this governor do.
+  #
+  # Measured on the same hand test: presents arriving one refresh apart went
+  # from 52 % to 94 %, SystemUI's frame from 36.4 ms to 14.97 against a budget
+  # of 16.66, and its frames longer than two refreshes from 48 % to none.
+  #
+  # The hold is 500 ms rather than the 1000 the Tegra devices use. A hundred
+  # was measured and is too short -- the clock drops between frames of one
+  # animation and the next frame starts late. Between 500 and 1000 a single
+  # hand test cannot tell the difference, so the cheaper one is taken.
   write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 20000
   write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 20000
   write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 80000
@@ -91,7 +100,7 @@ on property:sys.perf.profile=1
   write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
   write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1122000
   write /sys/devices/system/cpu/cpufreq/interactive/target_loads "65 204000:75 564000:85"
-  write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 1000000
+  write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 500000
 
 # high performance
 on property:sys.perf.profile=2
@@ -121,8 +130,6 @@ on property:sys.perf.profile=2
   write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 1000000
   write /sys/devices/system/cpu/cpufreq/interactive/io_busy_threshold 100
   write /sys/devices/system/cpu/cpufreq/interactive/io_is_busy 1
-  write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 60000
-  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 10000
 
 #undervoltage
 
@@ -178,8 +185,8 @@ on property:sys.perf.undervoltage=0
 #  write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1044000
 #  write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
 #  write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 30000
-#  write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 60000
+#  write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 20000
 #  write /sys/devices/system/cpu/cpufreq/interactive/io_busy_threshold 100
 #  write /sys/devices/system/cpu/cpufreq/interactive/io_is_busy 1
-#  write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 60000
+#  write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 80000
 #  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 10000
