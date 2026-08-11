@@ -96,6 +96,17 @@ static void SendBoostPulse() {
             }
             return;
         }
+
+        /* And once when it opens, if it had not before. Without this the log
+         * is silent in both cases, so silence says nothing about which of the
+         * two is happening -- which is how this node stayed unwritable for
+         * months. init grants it after the governor is chosen, so the first
+         * hints of a boot can legitimately arrive before it exists. */
+        if (boostpulse_complained) {
+            boostpulse_complained = false;
+            ALOGI("%s opened; touch and launch hints raise the clock",
+                  BOOSTPULSE_NODE.c_str());
+        }
     }
 
     if (write(boostpulse_fd, "1", 1) < 0) {
