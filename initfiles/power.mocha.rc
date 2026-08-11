@@ -23,7 +23,10 @@ on property:sys.perf.profile=0
   write /sys/kernel/tegra_gpu/gpu_floor_rate 72000000
   write /sys/kernel/tegra_gpu/gpu_cap_state 1
   write /sys/kernel/tegra_gpu/gpu_cap_rate 396000000
-  write /sys/module/input_cfboost/parameters/boost_enabled 1
+  # Off. The clock is raised by the pulse the power HAL sends instead --
+  # see the note in the balanced profile. Values kept so that turning this
+  # back on is one character.
+  write /sys/module/input_cfboost/parameters/boost_enabled 0
   write /sys/module/input_cfboost/parameters/boost_freq 696000
   write /sys/module/input_cfboost/parameters/boost_time 75
   write /sys/module/input_cfboost/parameters/boost_emc 0
@@ -73,6 +76,27 @@ on property:sys.perf.profile=1
   write /sys/kernel/tegra_gpu/gpu_floor_rate 72000000
   write /sys/kernel/tegra_gpu/gpu_cap_state 1
   write /sys/kernel/tegra_gpu/gpu_cap_rate 708000000
+  # One boost mechanism, not two.
+  #
+  # input_cfboost is a kernel module that watches raw input events and puts a
+  # PM QoS floor under the governor. It is switched off in every profile, in
+  # favour of the pulse the power HAL sends to this governor's own boostpulse
+  # node, for three reasons:
+  #
+  #   It knows why. The framework sends INTERACTION and LAUNCH, so a touch and
+  #   an application starting are told apart -- and a launch may involve no
+  #   touch at all, which the kernel module can never see.
+  #
+  #   Its unique contribution is currently empty. The only thing it does that
+  #   boostpulse cannot is raise memory and graphics; boost_emc is 0 in every
+  #   profile that had it on, so memory was never raised, and the GPU was
+  #   measured not to be the constraint -- three times its clock changed the
+  #   frame not at all.
+  #
+  #   Two sources of frequency decisions are twice the work to reason about
+  #   when the clock behaves oddly: whose floor was that.
+  #
+  # Turning it back on is one character per profile; the values are kept.
   write /sys/module/input_cfboost/parameters/boost_enabled 0
   write /sys/devices/system/cpu/cpu1/online 1
   write /sys/devices/system/cpu/cpu2/online 1
@@ -112,7 +136,8 @@ on property:sys.perf.profile=2
   write /sys/kernel/tegra_gpu/gpu_floor_rate 72000000
   write /sys/kernel/tegra_gpu/gpu_cap_state 1
   write /sys/kernel/tegra_gpu/gpu_cap_rate 852000000
-  write /sys/module/input_cfboost/parameters/boost_enabled 1
+  # Off, as in every profile now -- see the balanced one for why.
+  write /sys/module/input_cfboost/parameters/boost_enabled 0
   write /sys/module/input_cfboost/parameters/boost_freq 1044000
   write /sys/module/input_cfboost/parameters/boost_time 100
   write /sys/module/input_cfboost/parameters/boost_emc 0
