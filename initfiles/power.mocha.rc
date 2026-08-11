@@ -17,6 +17,12 @@
 on property:sys.perf.profile=0
   write /sys/block/mmcblk0/queue/scheduler "noop"
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor "interactive"
+  # Root-owned as the kernel makes them, and the HAL is not root -- the
+  # balanced profile says what this is for.
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+  chmod 0664 /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 1044000
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 204000
   write /sys/kernel/tegra_gpu/gpu_floor_state 1
@@ -47,6 +53,12 @@ on property:sys.perf.profile=0
 on property:sys.perf.profile=3
   write /sys/block/mmcblk0/queue/scheduler "row"
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor "interactive"
+  # Root-owned as the kernel makes them, and the HAL is not root -- the
+  # balanced profile says what this is for.
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+  chmod 0664 /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 1530000
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 204000
   write /sys/kernel/tegra_gpu/gpu_floor_state 1
@@ -70,6 +82,28 @@ on property:sys.perf.profile=3
 on property:sys.perf.profile=1
   write /sys/block/mmcblk0/queue/scheduler "row"
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor "interactive"
+  # This governor's control nodes belong to root, and the power HAL does not.
+  # boostpulse is created 0200 root:root and io_is_busy 0644 root:root, while
+  # android.hardware.power@1.0-service.mocha runs as system, so every open of
+  # them returned EACCES -- and the HAL says so exactly once:
+  #
+  #   no .../interactive/boostpulse; touch and launch hints will not raise
+  #   the clock
+  #
+  # after which the failure is silent. The pulse this whole profile is built
+  # around had therefore never fired at all. A trace of an application opening
+  # shows the governor climbing 312 -> 1734 MHz in eight sampling ticks with
+  # nobody pushing it, which is what that looks like from the outside.
+  #
+  # Granted here rather than in ueventd because this directory does not exist
+  # until a governor is chosen -- the kernel default is userspace -- so a rule
+  # there would race the node into being. Repeated in every profile because
+  # leaving interactive and coming back destroys the group and recreates it,
+  # taking the ownership with it.
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+  chmod 0664 /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 1836000
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 204000
   write /sys/kernel/tegra_gpu/gpu_floor_state 1
@@ -130,6 +164,12 @@ on property:sys.perf.profile=1
 on property:sys.perf.profile=2
   write /sys/block/mmcblk0/queue/scheduler "row"
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor "interactive"
+  # Root-owned as the kernel makes them, and the HAL is not root -- the
+  # balanced profile says what this is for.
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+  chown system system /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+  chmod 0664 /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2218000
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 204000
   write /sys/kernel/tegra_gpu/gpu_floor_state 1
