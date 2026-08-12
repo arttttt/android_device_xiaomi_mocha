@@ -21,10 +21,20 @@
        BT tx-queue fixes it carries are not version specific. -->
   <project name="arttttt/SmokeR24.1-kernel" path="kernel/xiaomi/mocha" remote="github" revision="SmokeR24.1-stable" />
 
-  <!-- Still on their 15.1 branches. The camera HAL will need at least a look
-       at the Vulkan loader, since the platform may now expose the gralloc interop the HAL
-       module path currently provides. -->
-  <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-15.1" />
+  <!-- The blobs have their own 16.0 branch and this release needs it: the
+       composer is built from source here, and the 15.1 branch still ships a
+       prebuilt hwcomposer.tegra beside it. Two definitions of one module is a
+       parse error rather than a preference, so the whole build stops at
+
+         vendor/nvidia/shield/hal: MODULE.TARGET.SHARED_LIBRARIES.hwcomposer.tegra
+         already defined by hardware/nvidia/hwcomposer
+
+       and no full zip could be produced at all while this said 15.1. -->
+  <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-16.0" />
+
+  <!-- Still on its 15.1 branch. The camera HAL will need at least a look at the
+       Vulkan loader, since the platform may now expose the gralloc interop the
+       HAL module path currently provides. -->
   <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-15.1" />
 
   <!-- Branched for P. Upstream rebuilt its 16.0 line rather than continuing
@@ -43,8 +53,15 @@
   <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-16.0" />
 
   <!-- Our hardware composer. Ours alone and needed by this branch only, so it
-       carries no per-release branches and is pinned to main. -->
-  <project name="arttttt/android_hardware_nvidia_hwcomposer" path="hardware/nvidia/hwcomposer" remote="github" revision="main" />
+       carries no per-release branches.
+
+       Pinned to the working branch rather than to main, because that is where
+       the composer actually is: the merge onto the controller's spare window,
+       surviving a SurfaceFlinger restart, the fence switch and its counters.
+       Saying main here did not build an older composer, it built one without
+       any of that, quietly, on every sync. Once the branch lands on main this
+       goes back to main. -->
+  <project name="arttttt/android_hardware_nvidia_hwcomposer" path="hardware/nvidia/hwcomposer" remote="github" revision="feature/upstream-core" />
 
   <!-- NVIDIA support repos. Both have real lineage-16.0 branches upstream,
        so take those rather than the 15.1 ones. libstagefrighthw is the OMX
