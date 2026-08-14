@@ -45,3 +45,25 @@ persist.sys.usb.config=adb,mtp
 persist.sys.isUsbOtgEnabled=1
 
 media.stagefright.less-secure=true
+
+# What the compositor tells SurfaceFlinger about when a frame appeared, and
+# when the app is woken to draw the next one. Judged on the panel, because
+# every arrangement of these measures the same: four configurations that look
+# plainly different to the eye all sit inside 7.5-13% of frames losing a tick.
+#
+# vendor.hwc.fence=2 withholds the present fence from the compositor's client.
+# That fence is a statement about timing and protects nothing -- the fences
+# that keep a buffer from being drawn over while the display reads it are
+# separate and stay honest. Handing it over costs some of the smoothness of a
+# transition and buys back only SurfaceFlinger's own frame-time statistics,
+# which is a poor trade on a panel this slow. Set it to 0 to get those
+# statistics back before taking a measurement.
+#
+# The early offsets are the ones in force while a transaction is pending,
+# which is exactly a transition; the base offsets in BoardConfig.mk are left
+# alone because they govern every other frame. 14 ms was swept against 7.5,
+# 10, 12, 15.5 and 16.5: it is the last value before the offset runs past the
+# refresh period and the app starts aiming at the following vsync instead.
+vendor.hwc.fence=2
+debug.sf.early_app_phase_offset_ns=14000000
+debug.sf.early_gl_app_phase_offset_ns=14000000
