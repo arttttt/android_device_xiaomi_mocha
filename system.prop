@@ -62,15 +62,14 @@ media.stagefright.less-secure=true
 # for a buffer from tens of milliseconds to under one.
 debug.sf.latch_unsignaled=1
 
-# With the refusal gone the present fence can be honest again. Withholding
-# it (the previous answer here) kept SurfaceFlinger from skipping frames,
-# but also starved its model of when the panel refreshes: the model was
-# reset every half second, rebuilt from a couple of hardware samples, and
-# wandered -- transitions came out a different length every run. An honest
-# fence feeds the model continuously; the run-to-run spread halved, and
-# `dumpsys SurfaceFlinger --timestats` describes the real pipeline again.
-vendor.hwc.fence=1
-
+# With the refusal gone the present fence is honest again. Withholding it
+# (the previous answer here) kept SurfaceFlinger from skipping frames, but
+# also starved its model of when the panel refreshes: the model was reset
+# every half second, rebuilt from a couple of hardware samples, and
+# wandered -- transitions came out a different length every run. The
+# composer now hands over this flip's own fence unconditionally; the
+# debug-era vendor.hwc.fence switch is gone with the debugging it served.
+#
 # The honest fence would wake the very check the old answer was dodging:
 # a frame whose fence has not signalled by the next wake-up is dropped
 # whole, with no grace at all. Later Android softened that check to a
