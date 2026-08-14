@@ -46,28 +46,34 @@ persist.sys.isUsbOtgEnabled=1
 
 media.stagefright.less-secure=true
 
-# What the compositor tells SurfaceFlinger about when a frame appeared.
+# Latch without waiting, and tell SurfaceFlinger the truth about time.
 #
-# This withholds the present fence from it. That fence is a statement about
-# timing and protects nothing: the fences that keep a buffer from being drawn
-# over while the display is still reading it are separate and stay honest.
-# Handing it over costs some of the smoothness of a transition and buys back
-# only SurfaceFlinger's own frame-time statistics -- a poor trade here, though
-# it does mean any measurement taken with `dumpsys SurfaceFlinger --timestats`
-# describes a pipeline nobody is running until this is set back to 0.
-#
-# The early vsync offsets used to be set here too, at 14 ms against a base of
-# 7.5, chosen because they cut the time an app spends waiting for a buffer
-# from 3.2 ms to 1.0. They are gone, and the reason is worth keeping:
-# SurfaceFlinger switches to the early offsets when a transaction begins,
-# which is the start of every transition, and the switch itself moves the app
-# by the difference between the two. That shows up as a single interval of
-# 16.66 + 6.5 = 23.2 ms in the middle of an animation that is otherwise a
-# clean 16.7 -- one hitch per transition, and on an animation only eight
-# frames long, an eighth of it. The sweep that picked 14 ms was measuring the
-# wait for a buffer and could not see the hitch at all.
-#
-# With them removed the app is woken on an exact 16.7 ms cadence, three runs
-# in four, and what unevenness is left sits in how long the app takes to
-# finish a frame -- 12.7 to 22.9 ms against a perfectly even 16.7 going in.
-vendor.hwc.fence=2
+# Android 9 refuses to latch a frame whose drawing the GPU has not yet
+# finished, and re-asks a full refresh later. On this GPU a transition's
+# frames are routinely still drawing at that moment, and with a queue of
+# three buffers the one refusal freezes two of its slots: the application
+# runs out of buffers and stands still, which cascades into losing every
+# second or third tick of an animation. Android 7 never had the refusal --
+# built without USE_HWC2 the check compiled to "yes" -- which is most of
+# why it felt smooth. Latching unsignalled hands the wait to consumers
+# that overlap it with their own work: the GPU waits before it reads, the
+# kernel waits before it flips. Measured on the recents transition:
+# skipped ticks fell from 32 in eight runs to one or two, and the wait
+# for a buffer from tens of milliseconds to under one.
+debug.sf.latch_unsignaled=1
+
+# With the refusal gone the present fence can be honest again. Withholding
+# it (the previous answer here) kept SurfaceFlinger from skipping frames,
+# but also starved its model of when the panel refreshes: the model was
+# reset every half second, rebuilt from a couple of hardware samples, and
+# wandered -- transitions came out a different length every run. An honest
+# fence feeds the model continuously; the run-to-run spread halved, and
+# `dumpsys SurfaceFlinger --timestats` describes the real pipeline again.
+vendor.hwc.fence=1
+
+# The honest fence would wake the very check the old answer was dodging:
+# a frame whose fence has not signalled by the next wake-up is dropped
+# whole, with no grace at all. Later Android softened that check to a
+# grace period; here it is simply turned off, and a late frame is shown
+# late instead of not at all.
+debug.sf.disable_backpressure=1
