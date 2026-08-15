@@ -1,0 +1,27 @@
+Subject: composer: restart SurfaceFlinger when the composer comes back
+
+SurfaceFlinger resolves the composer service exactly once, at its own
+start, and carries no death recipient for it: a composer that dies
+leaves SF holding a proxy to a node that no longer exists, every call
+answering an error it reads as "no resources", the screen frozen until
+someone restarts SF by hand. That is unchanged through Android 22 --
+the fix has always lived in init, not in code, and hwc3-pixel.rc
+carries exactly this line. The stock direction (SF stopped -> restart
+HWC) stays; the two do not loop, because a restart passes through
+"restarting", never "stopped".
+
+--- a/graphics/composer/2.1/default/android.hardware.graphics.composer@2.1-service.rc
++++ b/graphics/composer/2.1/default/android.hardware.graphics.composer@2.1-service.rc
+@@ -4,6 +4,12 @@
+     group graphics drmrpc
+     capabilities SYS_NICE
+     writepid /dev/cpuset/system-background/tasks
++    # A dead composer leaves SurfaceFlinger holding a proxy to a node that
++    # no longer exists: it never re-resolves the service, every call returns
++    # an error that reads as "no resources", and the screen stays frozen
++    # until someone restarts it by hand. Restarting it here closes the loop
++    # the moment the composer comes back, the way hwc3-pixel.rc does.
++    onrestart restart surfaceflinger
+ 
+ # Restart HWC when SurfaceFlinger stops. This turns off the display and prpares
+ # a new HWC instance for when SurfaceFlinger gets started again
