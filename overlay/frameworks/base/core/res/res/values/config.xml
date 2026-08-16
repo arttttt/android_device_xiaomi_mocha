@@ -238,7 +238,17 @@
     <!-- Boolean indicating whether the HWC setColorTransform function can be performed efficiently
          in hardware. -->
     <bool name="config_setColorTransformAccelerated">true</bool>
-    
+
+    <!-- Colour modes offered in Settings -> Display -> Colours: natural,
+         boosted, saturated. Their matrices ride the standard colour
+         transform, which the composer now applies in the display
+         controller's own colour pipeline. -->
+    <integer-array name="config_availableColorModes">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </integer-array>
+
     <!-- The device supports freeform window management. Windows have title bars and can be moved
          and resized. If you set this to true, you also need to add
          PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT feature to your device specification.
