@@ -57,6 +57,13 @@ TARGET_SCREEN_WIDTH := 1536
 # with its render intents -- which SurfaceFlinger refuses to even ask
 # about while this is unset.
 TARGET_HAS_WIDE_COLOR_DISPLAY := true
+
+# The other half of the same lock, one process over: without this the
+# composer@2.2 service is COMPILED to answer every render-intent query
+# with colorimetric and to clamp setColorMode_2_2 to it -- the HAL is
+# never even asked. The flag only defines USES_DISPLAY_RENDER_INTENTS
+# for the service; the composer behind it already speaks intents.
+TARGET_USES_DISPLAY_RENDER_INTENTS := true
 TARGET_BOOTANIMATION_HALF_RES := true
 
 # FM radio (Broadcom V4L2 over BT shared transport ldisc)
