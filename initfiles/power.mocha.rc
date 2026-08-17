@@ -176,6 +176,10 @@ on property:sys.perf.profile=2
   chown system system /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
   chmod 0664 /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2218000
+  # The floor stays at the bottom even here. A flat profile pinned to
+  # 1836 was measured: ninety-nine milliamperes of idle, all day, for a
+  # jank change the burst scene could not tell from noise -- the instant
+  # climb below hispeed already covers the ramp.
   write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 204000
   write /sys/kernel/tegra_gpu/gpu_floor_state 1
   write /sys/kernel/tegra_gpu/gpu_floor_rate 72000000
