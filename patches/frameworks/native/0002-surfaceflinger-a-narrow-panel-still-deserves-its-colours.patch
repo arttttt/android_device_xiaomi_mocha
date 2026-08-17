@@ -1,0 +1,44 @@
+From: Artem Bambalov <artembambalov1993@gmail.com>
+Subject: [PATCH] surfaceflinger: a narrow panel still deserves its colours
+
+populateColorModes returns early for a display without a wide gamut,
+which leaves the colour mode table empty -- and with an empty table
+the colour setting has nothing to pick from, so a narrow panel is
+locked to native no matter what the composer offers. But nothing in
+the SDR half of that table needs a wide panel: sRGB and native modes
+with their render intents describe an sRGB-class display exactly as
+well, and the composer behind it maps every intent onto its own
+colour machinery. The SDR half is now built for every display; the
+HDR half keeps the original gate.
+
+diff --git a/services/surfaceflinger/DisplayDevice.cpp b/services/surfaceflinger/DisplayDevice.cpp
+index 6755ab6ed..0e3cc1ac0 100644
+--- a/services/surfaceflinger/DisplayDevice.cpp
++++ b/services/surfaceflinger/DisplayDevice.cpp
+@@ -716,9 +716,12 @@ void DisplayDevice::addColorMode(
+ 
+ void DisplayDevice::populateColorModes(
+         const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes) {
+-    if (!hasWideColorGamut()) {
+-        return;
+-    }
++    // The SDR half of the table is built for every display. Upstream
++    // returns early for a narrow-gamut panel, which leaves the table
++    // empty and the colour setting with nothing to pick from -- but
++    // nothing below this line needs a wide panel: sRGB and native
++    // modes with their render intents describe an sRGB-class display
++    // exactly as well. The HDR half keeps the original gate.
+ 
+     // collect all known SDR render intents
+     std::unordered_set<RenderIntent> sdrRenderIntents(sSdrRenderIntents.begin(),
+@@ -737,6 +740,10 @@ void DisplayDevice::populateColorModes(
+         }
+     }
+ 
++    if (!hasWideColorGamut()) {
++        return;
++    }
++
+     // collect all known HDR render intents
+     std::unordered_set<RenderIntent> hdrRenderIntents(sHdrRenderIntents.begin(),
+                                                       sHdrRenderIntents.end());

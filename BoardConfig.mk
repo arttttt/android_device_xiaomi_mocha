@@ -49,6 +49,14 @@ TARGET_NO_RADIOIMAGE := true
 # Boot animation
 TARGET_SCREEN_HEIGHT := 2048
 TARGET_SCREEN_WIDTH := 1536
+
+# Unlocks SurfaceFlinger's colour management, not a claim about the
+# glass: the panel is sRGB-class and the composer never reports a wide
+# mode, so every wide-gamut path stays off on its own per-display
+# check. What this opens is the mode table -- sRGB and native, each
+# with its render intents -- which SurfaceFlinger refuses to even ask
+# about while this is unset.
+TARGET_HAS_WIDE_COLOR_DISPLAY := true
 TARGET_BOOTANIMATION_HALF_RES := true
 
 # FM radio (Broadcom V4L2 over BT shared transport ldisc)
