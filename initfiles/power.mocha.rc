@@ -48,7 +48,7 @@ on property:sys.perf.profile=0
   write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 20000
   write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 80000
   write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 40000
-  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 20000
+  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay "0 696000:20000"
   write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
   write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 696000
   write /sys/devices/system/cpu/cpufreq/interactive/target_loads "80 204000:85 564000:90"
@@ -74,7 +74,7 @@ on property:sys.perf.profile=3
   write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 20000
   write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 80000
   write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 60000
-  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 20000
+  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay "0 828000:20000"
   write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
   write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 828000
   write /sys/devices/system/cpu/cpufreq/interactive/target_loads "75 204000:80 564000:88"
@@ -153,7 +153,13 @@ on property:sys.perf.profile=1
   write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 20000
   write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 20000
   write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 80000
-  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 20000
+  # The climb below hispeed is instant; the brake above it stays. The
+  # pulse covers a touch's first half second, a drawer animation outlives
+  # it, and the governor then climbed one sampling tick at a time: frames
+  # beyond two refreshes were 25 % of the burst scene and dropped to 9
+  # when the lower steps stopped waiting. The same scene on the board's
+  # ammeter: no cost -- work finished sooner is work powered shorter.
+  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay "0 1122000:20000"
   write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
   write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1122000
   write /sys/devices/system/cpu/cpufreq/interactive/target_loads "65 204000:75 564000:85"
@@ -184,7 +190,7 @@ on property:sys.perf.profile=2
   write /sys/devices/system/cpu/cpufreq/interactive/timer_rate 20000
   write /sys/devices/system/cpu/cpufreq/interactive/timer_slack 20000
   write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 80000
-  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 20000
+  write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay "0 1428000:20000"
   write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 99
   write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1428000
   write /sys/devices/system/cpu/cpufreq/interactive/target_loads "60 204000:70 564000:80"
