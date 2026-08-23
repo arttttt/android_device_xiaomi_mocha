@@ -1,0 +1,99 @@
+From: Artem Bambalov <artembambalov1993@gmail.com>
+Subject: [PATCH] systemui: the wallpaper listens to the display, not the window
+
+The static wallpaper draws into a fixed-size surface, and the only code
+that ever resizes that surface is its own drawFrame. The system merely
+delivers the occasion: a rotation puts the window into the resize
+report, the report becomes onSurfaceRedrawNeeded, and drawFrame reads
+the new display shape and asks for the matching surface. Miss the
+report and the chain has no second chance -- a fixed-size window keeps
+its old frame across the rotation, so no onSurfaceChanged arrives
+either, and on a still launcher (offsets constant, visibility steady)
+nothing calls drawFrame again. The surface stays shaped for the
+previous orientation, and the panel shows the difference as a black
+stripe: the stock wallpaper bitmap is 1920 to the panel's 2048, a
+128px shortfall on whichever axis the stale shape leaves uncovered.
+
+The report does get missed. A second rotation arriving mid-animation
+is deferred, and when it finally lands the wallpaper window can sit
+outside the layout pass that builds the resize list. Caught live on
+device: portrait panel, landscape-shaped surface, and the engine's own
+dump still holding the previous rotation -- drawFrame was simply never
+invoked. Restarts don't heal it, because the window manager recreates
+the surface from the recorded requested size.
+
+Upstream fixed this line of code only by leaving it: Q rewrote the
+wallpaper around a GL engine. The Q-era guard extension (comparing
+remembered display dimensions, 4fcb6ec0ba98) does not help here --
+P keeps no client-side DisplayInfo cache (USE_CACHE is false), the
+window manager pushes rotation and logical size into the display
+service atomically, so the size clause can never fire apart from the
+rotation clause. The failure is a lost trigger, not stale data.
+
+So take the trigger from the one source that always announces the
+change: the display itself. A DisplayListener on the default display
+calls drawFrame after every display change; the callback reads through
+the uncached path, so it always sees the fresh shape, and the existing
+guard does the rest. The extra calls on ordinary rotations fall into
+drawFrame's own suppression. WallpaperService already runs one such
+listener per engine for visibility reporting; a second registration
+changes nothing for other consumers.
+
+diff --git a/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java b/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java
+index 50d862dee29..ccdb0648267 100644
+--- a/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java
++++ b/packages/SystemUI/src/com/android/systemui/ImageWallpaper.java
+@@ -23,6 +23,7 @@ import android.graphics.Canvas;
+ import android.graphics.Rect;
+ import android.graphics.RectF;
+ import android.graphics.Region.Op;
++import android.hardware.display.DisplayManager;
+ import android.os.AsyncTask;
+ import android.os.Handler;
+ import android.os.Trace;
+@@ -87,6 +88,28 @@ public class ImageWallpaper extends WallpaperService {
+         private Display mDefaultDisplay;
+         private final DisplayInfo mTmpDisplayInfo = new DisplayInfo();
+ 
++        // A fixed-size wallpaper surface keeps its frame across a display change,
++        // so no onSurfaceChanged arrives, and when the rotation's resize report
++        // misses this window nothing else is guaranteed to call drawFrame again.
++        // The display itself is the one source that always announces the change.
++        private final DisplayManager.DisplayListener mDisplayListener =
++                new DisplayManager.DisplayListener() {
++            @Override
++            public void onDisplayAdded(int displayId) {
++            }
++
++            @Override
++            public void onDisplayRemoved(int displayId) {
++            }
++
++            @Override
++            public void onDisplayChanged(int displayId) {
++                if (mDefaultDisplay != null && displayId == mDefaultDisplay.getDisplayId()) {
++                    drawFrame();
++                }
++            }
++        };
++
+         boolean mVisible = true;
+         boolean mOffsetsChanged;
+         int mLastXTranslation;
+@@ -129,6 +152,8 @@ public class ImageWallpaper extends WallpaperService {
+ 
+             //noinspection ConstantConditions
+             mDefaultDisplay = getSystemService(WindowManager.class).getDefaultDisplay();
++            getSystemService(DisplayManager.class).registerDisplayListener(mDisplayListener,
++                    getMainThreadHandler());
+             setOffsetNotificationsEnabled(false);
+ 
+             updateSurfaceSize(surfaceHolder, getDefaultDisplayInfo(), false /* forDraw */);
+@@ -137,6 +162,7 @@ public class ImageWallpaper extends WallpaperService {
+         @Override
+         public void onDestroy() {
+             super.onDestroy();
++            getSystemService(DisplayManager.class).unregisterDisplayListener(mDisplayListener);
+             mBackground = null;
+             unloadWallpaper(true /* forgetSize */);
+         }
