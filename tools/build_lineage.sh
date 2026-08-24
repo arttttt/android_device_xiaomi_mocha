@@ -1,6 +1,6 @@
 #!/bin/bash
 # LineageOS (mocha) — unified sync / post-sync / clean / build menu.
-# Version (14.1 / 15.1 / 16.0) is chosen via the first menu. Each version has
+# Version (14.1 / 15.1 / 16.0 / 17.1) is chosen via the first menu. Each version has
 # its own config and its own post-sync patches — patches are per-system,
 # never shared, even when they look similar.
 
@@ -345,6 +345,39 @@ post_sync_160() {
 }
 
 #==============================================================================
+# 17.1
+#==============================================================================
+
+config_171() {
+    VER="17.1"
+    V=171
+    BUILD_DIR="/home/artem/DATA/projects/android/10.0.0"
+    REPO_INIT_URL="https://github.com/LineageOS/android.git"
+    REPO_INIT_BRANCH="lineage-17.1"
+    REPO_INIT_FLAGS="--git-lfs"
+    DEVICE_TREE_BRANCH="lineage-17.1"
+
+    # Android 10 still builds with the in-tree OpenJDK 9, same as 16.0.
+    # Confirm against the tree after the first sync.
+    export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/jdk9/linux-x86"
+    export PATH="$JAVA_HOME/bin:$BUILD_DIR/prebuilts/python/linux-x86/2.7.5/bin:$PATH"
+
+    # Same kernel toolchain override as the other versions: the in-tree
+    # androideabi-4.9 pin miscompiles on this host, linaro-4.9.4 does not.
+    : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
+    : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
+    export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
+}
+
+# Deliberately empty: 17.1 starts with no post-sync work at all -- not even
+# the fixes the other versions share (zlib.so, webview LFS, patch_trees).
+# Each of those returns only when the bring-up hits the failure it cures,
+# so the list stays a record of observed needs rather than inherited habit.
+post_sync_171() {
+    echo "==> post-sync patches (17.1): none by decision"
+}
+
+#==============================================================================
 # Actions (version-agnostic, driven by config_* vars)
 #==============================================================================
 
@@ -487,7 +520,7 @@ usage() {
     cat <<EOF
 usage: $(basename "$0") [<version> <action>]
 
-  version   14.1 | 15.1 | 16.0
+  version   14.1 | 15.1 | 16.0 | 17.1
   action    manifest | sync | post-sync | clean | build | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
                        (sync does this first, so it is only needed on its own
@@ -505,6 +538,7 @@ select_version() {
         14.1|141) config_141 ;;
         15.1|151) config_151 ;;
         16.0|160) config_160 ;;
+        17.1|171) config_171 ;;
         *) echo "unknown version: $1" >&2; return 1 ;;
     esac
 }
@@ -548,6 +582,7 @@ cat <<EOF
   1) 14.1
   2) 15.1
   3) 16.0
+  4) 17.1
   q) quit
 ==========================================================
 EOF
@@ -556,6 +591,7 @@ case "$ver_ans" in
     1) config_141 ;;
     2) config_151 ;;
     3) config_160 ;;
+    4) config_171 ;;
     q|Q|"") echo "bye"; exit 0 ;;
     *) echo "unknown: $ver_ans"; exit 1 ;;
 esac
