@@ -20,8 +20,6 @@
 
 #include <android-base/logging.h>
 
-#include <thread>
-
 namespace {
 using android::hardware::light::V2_0::LightState;
 
@@ -221,7 +219,10 @@ void Light::setAttentionLight(const LightState& state) {
 }
 
 void Light::setLcdBacklight(const LightState& state) {
-    std::lock_guard<std::mutex> lock(mLock);
+    /* Brightness shares nothing with the LED machinery, so it does not
+     * queue behind it: its own lock only orders concurrent writers of
+     * the same sysfs stream. */
+    std::lock_guard<std::mutex> lock(mBacklightLock);
 
     uint32_t brightness = rgbToBrightness(state);
 
@@ -237,7 +238,7 @@ void Light::setLcdBacklight(const LightState& state) {
 }
 
 void Light::setButtonsBacklight(const LightState& state) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::lock_guard<std::mutex> lock(mBacklightLock);
     
     uint32_t brightness = rgbToBrightness(state);
     
@@ -273,25 +274,25 @@ void Light::setSpeakerBatteryLightLocked() {
         setSpeakerLightLocked(mBatteryState);
     } else {
         // Lights off
+        if (mSpeakerSet && mSpeakerColor == 0) {
+            return;
+        }
         mLedRunEngine << 0 << std::endl;
         mRedLed << 0 << std::endl;
         mGreenLed << 0 << std::endl;
         mBlueLed << 0 << std::endl;
+        mSpeakerSet = true;
+        mSpeakerColor = 0;
+        mSpeakerOnMs = 0;
+        mSpeakerOffMs = 0;
     }
 }
 
 void Light::setSpeakerLightLocked(const LightState& state) {
     int red, green, blue, blink;
     int onMs, offMs;
-    uint32_t colorRGB = state.color;
+    uint32_t colorRGB = state.color & 0x00ffffff;
     struct color *nearest = NULL;
-    
-    // Disable all blinking to start
-    mLedRunEngine << 0 << std::endl;
-    mRedLed << 0 << std::endl;
-    mGreenLed << 0 << std::endl;
-    mBlueLed << 0 << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     switch (state.flashMode) {
         case Flash::TIMED:
@@ -304,6 +305,21 @@ void Light::setSpeakerLightLocked(const LightState& state) {
             offMs = 0;
             break;
     }
+
+    // The chip is already showing exactly this; re-asserting it would
+    // only make the diode visibly blink off and on.
+    if (mSpeakerSet && colorRGB == mSpeakerColor && onMs == mSpeakerOnMs &&
+        offMs == mSpeakerOffMs) {
+        return;
+    }
+
+    // Disable all blinking to start. No pause: the kernel driver orders
+    // these writes itself and waits out the chip's own settling times,
+    // measured in microseconds, inside its worker.
+    mLedRunEngine << 0 << std::endl;
+    mRedLed << 0 << std::endl;
+    mGreenLed << 0 << std::endl;
+    mBlueLed << 0 << std::endl;
 
     red = (colorRGB >> 16) & 0xff;
     green = (colorRGB >> 8) & 0xff;
@@ -332,15 +348,12 @@ void Light::setSpeakerLightLocked(const LightState& state) {
             
         if (blink && red) {
             mLedSelectEngine << 1 << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if (blink && green) {
             mLedSelectEngine << 2 << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if (blink && blue) {
             mLedSelectEngine << 3 << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         mLedRunEngine << 1 << std::endl;
     } else {
@@ -348,6 +361,11 @@ void Light::setSpeakerLightLocked(const LightState& state) {
         mGreenLed << green << std::endl;
         mBlueLed << blue << std::endl;
     }
+
+    mSpeakerSet = true;
+    mSpeakerColor = colorRGB;
+    mSpeakerOnMs = onMs;
+    mSpeakerOffMs = offMs;
 }
 
 }  // namespace implementation

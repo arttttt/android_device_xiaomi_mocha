@@ -62,6 +62,15 @@ struct Light : public ILight {
 
     std::unordered_map<Type, std::function<void(const LightState&)>> mLights;
     std::mutex mLock;
+    std::mutex mBacklightLock;
+
+    /* What the LED chip is already showing. The framework re-asserts the
+     * battery light on every clock tick; without this memory each assert
+     * turned the diode off and back on. */
+    bool mSpeakerSet = false;
+    uint32_t mSpeakerColor = 0;
+    int mSpeakerOnMs = 0;
+    int mSpeakerOffMs = 0;
 };
 
 }  // namespace implementation
