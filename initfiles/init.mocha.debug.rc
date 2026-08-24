@@ -1,8 +1,21 @@
 # Mocha debug: stream Android logcat to UART (/dev/ttyS0).
 # Provides early-boot log capture when adb is not yet available
 # (e.g. boot loop in init/zygote, mediaserver wedge, SELinux denials).
+#
+# Off unless asked for: the stream costs a logcat process writing every
+# line of every log to the serial port on every boot, watched or not.
+# The persist property lives in /data, so it survives a reboot AND a
+# reflash -- armed before flashing, it captures the first boot of a new
+# system, which is exactly the boot adb cannot show.
 
 service logcat-uart /system/bin/sh -c "exec /system/bin/logcat -b all -v threadtime > /dev/ttyS0 2>&1"
     class main
     user root
     group root log
+    disabled
+
+on property:persist.vendor.uartlog=1
+    start logcat-uart
+
+on property:persist.vendor.uartlog=0
+    stop logcat-uart
