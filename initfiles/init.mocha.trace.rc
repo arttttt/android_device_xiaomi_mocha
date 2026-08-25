@@ -1,0 +1,13 @@
+# Mocha: keep the trace marker writable for applications.
+#
+# The modern WebView's sandboxed renderer aborts outright if it cannot
+# open /sys/kernel/debug/tracing/trace_marker for writing -- and the
+# boot-time chmod the platform's own atrace.rc performs does not stick
+# on this device. Re-asserted once the system is up: a belt that heals
+# the mode whatever undid it at boot, and cheap enough to owe nobody an
+# explanation. Installed to /system/etc/init so it rides a system image
+# alone, no ramdisk rebuild needed.
+
+on property:sys.boot_completed=1
+    chmod 0222 /sys/kernel/debug/tracing/trace_marker
+    chmod 0222 /sys/kernel/tracing/trace_marker

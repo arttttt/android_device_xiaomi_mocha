@@ -174,6 +174,7 @@ PRODUCT_PACKAGES += \
     init.comms.rc \
     init.hdcp.rc \
     init.mocha.debug.rc \
+    init.mocha.trace.rc \
     init.t124.rc \
     init.tegra.rc \
     init.tlk.rc \
