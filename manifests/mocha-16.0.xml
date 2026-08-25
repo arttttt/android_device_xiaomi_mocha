@@ -69,4 +69,20 @@
        backs thermal.tegra, which device.mk asks for. -->
   <project name="LineageOS/android_hardware_nvidia_libstagefrighthw" path="hardware/nvidia/libstagefrighthw" remote="github" revision="lineage-16.0" />
   <project name="LineageOS/android_hardware_nvidia_thermal" path="hardware/nvidia/thermal" remote="github" revision="lineage-16.0" />
+
+  <!-- WebView, pinned. The lineage-16.0 snippet takes these prebuilts from
+       a moving branch that a bot bumps for every living branch at once;
+       past 129 the provider hard-references android.webkit.PacProcessor,
+       which this framework does not have, and the browser dies at
+       getProvider. 129.0.6668.70 is the newest whose provider survives
+       on P; pinned here so a sync can never walk the WebView out of
+       compatibility again. -->
+  <remove-project name="LineageOS/android_external_chromium-webview_prebuilt_arm" />
+  <remove-project name="LineageOS/android_external_chromium-webview_prebuilt_arm64" />
+  <remove-project name="LineageOS/android_external_chromium-webview_prebuilt_x86" />
+  <remove-project name="LineageOS/android_external_chromium-webview_prebuilt_x86_64" />
+  <project name="LineageOS/android_external_chromium-webview_prebuilt_arm" path="external/chromium-webview/prebuilt/arm" groups="pdk" revision="175ad5b6bb9396afa6e778f80476eb0289e05b8f" />
+  <project name="LineageOS/android_external_chromium-webview_prebuilt_arm64" path="external/chromium-webview/prebuilt/arm64" groups="pdk" revision="522ea9ce17f941eae1c758eaa850645f3855ad07" />
+  <project name="LineageOS/android_external_chromium-webview_prebuilt_x86" path="external/chromium-webview/prebuilt/x86" groups="pdk" revision="ac179654d89de256d9364a0e75b7a239e7cf9aac" />
+  <project name="LineageOS/android_external_chromium-webview_prebuilt_x86_64" path="external/chromium-webview/prebuilt/x86_64" groups="pdk" revision="c77f59b8b34565d587a8314c14269bc98ff69bd6" />
 </manifest>
