@@ -60,4 +60,23 @@
        from the system volume keys. -->
   <remove-project name="LineageOS/android_packages_apps_FMRadio" />
   <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-17.1" />
+
+  <!-- The OMX plugin, upstream's and not ours. It has no 17.1 branch and needs
+       none: lineage-15.1 and lineage-16.0 are the same commit, the module is
+       already installed through LOCAL_PROPRIETARY_MODULE at 32 bits, and the
+       path that loads it is alive on Q. The vendor media.codec process loads
+       libstagefrighthw.so through the sphal namespace, which searches
+       /vendor/lib, and that is also where our libnvomx blob lands, so the
+       whole chain meets in one directory.
+
+       Leaving it out costs nothing at build time and everything at runtime:
+       device.mk asks for the package, a missing project makes that request
+       resolve to nothing, and hardware decoding is simply absent from the
+       image. That is how it went missing on 15.1.
+
+       Its neighbour hardware/nvidia/thermal is deliberately not here yet. That
+       repository stopped providing the legacy thermal.tegra module long ago and
+       now ships a HIDL service instead, so adding it means changing the device
+       tree as well, and that is being decided separately. -->
+  <project name="LineageOS/android_hardware_nvidia_libstagefrighthw" path="hardware/nvidia/libstagefrighthw" remote="github" revision="lineage-16.0" />
 </manifest>
