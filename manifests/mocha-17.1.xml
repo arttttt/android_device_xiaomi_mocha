@@ -74,9 +74,28 @@
        resolve to nothing, and hardware decoding is simply absent from the
        image. That is how it went missing on 15.1.
 
-       Its neighbour hardware/nvidia/thermal is deliberately not here yet. That
-       repository stopped providing the legacy thermal.tegra module long ago and
-       now ships a HIDL service instead, so adding it means changing the device
-       tree as well, and that is being decided separately. -->
+       Its neighbour below took the opposite road. -->
   <project name="LineageOS/android_hardware_nvidia_libstagefrighthw" path="hardware/nvidia/libstagefrighthw" remote="github" revision="lineage-16.0" />
+
+  <!-- Thermal, and this one does have a 17.1 branch that differs from 16.0 by
+       exactly the two changes Q needs: libhidltransport dropped, since Q folded
+       it into libhidlbase, and the HAL manifest delivered as a vintf fragment
+       instead of BoardThermal.mk.
+
+       What it builds is no longer the legacy thermal.tegra module. It stopped
+       being that back on 15.1 and now ships a single binderized service,
+       android.hardware.thermal@1.0-service-nvidia, installed to /vendor/bin/hw.
+       Anything in this tree still asking for thermal.tegra is asking for a
+       package nobody builds, and a request like that resolves to nothing in
+       silence.
+
+       Ours rather than upstream's, and only because the service as shipped
+       cannot serve a board without a fan. All three of its HIDL methods sized
+       their answer by the number of thermal zones, so a cores attribute made
+       every getTemperatures fail, /proc/stat overran the cpu-usage vector, and
+       an empty cooling list was walked as if it had one entry per zone, which
+       killed the service on the first dumpsys. Our branch keeps upstream's
+       17.1 as its base and adds the three fixes; if they land upstream this
+       goes back to LineageOS. -->
+  <project name="arttttt/android_hardware_nvidia_thermal" path="hardware/nvidia/thermal" remote="github" revision="lineage-17.1" />
 </manifest>
