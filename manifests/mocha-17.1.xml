@@ -25,9 +25,23 @@
   <project name="arttttt/android_device_xiaomi_mocha" path="device/xiaomi/mocha" remote="github" revision="lineage-17.1" />
 
   <!-- Branched off the 16.0 head as well, and it carries the commit that stops
-       shield from building the composer this board no longer uses. Until
-       hardware/nvidia/hwcomposer is listed here, that leaves nothing at all
-       providing hwcomposer.tegra: a deliberate hole, to be filled when the
-       composer is brought over, not papered over with the 15.1 prebuilt. -->
+       shield from building the composer this board no longer uses. That makes
+       hardware/nvidia/hwcomposer below the only thing providing
+       hwcomposer.tegra: the prebuilt beside it is exactly the second definition
+       of one module that stopped every 16.0 build until the two were separated. -->
   <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-17.1" />
+
+  <!-- Our own composer, written for this board and needed by no other, so it
+       carries no per-release branches at all: main is where it lives, and both
+       16.0 and 17.1 read from it. It stays that way until the two releases need
+       different code, and on the day they do the branch is made here, not by
+       quietly pinning a revision. -->
+  <project name="arttttt/android_hardware_nvidia_hwcomposer" path="hardware/nvidia/hwcomposer" remote="github" revision="main" />
+
+  <!-- Branched for Q off the 15.1 head, the code 16.0 shipped with. Unlike the
+       composer this HAL does carry per-release branches, because it is built
+       against the platform: the HIDL camera provider and device versions are
+       release specific, and the Vulkan loader picks its path by what the
+       driver exposes on the running system. -->
+  <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-17.1" />
 </manifest>
