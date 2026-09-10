@@ -44,4 +44,20 @@
        release specific, and the Vulkan loader picks its path by what the
        driver exposes on the running system. -->
   <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-17.1" />
+
+  <!-- The FM side of the Broadcom chip, branched for Q off the 16.0 head. It
+       also carries brcm-uim-sysfs, which attaches the line discipline for
+       Bluetooth as well as FM, so this repository is on the path of both
+       radios even though nothing here is named after Bluetooth. Everything
+       else Bluetooth needs is elsewhere: brcm_bt_drv in the kernel,
+       bt_vendor.conf and vnd_mocha.txt in the device tree, libbt-vendor and
+       the chip patch in the blobs, and the stack itself from upstream. -->
+  <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="lineage-17.1" />
+
+  <!-- FMRadio: the upstream entry lives in snippets/lineage.xml and has to be
+       removed before ours can take the same path. Branched for Q off the 16.0
+       head; what is genuinely ours here is the bridge that drives the FM DAC
+       from the system volume keys. -->
+  <remove-project name="LineageOS/android_packages_apps_FMRadio" />
+  <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-17.1" />
 </manifest>
