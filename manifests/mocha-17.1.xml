@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Local manifest for the LineageOS 17.1 tree. tools/build_lineage.sh installs it
+  as .repo/local_manifests/mocha.xml.
+
+  It starts with the three repositories a mocha tree cannot exist without: the
+  kernel, the device tree and the blobs. Everything else that 16.0 carried, the
+  composer, the camera HAL and the FM pair, joins as the bring-up reaches it,
+  and each one is added only once it is known which branch it should point at.
+  An entry aimed at the wrong branch is worse than a missing one, because a
+  missing repository announces itself while a wrong revision quietly builds
+  something nobody meant to build.
+
+  Note for anyone editing this file: XML forbids a double hyphen inside a
+  comment, and repo reports it only as "not well-formed (invalid token)"
+  with a line and column, never as the reason.
+-->
+<manifest>
+  <!-- One kernel serves every version. SmokeR24.1-stable is the line the 16.0
+       release shipped from, and nothing in it is tied to a platform release. -->
+  <project name="arttttt/SmokeR24.1-kernel" path="kernel/xiaomi/mocha" remote="github" revision="SmokeR24.1-stable" />
+
+  <!-- Branched off the 16.0 head after the release, so it starts from exactly
+       what shipped rather than from an older common ancestor. -->
+  <project name="arttttt/android_device_xiaomi_mocha" path="device/xiaomi/mocha" remote="github" revision="lineage-17.1" />
+
+  <!-- Branched off the 16.0 head as well, and it carries the commit that stops
+       shield from building the composer this board no longer uses. Until
+       hardware/nvidia/hwcomposer is listed here, that leaves nothing at all
+       providing hwcomposer.tegra: a deliberate hole, to be filled when the
+       composer is brought over, not papered over with the 15.1 prebuilt. -->
+  <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-17.1" />
+</manifest>
