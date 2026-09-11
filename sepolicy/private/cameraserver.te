@@ -85,5 +85,6 @@ r_dir_file(cameraserver, camera_config_file)
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-binder_call(cameraserver, hal_configstore)
-allow cameraserver hal_configstore_ISurfaceFlingerConfigs:hwservice_manager find;
+# Q reserves finding this hwservice for domains carrying hal_configstore_client,
+# and hands out both that attribute and the binder rules through one macro.
+hal_client_domain(cameraserver, hal_configstore)

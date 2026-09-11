@@ -56,4 +56,9 @@ type rpx_block_device, dev_type;
 
 # /dev/cy8c-led-boot
 type cy8c_device, dev_type;
+
+# /dev/nvhost-msenc -- the video encoder. It used to be labelled camera_device
+# along with the capture nodes, which Q refuses: only the camera HAL may touch
+# camera_device, and the encoder is reached by the codec HAL instead.
+type nvhost_msenc_device, dev_type;
 type gps_device, dev_type;

@@ -30,7 +30,9 @@ binder_service(ussrd)
 allow ussrd ussrd_service:service_manager add;
 
 # /dev/socket/phsd
-allow ussrd phsd_socket:unix_stream_socket rw_stream_socket_perms;
+# Without the ioctl: Q forbids socket ioctls that are not whitelisted through
+# allowxperm, and rw_stream_socket_perms carries one. Nothing here issues any.
+allow ussrd phsd_socket:unix_stream_socket { rw_socket_perms_no_ioctl listen accept };
 
 # R/W sysfs, /dev nodes
 allow ussrd sysfs_devices_system_cpu:file rw_file_perms;

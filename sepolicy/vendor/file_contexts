@@ -32,7 +32,7 @@
 /dev/nvhost-vi.*			u:object_r:camera_device:s0
 /dev/nvhost-ctrl-isp.*			u:object_r:camera_device:s0
 /dev/nvhost-isp.*			u:object_r:camera_device:s0
-/dev/nvhost-msenc			u:object_r:camera_device:s0
+/dev/nvhost-msenc			u:object_r:nvhost_msenc_device:s0
 /dev/focuser				u:object_r:camera_device:s0
 /dev/torch.*				u:object_r:camera_device:s0
 /dev/mipi-cal				u:object_r:camera_device:s0
