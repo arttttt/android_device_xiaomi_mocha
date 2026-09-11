@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--ThermalHAL config for mocha.
+
+     The service reads this file as /vendor/etc/thermalhal.<ro.hardware>.xml,
+     and ro.hardware here is tn8: the board carries NVIDIA's TN8 BSP, which is
+     why fstab.tn8 and ueventd.tn8.rc are named the way they are too.
+
+     Every zone below is named by its type string in /sys/class/thermal, which
+     the kernel takes from the device tree node. CPU-therm and GPU-therm are
+     soctherm sensors, therm_est is the estimated skin temperature, battery is
+     the fuel gauge's own zone. All four report milli-degrees, hence the
+     multiplier.
+
+     The thresholds are not written here: the HAL reads them from the zone's
+     own trip points, taking the first "passive" trip for both throttling
+     thresholds and "critical" for shutdown. Only the two soctherm zones have
+     both. The skin estimator has a single passive trip at 47C and no critical
+     one, and the battery zone has no trips at all, so both borrow CPU-therm's
+     thresholds through threshold-label. This is not cosmetic: a zone whose
+     four paths cannot all be resolved makes the HAL refuse the entire list,
+     not just that zone.
+
+     No cores attribute. It repeats one reading once per core and tells the
+     framework nothing the single CPU entry does not.
+
+     No cooling devices. The tablet is passively cooled: no pwm-fan node
+     appears anywhere in the device trees mocha includes, and FAN_RPM is the
+     only cooling type this interface knows.
+
+     One honest oddity to expect on a cold device: therm_est reports 25C until
+     the board sensor passes 40C and the estimator starts. That is the
+     estimator working as designed, not a dead zone.
+-->
+<thermalhal>
+	<thermal_devices>
+		<thermal_device>
+			<thermal-prop name="CPU" type="DEVICE_TEMPERATURE_CPU" sensor-label="CPU-therm" multiplier='0.001' />
+		</thermal_device>
+		<thermal_device>
+			<thermal-prop name="GPU" type="DEVICE_TEMPERATURE_GPU" sensor-label="GPU-therm" multiplier='0.001' />
+		</thermal_device>
+		<thermal_device>
+			<thermal-prop name="skin" type="DEVICE_TEMPERATURE_SKIN" sensor-label="therm_est" threshold-label="CPU-therm" multiplier='0.001' />
+		</thermal_device>
+		<thermal_device>
+			<thermal-prop name="battery" type="DEVICE_TEMPERATURE_BATTERY" sensor-label="battery" threshold-label="CPU-therm" multiplier='0.001' />
+		</thermal_device>
+	</thermal_devices>
+	<cpu_usages cpus="4" />
+</thermalhal>
