@@ -187,10 +187,6 @@
 (/system)?/vendor/bin/pbc2		u:object_r:pbc_exec:s0
 # cvc
 (/system)?/vendor/bin/cvc		u:object_r:cvc_exec:s0
-# cyupdate.sh
-(/system)?/vendor/bin/cyupdate.sh	u:object_r:cyupdate_exec:s0
-# cyload
-(/system)?/vendor/bin/cyload		u:object_r:cyupdate_exec:s0
 # upnpfused
 (/system)?/vendor/bin/upnpfuse		u:object_r:upnpfused_exec:s0
 # qvs shell script
