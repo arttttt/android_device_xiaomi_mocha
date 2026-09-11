@@ -40,22 +40,6 @@ import struct
 import subprocess
 import sys
 
-# Installed blobs that construct a Parcel but are never loaded, with the
-# reason.  Listed rather than patched because patching them would mean
-# teaching this tool the A32 encodings for code that no process maps.
-#
-# All four are reachable only through audio.primary.vendor.tegra.so, the stock
-# NVIDIA audio HAL.  This board runs tinyhal instead: hidl/audio builds
-# audio.primary.$(TARGET_BOARD_PLATFORM) = audio.primary.tegra.so, and that is
-# the name hw_get_module resolves, so the stock HAL and everything below it is
-# dead weight in the image.  Delete the blobs and these entries go with them.
-UNREACHABLE = {
-    "libbt-client-api.so": "stock audio HAL only; board uses tinyhal",
-    "libaudioavp.so": "stock audio HAL only; board uses tinyhal",
-    "libnvcapaudioservice.so": "stock audio HAL only; board uses tinyhal",
-    "libnvaudioservice.so": "stock audio HAL only; board uses tinyhal",
-}
-
 PARCEL_CTORS = ("_ZN7android6ParcelC1Ev", "_ZN7android6ParcelC2Ev")
 PROBE_SYMBOL = "__parcel_size_probe"
 
@@ -645,9 +629,6 @@ def refit(path, size, objdump, nm, dry_run=False):
         return None
 
     name = os.path.basename(path)
-    if name in UNREACHABLE:
-        print(f"  {name}: skipped -- {UNREACHABLE[name]}")
-        return None
 
     # A32 and T32 can coexist: these blobs are Thumb but carry statically
     # linked compiler helpers (__aeabi_*, __udivdi3) built as ARM.  Those never
