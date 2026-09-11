@@ -32,10 +32,14 @@
        and no full zip could be produced at all while this said 15.1. -->
   <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-16.0" />
 
-  <!-- Still on its 15.1 branch. The camera HAL will need at least a look at the
-       Vulkan loader, since the platform may now expose the gralloc interop the
-       HAL module path currently provides. -->
-  <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-15.1" />
+  <!-- Branched off the 15.1 head, 5d38aa6, which is exactly the tree the first
+       16.0 release shipped, so the branch starts identical to 15.1 and only
+       diverges as the P-specific fixes land. It was overdue: that release was
+       built while this line still said lineage-15.1, which left every 16.0 fix
+       with nowhere to go but the 15.1 branch. The Vulkan loader still wants a
+       look, since the platform may now expose the gralloc interop the HAL
+       module path currently provides. -->
+  <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-16.0" />
 
   <!-- Branched for P. Upstream rebuilt its 16.0 line rather than continuing
        15.1, so our three fixes were replayed onto it rather than merged: the
@@ -55,13 +59,13 @@
   <!-- Our hardware composer. Ours alone and needed by this branch only, so it
        carries no per-release branches.
 
-       Pinned to the working branch rather than to main, because that is where
-       the composer actually is: the merge onto the controller's spare window,
-       surviving a SurfaceFlinger restart, the fence switch and its counters.
-       Saying main here did not build an older composer, it built one without
-       any of that, quietly, on every sync. Once the branch lands on main this
-       goes back to main. -->
-  <project name="arttttt/android_hardware_nvidia_hwcomposer" path="hardware/nvidia/hwcomposer" remote="github" revision="feature/upstream-core" />
+       The working branch has landed on main and been deleted, so this says main
+       again. While it lived, saying main here did not build an older composer,
+       it built one without the merge onto the controller's spare window, the
+       SurfaceFlinger-restart survival or the fence switch, quietly, on every
+       sync. All of that is on main now, and feature/upstream-core no longer
+       resolves at all, so a sync against the old line would simply fail. -->
+  <project name="arttttt/android_hardware_nvidia_hwcomposer" path="hardware/nvidia/hwcomposer" remote="github" revision="main" />
 
   <!-- NVIDIA support repos. Both have real lineage-16.0 branches upstream,
        so take those rather than the 15.1 ones. libstagefrighthw is the OMX
