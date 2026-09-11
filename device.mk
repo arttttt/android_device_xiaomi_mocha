@@ -198,7 +198,7 @@ PRODUCT_PACKAGES += \
 PRODUCT_CHARACTERISTICS := tablet
 
 # Thermal
-PRODUCT_PACKAGES += thermal.tegra
+PRODUCT_PACKAGES += thermalhal.tn8.xml
 
 # Vendor seccomp policy files for media components:
 PRODUCT_COPY_FILES += \
