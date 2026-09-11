@@ -74,17 +74,11 @@ on init
     mkdir /mnt/tmp 0770 system system
     mount tmpfs tmpfs /mnt/tmp mode=0775,gid=1003
 
-# Loads real wifi and bt mac from /dev/block/mmcblk0p15
+# Loads the wifi and bt addresses: from the BKB partition when the factory
+# wrote them there, and derived from the serial number when it did not.
 service conn_wifi /system/vendor/bin/conn_init -op
     class main
     user root
     group root
     seclabel u:r:conn_wifi:s0
-    oneshot
-
-service mac_generator /system/vendor/bin/macaddr.sh -op
-    class main
-    user root
-    group root
-    seclabel u:r:mac_generator:s0
     oneshot

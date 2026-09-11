@@ -35,7 +35,7 @@ Treble private/public/vendor split is done. The three-way classification:
   init, kernel, platform_app, priv_app, etc.).
 - `vendor/` — new NVIDIA/mocha domains (ussrd, bt_loader, gpsd, rpx,
   charon, ctload, …), HAL-side augments (wifi_hal_default), mocha bits
-  (conn_wifi, mac_generator), plus `file_contexts`, `genfs_contexts`,
+  (conn_wifi), plus `file_contexts`, `genfs_contexts`,
   `property_contexts`, `service_contexts`, `seapp_contexts`,
   `mac_permissions.xml`, `keys.conf`, `certs/`.
 
