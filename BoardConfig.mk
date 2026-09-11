@@ -140,7 +140,12 @@ TARGET_RECOVERY_DEVICE_MODULES := mocha_init
 # serializes behind ~1.3 KB of synchronous 115200-baud UART printk,
 # capping video recording at ~5 fps. Level 4 keeps warnings/panics on
 # the wire and INFO spam off it.
-BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive console=ttyS0,115200n8 loglevel=4
+# Bring-up setting: ignore_loglevel instead of loglevel=4. With the level gate
+# in place the console shows only messages of error rank or worse, which during
+# the 17.1 bring-up hid both the early boot and init's own failures -- the board
+# looked as if the kernel never started when in fact init was dying. Put the
+# gate back before a release: it costs boot time and fills the log.
+BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive console=ttyS0,115200n8 ignore_loglevel
 BOARD_KERNEL_BASE := 0x10000000
 BOARD_RAMDISK_OFFSET := 0x02000000
 BOARD_KERNEL_PAGESIZE := 2048
