@@ -168,9 +168,13 @@ PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.sensor.stepdetector.xml:system/etc/permissions/android.hardware.sensor.stepdetector.xml \
     frameworks/native/data/etc/android.software.freeform_window_management.xml:system/etc/permissions/android.software.freeform_window_management.xml
     
-# Ramdisk
+# Ramdisk and the board's init files. Only the fstab rides in the ramdisk; the
+# rc files live in /vendor/etc/init/hw, where the second stage looks for
+# init.<hardware>.rc, and ueventd's board file is named ueventd.rc in /vendor,
+# which is the only name ueventd looks for there.
 PRODUCT_PACKAGES += \
     fstab.tn8 \
+    fstab.tn8.vendor \
     init.comms.rc \
     init.hdcp.rc \
     init.mocha.debug.rc \
@@ -184,7 +188,7 @@ PRODUCT_PACKAGES += \
     init.ussrd.rc \
     power.tn8.rc \
     power.mocha.rc \
-    ueventd.tn8.rc \
+    ueventd.rc \
     ussrd.conf \
     ussr_setup
     
