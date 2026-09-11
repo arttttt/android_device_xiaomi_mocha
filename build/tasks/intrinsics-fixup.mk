@@ -24,11 +24,19 @@
 # produces system.img at all. Hooking only the former left the blobs unpatched
 # in every ROM zip.
 
+# The work is hung on a stamp file rather than on a phony target. kati in Q
+# refuses the latter outright -- "real file system.img depends on PHONY target
+# intrinsics-fixup" -- and a stamp says the same thing in terms it accepts: the
+# image and the target-files package depend on a file, that file depends on the
+# staged tree, and the script runs when the staged tree is newer than it.
+
 INTRINSICS_FIXUP_SCRIPT := device/xiaomi/mocha/intrinsics-fixup/fixup-intrinsics.py
+INTRINSICS_FIXUP_STAMP := $(PRODUCT_OUT)/obj/PACKAGING/intrinsics_fixup_intermediates/stamp
 
-.PHONY: intrinsics-fixup
-intrinsics-fixup: $(INTERNAL_SYSTEMIMAGE_FILES)
+$(INTRINSICS_FIXUP_STAMP): $(INTRINSICS_FIXUP_SCRIPT) $(INTERNAL_SYSTEMIMAGE_FILES)
+	@mkdir -p $(dir $@)
 	@python3 $(INTRINSICS_FIXUP_SCRIPT) $(TARGET_OUT_VENDOR)
+	$(hide) touch $@
 
-$(INSTALLED_SYSTEMIMAGE): intrinsics-fixup
-$(BUILT_TARGET_FILES_PACKAGE): intrinsics-fixup
+$(INSTALLED_SYSTEMIMAGE): $(INTRINSICS_FIXUP_STAMP)
+$(BUILT_TARGET_FILES_PACKAGE): $(INTRINSICS_FIXUP_STAMP)
