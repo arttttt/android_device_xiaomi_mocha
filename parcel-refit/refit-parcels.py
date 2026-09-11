@@ -137,6 +137,54 @@ class Elf32:
             starts.append((entry_addr + rel) & 0xFFFFFFFF)
         return sorted(set(starts))
 
+    def plt_stubs(self):
+        """Map each PLT stub's address to the symbol it calls.
+
+        objdump is not asked this.  The LLVM in the Q tree is 9.0 and does not
+        synthesise the `<sym@plt>` labels that newer ones do, and the whole
+        point of this tool is to survive a change of platform -- so the answer
+        is read out of the file.  .rel.plt says which GOT slot belongs to which
+        symbol, and each stub names its own GOT slot:
+
+            add r12, pc,  #imm, #rot
+            add r12, r12, #imm, #rot
+            ldr pc, [r12, #imm12]!
+        """
+        rel = self.section(".rel.plt")
+        plt = self.section(".plt")
+        if rel is None or plt is None:
+            raise Fatal(f"{self.path}: no .rel.plt/.plt to resolve calls with")
+        syms = self.dyn_symbols()
+        got = {}
+        for off in range(rel["offset"], rel["offset"] + rel["size"], 8):
+            r_offset, r_info = struct.unpack_from("<II", self.data, off)
+            if r_info & 0xFF != 22:            # R_ARM_JUMP_SLOT
+                continue
+            idx = r_info >> 8
+            if idx < len(syms):
+                got[r_offset] = syms[idx]["name"]
+
+        def modimm(word):
+            imm8, rot = word & 0xFF, ((word >> 8) & 0xF) * 2
+            return ((imm8 >> rot) | (imm8 << (32 - rot))) & 0xFFFFFFFF if rot \
+                else imm8
+
+        stubs = {}
+        base, size = plt["addr"], plt["size"]
+        for pos in range(0, size - 11, 4):
+            w0, w1, w2 = struct.unpack_from("<3I", self.data,
+                                            plt["offset"] + pos)
+            if (w0 & 0xFFFFF000 != 0xE28FC000
+                    or w1 & 0xFFFFF000 != 0xE28CC000
+                    or w2 & 0xFFFFF000 != 0xE5BCF000):
+                continue
+            addr = base + pos
+            slot = (addr + 8 + modimm(w0) + modimm(w1)
+                    + (w2 & 0xFFF)) & 0xFFFFFFFF
+            if slot in got:
+                stubs[addr] = got[slot]
+        return stubs
+
     def dyn_symbols(self):
         sym = self.section(".dynsym")
         if sym is None:
@@ -169,13 +217,14 @@ class Insn:
     two apart.
     """
 
-    __slots__ = ("addr", "size", "mnem", "args", "halfwords")
+    __slots__ = ("addr", "size", "mnem", "args", "halfwords", "target")
 
     def __init__(self, addr, mnem, args, halfwords):
         self.addr = addr
         self.mnem, self.args = mnem, args
         self.halfwords = halfwords
         self.size = 2 * len(halfwords)
+        self.target = None
 
     def encode(self, halfwords):
         return b"".join(struct.pack("<H", h) for h in halfwords)
@@ -207,16 +256,9 @@ def disassemble(objdump, path, thumb):
                           capture_output=True, text=True)
     if proc.returncode != 0:
         raise Fatal(f"{path}: objdump failed: {proc.stderr.strip()}")
-    insns, plt = [], {}
+    insns = []
     literals = []          # (addr, length) of constant pools, see below
-    label = None
     for raw in proc.stdout.splitlines():
-        m = re.match(r"^([0-9a-f]+)\s+<(.+)>:$", raw.strip())
-        if m:
-            label = m.group(2)
-            if label.endswith("@plt"):
-                plt[int(m.group(1), 16)] = label[:-4]
-            continue
         if "\t" not in raw:
             continue
         head, *rest = raw.split("\t")
@@ -224,32 +266,90 @@ def disassemble(objdump, path, thumb):
         if not m or not rest:
             continue
         addr = int(m.group(1), 16)
-        groups = m.group(2).split()
-        if any(len(g) != 4 for g in groups):
-            continue                       # not Thumb: a 32-bit A32 word
+        halfwords = normalise(m.group(2).split())
+        if halfwords is None:
+            continue
         mnem = rest[0].strip()
-        full = rest[1].strip() if len(rest) > 1 else ""
-        args, _, comment = full.partition("@")
-        args, comment = args.strip(), comment.strip()
+        args = (rest[1].strip() if len(rest) > 1 else "").partition("@")[0]
+        ins = Insn(addr, mnem, args.strip(), halfwords)
 
-        # Constant pools sit inside the function bodies and objdump decodes
-        # them as instructions -- which is where offsets like [sp, #1008] came
-        # from in a frame of 124 bytes.  Every pool entry is named by the
-        # pc-relative load that reads it, and objdump resolves the address in
-        # its comment, so the loads themselves say which bytes are data.
-        if mnem.startswith("ldr") and "[pc" in args:
-            m = re.match(r"^0x([0-9a-f]+)", comment)
-            if m:
-                literals.append((int(m.group(1), 16),
-                                 8 if mnem.startswith("ldrd") else 4))
+        # Branch targets and constant-pool addresses are computed from the
+        # encoding, never read from objdump's annotations: LLVM 9 (what the Q
+        # tree ships) prints neither `<sym@plt>` labels nor resolved literal
+        # addresses, and prints branch displacements rather than destinations.
+        # Decoding them here is both version-proof and exact.
+        ins.target = branch_target(ins)
+        lit = literal_target(ins)
+        if lit is not None:
+            literals.append((lit, 8 if mnem.startswith("ldrd") else 4))
+        insns.append(ins)
 
-        insns.append(Insn(addr, mnem, args, [int(g, 16) for g in groups]))
-
+    # Constant pools sit inside the function bodies and disassemble as
+    # plausible instructions -- which is where a [sp, #1008] appeared in a
+    # frame of 124 bytes.  The loads that read them say which bytes are data.
     def is_data(ins):
         return any(a < ins.addr + ins.size and ins.addr < a + n
                    for a, n in literals)
 
-    return [i for i in insns if not is_data(i)], plt
+    return [i for i in insns if not is_data(i)]
+
+
+def normalise(groups):
+    """Turn objdump's byte column into halfwords, whichever way it prints.
+
+    LLVM 9 prints bytes in file order ("ff f7 2e ee"); newer ones print the
+    halfwords themselves ("f7ff ee2e").  Both mean the same instruction, and
+    everything downstream wants halfwords.
+    """
+    if not groups:
+        return None
+    if all(len(g) == 4 for g in groups):
+        return [int(g, 16) for g in groups]
+    if all(len(g) == 2 for g in groups) and len(groups) % 2 == 0:
+        b = [int(g, 16) for g in groups]
+        return [b[i] | (b[i + 1] << 8) for i in range(0, len(b), 2)]
+    return None
+
+
+def branch_target(ins):
+    """Absolute destination of a Thumb BL/BLX (immediate), or None."""
+    if len(ins.halfwords) != 2:
+        return None
+    hw1, hw2 = ins.halfwords
+    if hw1 & 0xF800 != 0xF000 or hw2 & 0xC000 != 0xC000:
+        return None
+    s = (hw1 >> 10) & 1
+    j1, j2 = (hw2 >> 13) & 1, (hw2 >> 11) & 1
+    i1, i2 = 1 - (j1 ^ s), 1 - (j2 ^ s)
+    to_arm = not (hw2 >> 12) & 1                       # BLX exchanges
+    if to_arm:
+        imm = ((hw1 & 0x3FF) << 12) | ((hw2 & 0x7FE) << 1)
+        pc = (ins.addr + 4) & ~3
+    else:
+        imm = ((hw1 & 0x3FF) << 12) | ((hw2 & 0x7FF) << 1)
+        pc = ins.addr + 4
+    off = (s << 24) | (i1 << 23) | (i2 << 22) | imm
+    if off & 0x1000000:
+        off -= 0x2000000
+    return (pc + off) & 0xFFFFFFFF
+
+
+def literal_target(ins):
+    """Address of the constant a pc-relative load reads, or None."""
+    pc = (ins.addr + 4) & ~3
+    if len(ins.halfwords) == 1:
+        hw = ins.halfwords[0]
+        if hw & 0xF800 == 0x4800:                      # LDR Rt, [pc, #imm8*4]
+            return pc + ((hw & 0xFF) << 2)
+        return None
+    hw1, hw2 = ins.halfwords
+    if hw1 & 0xFF7F == 0xF85F:                         # LDR.W Rt, [pc, #imm12]
+        imm = hw2 & 0xFFF
+        return pc + imm if (hw1 >> 7) & 1 else pc - imm
+    if hw1 & 0xFE7F == 0xE85F:                         # LDRD Rt, Rt2, [pc,#±]
+        imm = (hw2 & 0xFF) << 2
+        return pc + imm if (hw1 >> 7) & 1 else pc - imm
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -336,12 +436,7 @@ class Function:
                 self.offsets.add(regmap[m.group(1)] + int(m.group(2), 0))
 
             # a Parcel is born
-            if mn.startswith("bl"):
-                tgt = None
-                mm = re.search(r"0x([0-9a-f]+)", args)
-                if mm:
-                    tgt = int(mm.group(1), 16)
-                if tgt in ctor_addrs:
+            if ins.target in ctor_addrs:
                     if "r0" not in regmap:
                         raise Fatal(f"{self.name}: cannot tell where the "
                                     f"Parcel at 0x{ins.addr:x} lives")
@@ -507,10 +602,7 @@ def functions_of(elf, insns, ctor_addrs, arm_ranges=()):
     limit = text["addr"] + text["size"]
 
     def calls_ctor(ins):
-        if not ins.mnem.startswith("bl"):
-            return False
-        m = re.search(r"0x([0-9a-f]+)", ins.args)
-        return bool(m) and int(m.group(1), 16) in ctor_addrs
+        return ins.target in ctor_addrs
 
     def is_arm(addr):
         return any(lo <= addr < hi for lo, hi in arm_ranges)
@@ -557,8 +649,8 @@ def refit(path, size, objdump, nm, dry_run=False):
                   if s["type"] == STT_FUNC and s["shndx"] and s["value"]
                   and not s["value"] & 1]
 
-    insns, plt = disassemble(objdump, path, thumb=True)
-    ctor_addrs = {a for a, n in plt.items() if n in PARCEL_CTORS}
+    insns = disassemble(objdump, path, thumb=True)
+    ctor_addrs = {a for a, n in elf.plt_stubs().items() if n in PARCEL_CTORS}
     if not ctor_addrs:
         raise Fatal(f"{path}: imports a Parcel constructor but no PLT stub "
                     f"was found")
@@ -610,8 +702,8 @@ def refit(path, size, objdump, nm, dry_run=False):
 def verify(path, size, objdump):
     """Re-read the patched blob and insist every Parcel now fits."""
     elf = Elf32(path)
-    insns, plt = disassemble(objdump, path, thumb=True)
-    ctor_addrs = {a for a, n in plt.items() if n in PARCEL_CTORS}
+    insns = disassemble(objdump, path, thumb=True)
+    ctor_addrs = {a for a, n in elf.plt_stubs().items() if n in PARCEL_CTORS}
     for fn in functions_of(elf, insns, ctor_addrs):
         fn.analyse(ctor_addrs)
         left = fn.plan(size)
