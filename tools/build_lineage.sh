@@ -357,10 +357,21 @@ config_171() {
     REPO_INIT_FLAGS="--git-lfs"
     DEVICE_TREE_BRANCH="lineage-17.1"
 
-    # Android 10 still builds with the in-tree OpenJDK 9, same as 16.0.
-    # Confirm against the tree after the first sync.
-    export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/jdk9/linux-x86"
-    export PATH="$JAVA_HOME/bin:$BUILD_DIR/prebuilts/python/linux-x86/2.7.5/bin:$PATH"
+    # No JDK and no python here, unlike the older versions. Q hands out both
+    # itself: soong_ui sets JAVA_HOME to prebuilts/jdk/jdk9 and prepends it to
+    # PATH (build/soong/ui/build/config.go), overwriting whatever we export,
+    # and prebuilts/build-tools/path carries python, python2 and python2.7 as
+    # links to its own py2-cmd, which is what the build scripts' shebangs find.
+    # Setting either here only makes the file look like it decides something.
+
+    # What the host does still get wrong is mke2fs. The tree's copy is from
+    # 2018 and reads /etc/mke2fs.conf, which on a rolling distribution lists
+    # features it has never heard of, so building an APEX payload dies with
+    #
+    #   Invalid filesystem option set: ...,orphan_file
+    #
+    # The tree ships a configuration of its own; point the tool at it.
+    export MKE2FS_CONFIG="$BUILD_DIR/system/extras/ext4_utils/mke2fs.conf"
 
     # Same kernel toolchain override as the other versions: the in-tree
     # androideabi-4.9 pin miscompiles on this host, linaro-4.9.4 does not.
