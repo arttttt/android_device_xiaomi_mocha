@@ -373,7 +373,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-(/system)?/vendor/bin/glgps_nvidiaTegra2android	u:object_r:gpsd_exec:s0
 /sys/devices/platform/7000c000.i2c/i2c-0/0-002c/backlight/lcd-backlight/brightness	u:object_r:sysfs_pwm_backlight:s0
 
 /sys/vibrator/pwmvalue           u:object_r:sysfs_vibrator:s0
