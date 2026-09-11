@@ -259,18 +259,27 @@ def disassemble(objdump, path, thumb):
     insns = []
     literals = []          # (addr, length) of constant pools, see below
     for raw in proc.stdout.splitlines():
-        if "\t" not in raw:
-            continue
-        head, *rest = raw.split("\t")
-        m = re.match(r"^\s*([0-9a-f]+):\s+([0-9a-f ]+?)\s*$", head)
-        if not m or not rest:
+        # Where the tabs fall is not stable either: LLVM 9 puts the byte column
+        # after the first tab, newer ones before it.  So the line is read as
+        # "address, then as many byte groups as there are, then the mnemonic" --
+        # no instruction is spelled with two or four hex digits, so the groups
+        # end where the mnemonic begins.
+        m = re.match(r"^\s*([0-9a-f]+):\s*(.+)$", raw.rstrip())
+        if not m:
             continue
         addr = int(m.group(1), 16)
-        halfwords = normalise(m.group(2).split())
+        parts = re.split(r"[\t ]+", m.group(2).strip())
+        n = 0
+        while n < len(parts) and re.fullmatch(r"[0-9a-f]{2}|[0-9a-f]{4}",
+                                              parts[n]):
+            n += 1
+        if not n or n >= len(parts):
+            continue
+        halfwords = normalise(parts[:n])
         if halfwords is None:
             continue
-        mnem = rest[0].strip()
-        args = (rest[1].strip() if len(rest) > 1 else "").partition("@")[0]
+        mnem = parts[n]
+        args = " ".join(parts[n + 1:]).partition("@")[0]
         ins = Insn(addr, mnem, args.strip(), halfwords)
 
         # Branch targets and constant-pool addresses are computed from the
