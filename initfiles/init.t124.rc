@@ -1,4 +1,4 @@
-import power.mocha.rc
+import /vendor/etc/init/hw/power.mocha.rc
 
 on boot
 # Power management settings

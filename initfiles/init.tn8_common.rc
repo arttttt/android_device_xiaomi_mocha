@@ -22,8 +22,14 @@ on fs
     setprop ro.crypto.umount_sd false
     setprop ro.crypto.fuse_sdcard true
     setprop audio.custompolicy 1
-    mount_all /fstab.tn8
-    swapon_all /fstab.tn8
+    # /vendor/etc, not /, because the ramdisk root is gone by now: first stage
+    # init mounts /system and switch_root replaces the root this path used to
+    # refer to. The ramdisk copy still exists and is still needed -- it is what
+    # first_stage_mount reads before there is a /system -- but it is not
+    # reachable from here. mount_all says nothing about an fstab it cannot
+    # open: it reads no entries, mounts nothing and returns success.
+    mount_all /vendor/etc/fstab.tn8
+    swapon_all /vendor/etc/fstab.tn8
 
 on boot
     #max resolution supported for Miracast is 1080p, represented interms of macroblocks

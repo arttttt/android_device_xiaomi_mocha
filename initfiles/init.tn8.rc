@@ -6,11 +6,16 @@
 #documentation without an express license agreement from NVIDIA Corporation
 #is strictly prohibited.
 
-import init.tegra.rc
-import init.tn8_common.rc
-import init.t124.rc
-import init.tn8.usb.rc
-import init.mocha.debug.rc
+# Absolute, because init does not resolve an import against the directory of
+# the file doing the importing: ImportParser::ParseSection expands properties
+# in the argument and keeps it otherwise verbatim, so a bare name is looked for
+# from init's own working directory, which is /. Every one of these was being
+# opened as /init.tegra.rc and so on, and none of them exists there.
+import /vendor/etc/init/hw/init.tegra.rc
+import /vendor/etc/init/hw/init.tn8_common.rc
+import /vendor/etc/init/hw/init.t124.rc
+import /vendor/etc/init/hw/init.tn8.usb.rc
+import /vendor/etc/init/hw/init.mocha.debug.rc
 
 on post-fs-data
     chmod 0644 /sys/kernel/cluster/active
