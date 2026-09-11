@@ -27,7 +27,3 @@ allow frostassist system_app_service:service_manager find;
 
 # Allow app to get meminfo
 allow frostassist proc_meminfo:file r_file_perms;
-
-#Allow app to user frostaudiortp
-allow frostassist frostaudiortp:unix_dgram_socket { read write setopt };
-allow frostassist frostaudiortp:unix_stream_socket connectto;

@@ -30,9 +30,6 @@ type pbc_prop, property_type;
 # For properties written by set_hwui_params.sh
 type hwui_prop, property_type;
 
-# IKEv2 daemon
-type ctl_charon_prop, property_type;
-
 # For locality properties
 type locality_prop, property_type;
 

@@ -11,13 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# rebindEthernet - rebindEthernet which modifies /sys/bus/usb/drivers/smsc95xx/*
-type rebindEthernet, domain;
-type rebindEthernet_exec, exec_type, file_type;
-
-init_daemon_domain(rebindEthernet)
-
-allow rebindEthernet rebindEthernet_exec:file open;
-allow rebindEthernet shell_exec:file read;
-allow rebindEthernet sysfs_bus_usb:file write;

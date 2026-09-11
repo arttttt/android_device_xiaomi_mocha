@@ -93,10 +93,6 @@ allow system_app keylayout_data_file:dir rw_dir_perms;
 # Read and write /data/data subdirectory.
 allow system_app system_app_data_file:lnk_file create_file_perms;
 
-# IKEv2 daemon
-unix_socket_connect(system_app, charon, charon_domain)
-allow system_app ctl_charon_prop:property_service set;
-
 # Gamepad reset
 allow system_app sysfs_gamepad:file rw_file_perms;
 

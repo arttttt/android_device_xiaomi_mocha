@@ -7,7 +7,7 @@
 #is strictly prohibited.
 
 # unified scaling setup
-service ussr_setup /system/bin/ussr_setup.sh
+service ussr_setup /vendor/bin/ussr_setup.sh
     class main
     user root
     group root

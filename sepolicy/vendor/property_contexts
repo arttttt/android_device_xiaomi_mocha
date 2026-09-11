@@ -65,9 +65,6 @@ xlan.driver.status               u:object_r:system_prop:s0
 hwui.                           u:object_r:hwui_prop:s0
 ro.hwui.                           u:object_r:hwui_prop:s0
 
-# IKEv2 daemon
-ctl.charon                       u:object_r:ctl_charon_prop:s0
-
 # locality properties
 user.language			u:object_r:locality_prop:s0
 user.region			u:object_r:locality_prop:s0

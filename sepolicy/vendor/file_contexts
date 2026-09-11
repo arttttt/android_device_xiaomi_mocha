@@ -132,8 +132,6 @@
 # cpc char device
 /dev/tegra_cpc				u:object_r:cpc_device:s0
 # IKEv2 daemon
-/dev/socket/charon			u:object_r:charon_socket:s0
-/dev/socket/charon_status		u:object_r:charon_socket:s0
 # touch
 /dev/touch				u:object_r:touch_device:s0
 # zram
@@ -149,21 +147,6 @@
 (/system)?/vendor/bin/eks2_client	u:object_r:tee_exec:s0
 (/system)?/vendor/bin/ss_status		u:object_r:tee_exec:s0
 (/system)?/vendor/bin/run_ss_status.sh	u:object_r:tee_exec:s0
-# wifi
-/system/bin/wifi_loader.sh		u:object_r:wifi_loader_exec:s0
-# wpalog
-/system/bin/supplicant_log_monitor.sh	u:object_r:wpalog_exec:s0
-# bt
-/system/bin/bt_loader.sh		u:object_r:bt_loader_exec:s0
-# ethernet
-/system/bin/rebindEthernet.sh		u:object_r:rebindEthernet_exec:s0
-# gps
-/system/bin/gps_select.sh		u:object_r:gpsd_exec:s0
-/system/bin/glgps_nvidiaTegra2android	u:object_r:gpsd_exec:s0
-# set_hwui_params.sh
-/system/bin/set_hwui_params.sh		u:object_r:set_hwui_exec:s0
-# adbenable.sh
-/system/bin/adbenable.sh		u:object_r:adb_enable_exec:s0
 # diag
 (/system)?/vendor/bin/stress_test.sh	u:object_r:diag_exec:s0
 (/system)?/vendor/bin/diag_perm.sh	u:object_r:diag_exec:s0
@@ -173,15 +156,9 @@
 (/system)?/vendor/bin/hubcore		u:object_r:hubcore_exec:s0
 # ctload
 (/system)?/vendor/bin/ctload		u:object_r:ctload_exec:s0
-# update_js_touch_fw
-/system/bin/update_js_touch_fw.sh	u:object_r:update_js_touch_fw_exec:s0
 # phs
 (/system)?/vendor/bin/ussrd		u:object_r:ussrd_exec:s0
-/system/bin/ussr_setup.sh		u:object_r:ussr_setup_exec:s0
-# dual wifi
-/system/bin/wpa_supplicant_2		u:object_r:hal_wifi_supplicant_default_exec:s0
-# frostaudiortp
-/system/bin/frostaudiortp		u:object_r:frostaudiortp_exec:s0
+(/system)?/vendor/bin/ussr_setup.sh	u:object_r:ussr_setup_exec:s0
 # pbc
 (/system)?/vendor/bin/pbc		u:object_r:pbc_exec:s0
 (/system)?/vendor/bin/pbc2		u:object_r:pbc_exec:s0
@@ -189,20 +166,8 @@
 (/system)?/vendor/bin/cvc		u:object_r:cvc_exec:s0
 # upnpfused
 (/system)?/vendor/bin/upnpfuse		u:object_r:upnpfused_exec:s0
-# qvs shell script
-/system/xbin/qvs_post_boot.sh		u:object_r:qvs_exec:s0
-#setup_fs
-/system/bin/setup_fs			u:object_r:setup_fs_exec:s0
-# nv_setupfs.sh
-/system/bin/nv_setupfs.sh               u:object_r:setup_fs_exec:s0
-# bt restart service
-/system/bin/bt_restart			u:object_r:bt_restart_exec:s0
-# IKEv2 daemon
-/system/bin/charon			u:object_r:charon_exec:s0
 # Blake video files
 (/system)?/vendor/oem/media(/.*)?	u:object_r:oem_media_file:s0
-# camera config
-/system/bin/config_cameras.sh		u:object_r:config_cameras_exec:s0
 # service to dump logs
 (/system)?/vendor/bin/cac_log_dumper	u:object_r:cac_log_dumper_exec:s0
 # factory_tests

@@ -19,4 +19,3 @@ type gpload_exec, exec_type, file_type;
 allow gpload device:dir read;
 allow gpload usb_device:dir r_dir_perms;
 allow gpload usb_device:chr_file rw_file_perms;
-allow gpload update_js_touch_fw:fd use;

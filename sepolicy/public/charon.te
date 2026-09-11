@@ -1,3 +1,0 @@
-# Cross-boundary handle for the charon VPN daemon (vendor process).
-# See sepolicy/public/ussrd.te for the design rationale.
-attribute charon_domain;

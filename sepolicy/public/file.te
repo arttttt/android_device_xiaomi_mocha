@@ -68,9 +68,6 @@ typeattribute tee_data_file core_data_file_type;
 # /dev/socket/phsd
 type phsd_socket, file_type;
 
-# /dev/socket/charon..
-type charon_socket, file_type;
-
 # /sys/devices/platform/host1x/tegradc.0/smartdimmer/...
 type sysfs_smartdimmer, fs_type, sysfs_type;
 
