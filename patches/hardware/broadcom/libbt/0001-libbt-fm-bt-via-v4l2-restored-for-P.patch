@@ -1,0 +1,92 @@
+From: Nickolay Semendyaev <agent00791@gmail.com>
+Subject: [PATCH] libbt: fm/bt via v4l2, restored for P
+
+On this board the controller is not libbt's to bring up. It sits behind a
+shared line discipline in the kernel, and three drivers register with it:
+Bluetooth (bt_protocol_driver), FM radio and ANT, none of the last two
+having a vendor library of any kind. Whoever registers first makes the
+line discipline install itself, and installing it downloads the patchram.
+That is why the download lives in the kernel: it has to serve a radio
+that libbt never hears about.
+
+libbt knows none of this. It opens /dev/brcm_bt_drv, reads the local name
+off a controller the kernel has already patched, finds the same .hcd in
+its configuration and downloads it a second time. The second pass wedges
+the controller: the HCI_Reset that bluedroid sends next goes unanswered,
+the stack gives up after two seconds, restarts, and the whole thing comes
+round again every sixteen seconds for as long as the adapter is on.
+
+Upstream carries the cure and always has. Commit 0b071ba, "Broadcom BT:
+Add support fm/bt via v4l2", guards exactly these two places behind
+BLUEDROID_ENABLE_V4L2 and turns the flag on for boards that set
+BOARD_HAVE_BCM_FM -- which this one does, and has since 14.1. The patch
+rode cm-14.1 and lineage-15.1, and the P branch was re-cut without it; no
+commit removed it, it simply never arrived. Bluetooth working on 15.1 and
+dying on 16.0 is that gap, nothing else.
+
+Restored verbatim against the 16.0 sources. With the flag in place
+hw_config_start answers the firmware-configured callback at once and
+sends no HCI at all, and power control becomes a no-op, which is correct
+here: the rfkill node belongs to brcm-uim-sysfs. Measured on the device,
+firmware configuration falls from 14 s to 0.04 s and the restart loop
+stops.
+
+lineage-17.1 is missing the same commit and will need the same patch.
+
+diff --git a/Android.mk b/Android.mk
+index 07285ee..96ea0a5 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -18,6 +18,10 @@ ifeq ($(strip $(USE_BLUETOOTH_BCM4343)),true)
+ LOCAL_CFLAGS += -DUSE_BLUETOOTH_BCM4343
+ endif
+ 
++ifeq ($(BOARD_HAVE_BCM_FM), true)
++LOCAL_CFLAGS += -DBLUEDROID_ENABLE_V4L2
++endif
++
+ LOCAL_CFLAGS += \
+         -Wall \
+         -Werror \
+diff --git a/src/bt_vendor_brcm.c b/src/bt_vendor_brcm.c
+index d95c398..0611427 100644
+--- a/src/bt_vendor_brcm.c
++++ b/src/bt_vendor_brcm.c
+@@ -149,6 +149,7 @@ static int op(bt_vendor_opcode_t opcode, void *param)
+     switch(opcode)
+     {
+         case BT_VND_OP_POWER_CTRL:
++#ifndef BLUEDROID_ENABLE_V4L2
+             {
+                 int *state = (int *) param;
+                 upio_set_bluetooth_power(UPIO_BT_POWER_OFF);
+@@ -164,6 +165,7 @@ static int op(bt_vendor_opcode_t opcode, void *param)
+                     hw_lpm_set_wake_state(false);
+                 }
+             }
++#endif
+             break;
+ 
+         case BT_VND_OP_FW_CFG:
+diff --git a/src/hardware.c b/src/hardware.c
+index 2a2ac66..087ac7a 100644
+--- a/src/hardware.c
++++ b/src/hardware.c
+@@ -1324,6 +1324,9 @@ void hw_config_start(void)
+     hw_cfg_cb.fw_fd = -1;
+     hw_cfg_cb.f_set_baud_2 = FALSE;
+ 
++#ifdef BLUEDROID_ENABLE_V4L2
++    bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_SUCCESS);
++#else
+     /* Start from sending HCI_RESET */
+ 
+     if (bt_vendor_cbacks)
+@@ -1355,6 +1358,7 @@ void hw_config_start(void)
+             bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+         }
+     }
++#endif
+ }
+ 
+ /*******************************************************************************
