@@ -1,5 +1,6 @@
 subdirs = [
     "hidl",
+    "mocha",
     "shims/libw",
     "tinyalsa"
 ]
