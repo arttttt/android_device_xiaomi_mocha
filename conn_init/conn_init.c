@@ -18,11 +18,8 @@
 #include <cutils/log.h>
 #include <cutils/properties.h>
 #include <openssl/md5.h>
-#include <private/android_filesystem_config.h>
 
 #include <errno.h>
-#include <grp.h>
-#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,12 +32,9 @@
 #define MAC_PARTITION     "/dev/block/platform/700b0600.sdhci/by-name/BKB"
 #define MAC_PARTITION_OLD "/dev/block/platform/sdhci-tegra.3/by-name/BKB"
 
-#define BT_MAC_PROP  "ro.bt.bdaddr_path"
 #define BT_MAC_PROP1 "persist.service.bdroid.bdaddr"
 #define BT_MAC_PROP2 "ro.boot.btmacaddr"
 
-#define WIFI_MAC_FILE "/vendor/etc/mocha_macaddr.txt"
-#define BT_MAC_FILE   "/vendor/etc/mocha_btmacaddr.txt"
 
 #define BT_MAC_TAG   "XIAOMIBT!"
 #define WIFI_MAC_TAG "XIAOMIWF!"
@@ -173,40 +167,6 @@ static void addr_to_str(const unsigned char addr[ADDR_LEN], char out[ADDR_STR_LE
              addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 }
 
-static uid_t id_of(const char *name, uid_t fallback)
-{
-    struct passwd *pw = getpwnam(name);
-
-    return pw != NULL ? pw->pw_uid : fallback;
-}
-
-/*
- * Owner and mode are set outright rather than left to whatever umask the
- * service happens to inherit: the file is read from two different domains,
- * and there is nothing here worth guessing at.
- */
-static int write_addr_file(const char *path, const char *addr, uid_t uid,
-                           gid_t gid, mode_t mode)
-{
-    FILE *fp = fopen(path, "w");
-
-    if (fp == NULL) {
-        ALOGE("%s: can't open %s, error: %d", TAG, path, errno);
-        return -1;
-    }
-
-    fprintf(fp, "%s\n", addr);
-    fclose(fp);
-
-    if (chown(path, uid, gid) != 0)
-        ALOGE("%s: can't chown %s, error: %d", TAG, path, errno);
-
-    if (chmod(path, mode) != 0)
-        ALOGE("%s: can't chmod %s, error: %d", TAG, path, errno);
-
-    return 0;
-}
-
 int main(void)
 {
     unsigned char bkb[BKB_LEN] = { 0 };
@@ -248,25 +208,33 @@ int main(void)
     addr_to_str(wifi, wifi_str);
 
     /*
-     * /system goes read-write only here, once there is something to write,
-     * and goes back immediately afterwards.
+     * The addresses are handed over as properties, not as files.
+     *
+     * This used to remount /system read-write, write both addresses into
+     * /vendor/etc, and set the properties only if that had worked. On this
+     * release it never works: /system carries /vendor and is mounted
+     * read-only, and remounting it is not something a service does any more.
+     * The remount failed, the function returned before setting anything, and
+     * the Bluetooth HAL then found no address at all and killed itself --
+     *
+     *     Abort message: 'Open: No Bluetooth Address!'
+     *
+     * once every few seconds, until init gave up and rebooted the board.
+     *
+     * The file was never needed for this. hardware/interfaces/bluetooth/1.0/
+     * default/bluetooth_address.cc looks in three places in order: the file
+     * named by ro.bt.bdaddr_path, then ro.boot.btmacaddr, then
+     * persist.service.bdroid.bdaddr. The last two carry the address as a
+     * string and want nothing from the filesystem, and they were being set
+     * inside the same branch as the file write for no reason.
+     *
+     * So the address goes out as properties and the writable-media question
+     * does not arise. ro.bt.bdaddr_path is deliberately left unset: with no
+     * file to point it at, leaving it empty makes the HAL fall through to the
+     * properties rather than fail on an unreadable path.
      */
-    if (system("mount -o remount,rw /system") != 0) {
-        ALOGE("%s: can't remount /system read-write, error: %d", TAG, errno);
-        return 0;
-    }
-
-    write_addr_file(WIFI_MAC_FILE, wifi_str, 0, 0, 0644);
-
-    if (write_addr_file(BT_MAC_FILE, bt_str, id_of("bluetooth", AID_BLUETOOTH),
-                        id_of("bluetooth", AID_BLUETOOTH), 0600) == 0) {
-        property_set(BT_MAC_PROP, BT_MAC_FILE);
-        property_set(BT_MAC_PROP1, bt_str);
-        property_set(BT_MAC_PROP2, bt_str);
-    }
-
-    if (system("mount -o remount,ro /system") != 0)
-        ALOGE("%s: can't remount /system read-only again, error: %d", TAG, errno);
+    property_set(BT_MAC_PROP2, bt_str);
+    property_set(BT_MAC_PROP1, bt_str);
 
     ALOGI("%s: wifi %s, bt %s", TAG, wifi_str, bt_str);
 
