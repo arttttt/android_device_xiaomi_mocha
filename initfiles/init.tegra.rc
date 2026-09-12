@@ -12,7 +12,27 @@ on early-init
     mount debugfs debugfs /sys/kernel/debug mode=0755
 
 on init
-    export LD_PRELOAD "libshim_zw.so"
+    # The zygote path whitelist shim used to be forced in here with
+    #
+    #     export LD_PRELOAD "libshim_zw.so"
+    #
+    # which every process on the system then inherited. That is survivable
+    # while everything links against /system/lib, and fatal once anything
+    # does not: an APEX binary gets its own linker namespace, which cannot
+    # see /system/lib, so the preload it inherited cannot be resolved and
+    # the executable refuses to link at all --
+    #
+    #     CANNOT LINK EXECUTABLE "/apex/com.android.media.swcodec/bin/
+    #     mediaswcodec": library "libshim_zw.so" not found
+    #
+    # media.swcodec then crash-looped, which is an updatable process, which
+    # made init set ro.init.updatable_crashing and flags_health_check reboot
+    # the device as disaster recovery -- during setup, looking like the
+    # system falling over for no reason. Everything in the runtime APEX was
+    # equally exposed.
+    #
+    # The shim is wanted by exactly one process, so it is aimed at exactly
+    # one process now: see TARGET_LD_SHIM_LIBS in BoardConfig.mk.
 
     mkdir /mnt/media_rw/sdcard1 0700 media_rw media_rw
     

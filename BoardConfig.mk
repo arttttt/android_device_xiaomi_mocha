@@ -190,6 +190,24 @@ BOARD_PERSISTIMAGE_PARTITION_SIZE := 16777216
 BOARD_RECOVERYIMAGE_PARTITION_SIZE := 20971520
 BOARD_FLASH_BLOCK_SIZE := 131072
 
+# The zygote's path whitelist, widened for this board.
+#
+# shims/zygote_whitelist.cpp adds what ZYGOTE_WHITELIST_PATH_EXTRA names --
+# /dev/nvhost-ctrl and /dev/nvmap -- to the set of paths an application is
+# allowed to open. It has to arrive in the zygote before the first fork, so
+# it is preloaded rather than linked.
+#
+# Named per executable, which is what this variable is for: the linker reads
+# the list at LD_SHIM_LIBS and applies an entry only to the binary whose
+# resolved path matches (bionic/linker/linker_main.cpp). The alternative,
+# exporting LD_PRELOAD from an rc file, hands the library to every process on
+# the system including those in APEX namespaces that cannot see /system/lib,
+# and they then fail to link at all -- see the note in initfiles/init.tegra.rc.
+#
+# app_process32 rather than app_process: the latter is a symlink, and the
+# linker matches on the resolved path.
+TARGET_LD_SHIM_LIBS := /system/bin/app_process32|libshim_zw.so
+
 # LINEAGEHW
 JAVA_SOURCE_OVERLAYS := org.lineageos.hardware|device/xiaomi/mocha/lineagehw|**/*.java
 
