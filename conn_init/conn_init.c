@@ -35,6 +35,11 @@
 #define BT_MAC_PROP1 "persist.service.bdroid.bdaddr"
 #define BT_MAC_PROP2 "ro.boot.btmacaddr"
 
+#define NVRAM_SRC        "/vendor/etc/mocha_nvram.txt"
+#define NVRAM_DIR        "/data/vendor/wifi"
+#define NVRAM_DST        NVRAM_DIR "/nvram.txt"
+#define NVRAM_PATH_PARAM "/sys/module/bcmdhd/parameters/nvram_path"
+
 
 #define BT_MAC_TAG   "XIAOMIBT!"
 #define WIFI_MAC_TAG "XIAOMIWF!"
@@ -167,6 +172,105 @@ static void addr_to_str(const unsigned char addr[ADDR_LEN], char out[ADDR_STR_LE
              addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 }
 
+/*
+ * Give wifi its own address.
+ *
+ * The stock nvram carries macaddr=00:90:4c:16:70:01 -- a Broadcom sample,
+ * the same on every one of these tablets. The driver this board builds looks
+ * for an address in three places, and says so itself in
+ * dhd_linux_platdev.c: a userspace command, then of_get_mac_address() on a
+ * node named android,bcmdhd_wlan, then the chip's OTP. This board's device
+ * tree has no such node and the OTP is blank, so what it ends up with is
+ * whatever nvram said, which is that sample.
+ *
+ * So the nvram is copied with the address line replaced, and the driver is
+ * pointed at the copy through the module parameter it exposes for exactly
+ * this -- the same way the firmware path is already handled on this board
+ * (WIFI_DRIVER_FW_PATH_PARAM in BoardConfig.mk). The parameter is read when
+ * the firmware is loaded, which is long after this service has run, so the
+ * address is in place before the chip is first brought up.
+ *
+ * The copy lives under /data because it has to be written, and the reader is
+ * the kernel: when this board stops running permissive, the kernel domain
+ * will need to be allowed to read it.
+ */
+static int write_nvram_copy(const char *src, const char *dst, const char *addr)
+{
+    FILE *in, *out;
+    char line[256];
+    int replaced = 0;
+
+    in = fopen(src, "r");
+    if (in == NULL) {
+        ALOGE("%s: can't read %s, error: %d", TAG, src, errno);
+        return -1;
+    }
+
+    out = fopen(dst, "w");
+    if (out == NULL) {
+        ALOGE("%s: can't write %s, error: %d", TAG, dst, errno);
+        fclose(in);
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), in) != NULL) {
+        if (strncmp(line, "macaddr=", 8) == 0) {
+            fprintf(out, "macaddr=%s\n", addr);
+            replaced = 1;
+        } else {
+            fputs(line, out);
+        }
+    }
+
+    /* A stock nvram without the line at all is still worth an address. */
+    if (replaced == 0)
+        fprintf(out, "macaddr=%s\n", addr);
+
+    fclose(in);
+    if (fclose(out) != 0) {
+        ALOGE("%s: can't finish %s, error: %d", TAG, dst, errno);
+        return -1;
+    }
+
+    if (chmod(dst, 0644) != 0)
+        ALOGE("%s: can't chmod %s, error: %d", TAG, dst, errno);
+
+    return 0;
+}
+
+static int write_str_file(const char *path, const char *value)
+{
+    FILE *fp = fopen(path, "w");
+
+    if (fp == NULL) {
+        ALOGE("%s: can't open %s, error: %d", TAG, path, errno);
+        return -1;
+    }
+
+    fprintf(fp, "%s", value);
+
+    if (fclose(fp) != 0) {
+        ALOGE("%s: can't write %s, error: %d", TAG, path, errno);
+        return -1;
+    }
+
+    return 0;
+}
+
+static void set_wifi_addr(const char *addr)
+{
+    if (mkdir(NVRAM_DIR, 0771) != 0 && errno != EEXIST) {
+        ALOGE("%s: can't create %s, error: %d", TAG, NVRAM_DIR, errno);
+        return;
+    }
+
+    if (write_nvram_copy(NVRAM_SRC, NVRAM_DST, addr) != 0)
+        return;
+
+    if (write_str_file(NVRAM_PATH_PARAM, NVRAM_DST) == 0)
+        ALOGI("%s: wifi nvram is %s", TAG, NVRAM_DST);
+}
+
 int main(void)
 {
     unsigned char bkb[BKB_LEN] = { 0 };
@@ -235,6 +339,8 @@ int main(void)
      */
     property_set(BT_MAC_PROP2, bt_str);
     property_set(BT_MAC_PROP1, bt_str);
+
+    set_wifi_addr(wifi_str);
 
     ALOGI("%s: wifi %s, bt %s", TAG, wifi_str, bt_str);
 
