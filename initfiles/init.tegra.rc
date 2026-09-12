@@ -208,7 +208,22 @@ service bugreport /system/bin/dumpstate -d -p -B -o /data/data/com.android.shell
 # unified scaling setup
 import /vendor/etc/init/hw/init.ussrd.rc
 
-# Thie yields each tegra wdt expiration to be at 30 secs and fourth expiration for reboot at 120 secs.
-service watchdogd /sbin/watchdogd 10 110
+# The kernel arms this watchdog itself: tegra124-tn8.dtsi asks for
+# nvidia,enable-on-init with nvidia,heartbeat-init = <120>, and the board
+# builds with CONFIG_WATCHDOG_NOWAYOUT, so once it is running nothing can
+# stop it again. Something has to feed it or the board resets after two
+# minutes, silently -- the driver's interrupt handler prints nothing, so a
+# reset leaves no message at all, only a different powerup reason in the
+# next boot.
+#
+# The path below used to be /sbin/watchdogd, which is where the binary sat
+# back when the root filesystem came out of a ramdisk. On this release it
+# lives in /system/bin, so the service never started, nothing fed the
+# watchdog, and every boot carried a hidden deadline of 120 seconds.
+#
+# The arguments are unchanged and already correct: feed every 10 seconds
+# with a 110 second margin, which sets the same 120 the device tree asks
+# for.
+service watchdogd /system/bin/watchdogd 10 110
     class core
     seclabel u:r:watchdogd:s0
