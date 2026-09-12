@@ -8,7 +8,19 @@
 # reflash -- armed before flashing, it captures the first boot of a new
 # system, which is exactly the boot adb cannot show.
 
-service logcat-uart /system/bin/sh -c "exec /system/bin/logcat -b all -v threadtime > /dev/ttyS0 2>&1"
+# Warnings and above only.
+#
+# The serial line carries about eleven kilobytes a second, and a boot's worth
+# of logcat is several megabytes. Unfiltered, the stream does not merely
+# arrive late: it crowds out the kernel's own messages on the same port and
+# drops its own lines while falling behind, so the log ends up missing both
+# halves. That cost real evidence during this bring-up -- conn_init's summary
+# never appeared, and neither did the reason for a reboot.
+#
+# Everything worth waking up for is W or above: crashes, ANRs, services
+# failing to start, HALs refusing to answer. What is lost is the running
+# commentary, which the kernel log and init's own messages already cover.
+service logcat-uart /system/bin/sh -c "exec /system/bin/logcat -b all -v threadtime '*:W' > /dev/ttyS0 2>&1"
     class main
     user root
     group root log
