@@ -76,3 +76,25 @@ debug.sf.latch_unsignaled=1
 # grace period; here it is simply turned off, and a late frame is shown
 # late instead of not at all.
 debug.sf.disable_backpressure=1
+
+# Which of adbd's two USB back ends to use.
+#
+# Left at its default adbd drives the FunctionFS endpoints with asynchronous
+# io_submit, which this kernel does not implement for FFS -- that arrived in
+# functionfs years after 3.10. The first read fails immediately and adbd tears
+# the whole transport down before it has carried a byte:
+#
+#     adbd: USB event: FUNCTIONFS_ENABLE
+#     adbd: UsbFfs: connection terminated: failed to submit first read,
+#           AIO on FFS not supported
+#     adbd: destroying transport UsbFfs
+#
+# The host sees this as a device stuck "offline" -- connected, enumerated,
+# never finishing the handshake -- after every boot and after every restart of
+# adbd, including the one `adb root` performs. It cost this bring-up a manual
+# replug or a toggle of USB debugging nearly every cycle.
+#
+# adbd keeps the blocking implementation it used before and picks between them
+# here (system/core/adb/daemon/usb.cpp): persist.adb.nonblocking_ffs first, this
+# as its default, asynchronous if neither is set.
+ro.adb.nonblocking_ffs=0
