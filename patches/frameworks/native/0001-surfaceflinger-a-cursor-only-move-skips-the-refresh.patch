@@ -1,0 +1,216 @@
+From: Artem Bambalov <artembambalov1993@gmail.com>
+Subject: [PATCH] surfaceflinger: a cursor-only move skips the refresh
+
+The platform has no frameless road for a pointer: any position change
+raises eTraversalNeeded, and updateCursorAsync only delivers the
+position early into the refresh that follows -- "async" means past the
+composition, not past the frame. On a device whose composer shows the
+pointer through the display controller's own cursor, every twitch of a
+mouse therefore costs a full, empty frame: no pixels change, the GPU
+and the compositing engine sit idle, and the whole pipeline wakes just
+to flip an identical configuration.
+
+A transaction state that carries nothing but a position, on a layer
+whose validated composition is Cursor, is now delivered straight to
+that cursor and raises no flags: nothing else changed, so there is
+nothing to compose. Everything else takes the ordinary road untouched,
+and that includes four doors deliberately left shut:
+
+ - a transaction whose own flags are set: eSynchronous and eAnimation
+   are commit-and-wait contracts -- the sender is promised a commit
+   before the call returns, and the direct road commits nothing.
+
+ - a transaction carrying listener callbacks: on Q the completion
+   callbacks are dispatched immediately when no traversal is raised,
+   and the direct road has committed nothing -- a listener would be
+   told the transaction is done before it is. The ordinary road keeps
+   its promises.
+
+ - a layer whose current state is already hidden: the refresh retiring
+   the cursor from the composer is on its way, and a move must not
+   make the vanishing pointer twitch first.
+
+ - any layer the hardware cursor is not showing, which asks the same
+   question updateCursorPosition has always asked -- so that check now
+   answers with a bool instead of being written out twice.
+
+Rebased for Q. Three things moved underneath and were re-homed:
+
+ - setClientStateLocked grew desiredPresentTime, listenerCallbacks,
+   postTime and privileged arguments; the transaction flags are still
+   not among them, so they are passed through as one more trailing
+   argument, same as on P. The listener-callbacks door is closed right
+   inside setClientStateLocked -- it receives the callbacks as an
+   argument now, so emptiness is checked on the spot.
+
+ - updateCursorAsync now walks mDisplays, a std::map keyed by display
+   token, and skips displays without an id; the direct road walks the
+   same map the same way.
+
+ - Layer::updateCursorPosition moved to the composition engine: it
+   finds its OutputLayer and reads the cursor composition from
+   outputLayer->getState().hwc. The fast road iterates every display
+   and calls in before the layer is guaranteed to be composited
+   anywhere, so the Q-side LOG_FATAL_IF on a missing output layer
+   becomes a plain false return -- for the ordinary road nothing
+   changes, it only ever calls for visible layers. The state the
+   function reads is switched from the drawing state to the current
+   one (the fast road calls in before any commit; after a commit the
+   two are equal), and getTransform() -- the composed, parent-aware
+   transform of the drawing state -- is replaced by
+   getActiveTransform(s): the layer's own active transform of the
+   state being read. A cursor layer has no parent, so the layer's own
+   transform is the whole of it, and getActiveTransform is the exact
+   accessor Q's own geometry code uses on a State.
+
+---
+diff --git a/services/surfaceflinger/SurfaceFlinger.h b/services/surfaceflinger/SurfaceFlinger.h
+--- a/services/surfaceflinger/SurfaceFlinger.h
++++ b/services/surfaceflinger/SurfaceFlinger.h
+@@ -557,3 +557,7 @@
+     void setInputWindowsFinished();
+     void updateCursorAsync();
++    // mocha: a transaction state carrying nothing but a position, on a
++    // layer the hardware cursor is showing, is delivered straight to the
++    // cursor without waking a refresh. Returns whether it was.
++    bool updateCursorDirect(const sp<Layer>& layer) REQUIRES(mStateLock);
+     void initScheduler(DisplayId primaryDisplayId);
+diff --git a/services/surfaceflinger/SurfaceFlinger.h b/services/surfaceflinger/SurfaceFlinger.h
+--- a/services/surfaceflinger/SurfaceFlinger.h
++++ b/services/surfaceflinger/SurfaceFlinger.h
+@@ -592,5 +592,6 @@
+                                        const Vector<ComposerState>& states);
+     uint32_t setClientStateLocked(const ComposerState& composerState, int64_t desiredPresentTime,
+                                   const std::vector<ListenerCallbacks>& listenerCallbacks,
+-                                  int64_t postTime, bool privileged) REQUIRES(mStateLock);
++                                  int64_t postTime, bool privileged, uint32_t txFlags)
++            REQUIRES(mStateLock);
+     uint32_t setDisplayStateLocked(const DisplayState& s) REQUIRES(mStateLock);
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -3013,4 +3013,25 @@
+     }
+ }
++bool SurfaceFlinger::updateCursorDirect(const sp<Layer>& layer)
++{
++    // A hide already sits in the current state: the refresh that retires
++    // the cursor from the composer is on its way, and a move must not make
++    // the vanishing pointer twitch first.
++    if (layer->getCurrentState().flags & layer_state_t::eLayerHidden) {
++        return false;
++    }
++
++    bool applied = false;
++    for (const auto& [token, display] : mDisplays) {
++        if (!display->getId()) {
++            continue;
++        }
++
++        if (layer->updateCursorPosition(display)) {
++            applied = true;
++        }
++    }
++    return applied;
++}
+ 
+ void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -3849,5 +3849,5 @@
+     uint32_t clientStateFlags = 0;
+     for (const ComposerState& state : states) {
+-        clientStateFlags |= setClientStateLocked(state, desiredPresentTime, listenerCallbacks,
+-                                                 postTime, privileged);
++        clientStateFlags |= setClientStateLocked(state, desiredPresentTime, listenerCallbacks,
++                                                 postTime, privileged, flags);
+     }
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -4006,4 +4006,16 @@
+         if (layer->setPosition(s.x, s.y, !geometryAppliesWithResize)) {
+-            flags |= eTraversalNeeded;
++            // mocha: a state that carries nothing but a position, on a layer
++            // the hardware cursor is showing, goes straight to the cursor --
++            // nothing else changed, so there is nothing to compose, and the
++            // pointer moves at its own rate. Only when the transaction as a
++            // whole promises nothing more: eSynchronous and eAnimation are
++            // commit-and-wait contracts the direct road does not honour, and
++            // a transaction with listener callbacks must take the ordinary
++            // road too -- Q dispatches those immediately when no traversal
++            // is raised, and the direct road commits nothing.
++            if (what != layer_state_t::ePositionChanged || txFlags != 0 ||
++                !listenerCallbacks.empty() || !updateCursorDirect(layer)) {
++                flags |= eTraversalNeeded;
++            }
+         }
+     }
+diff --git a/services/surfaceflinger/Layer.h b/services/surfaceflinger/Layer.h
+--- a/services/surfaceflinger/Layer.h
++++ b/services/surfaceflinger/Layer.h
+@@ -493,4 +493,6 @@
+     bool getClearClientTarget(const sp<const DisplayDevice>& display) const;
+-    void updateCursorPosition(const sp<const DisplayDevice>& display);
++    // Returns whether the layer is a validated hardware cursor on that
++    // display and its position was therefore delivered to the composer.
++    bool updateCursorPosition(const sp<const DisplayDevice>& display);
+ 
+     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
+diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
+--- a/services/surfaceflinger/Layer.cpp
++++ b/services/surfaceflinger/Layer.cpp
+@@ -480,15 +480,23 @@
+ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
+     const auto outputLayer = findOutputLayerForDisplay(display);
+-    LOG_FATAL_IF(!outputLayer);
++    // mocha: the cursor-only fast road iterates every display and calls in
++    // before the layer is guaranteed to be composited, so an absent output
++    // layer is a normal answer here, not a programming error.
++    if (!outputLayer) {
++        return false;
++    }
+ 
+     if (!outputLayer->getState().hwc ||
+         (*outputLayer->getState().hwc).hwcCompositionType !=
+                 Hwc2::IComposerClient::Composition::CURSOR) {
+-        return;
++        return false;
+     }
+ 
+     // This gives us only the "orientation" component of the transform
+-    const State& s(getDrawingState());
++    // mocha: the current state, not the committed one -- the cursor-only
++    // fast road calls in before any commit runs, and after a commit the
++    // two are the same. Everything else below reads this state too.
++    const State& s(getCurrentState());
+ 
+     // Apply the layer's transform, followed by the display's global transform
+     // Here we're guaranteed that the layer's transform preserves rects
+diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
+--- a/services/surfaceflinger/Layer.cpp
++++ b/services/surfaceflinger/Layer.cpp
+@@ -496,5 +496,10 @@
+     // Subtract the transparent region and snap to the bounds
+     Rect bounds = reduce(win, getActiveTransparentRegion(s));
+-    Rect frame(getTransform().transform(bounds));
++    // mocha: the current state's own active transform, not the composed
++    // drawing-state one -- the fast road calls in before any commit, and a
++    // cursor layer has no parent, so the layer's own transform is the whole
++    // of it. getActiveTransform is the accessor Q's own geometry code uses
++    // on a State.
++    Rect frame(getActiveTransform(s).transform(bounds));
+     frame.intersect(display->getViewport(), &frame);
+     auto& displayTransform = display->getTransform();
+diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
+--- a/services/surfaceflinger/Layer.cpp
++++ b/services/surfaceflinger/Layer.cpp
+@@ -505,6 +505,7 @@
+     ALOGE_IF(error != HWC2::Error::None,
+              "[%s] Failed to set cursor position "
+              "to (%d, %d): %s (%d)",
+              mName.string(), position.left, position.top, to_string(error).c_str(),
+              static_cast<int32_t>(error));
++    return true;
+ }
