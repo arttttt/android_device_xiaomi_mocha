@@ -72,8 +72,19 @@ PRODUCT_PACKAGES += \
     android.hardware.thermal@1.0-service-nvidia
 
 # USB HAL
+# The AOSP default service finds its ports by walking the Type-C sysfs class,
+# and mocha has a micro-USB socket, so it reports none. A device with no ports
+# has no data role, and Settings greys out the whole USB Preferences screen:
+# UsbDetailsFunctionsController.refresh() disables the function list unless
+# dataRole == DATA_ROLE_DEVICE, and that role comes from a port status that
+# was never there. LineageOS keeps a service for exactly this shape of device
+# -- one fixed UFP port, sink power, device data, nothing switchable. Naming
+# only UFP among the supported modes is what makes the "USB controlled by"
+# section disappear rather than sit there greyed: the framework derives the
+# supported role combinations from that field, and a port that cannot be a
+# host leaves a single data role, which Settings hides.
 PRODUCT_PACKAGES += \
-    android.hardware.usb@1.0-service
+    android.hardware.usb@1.0-service.basic
 
 # Vibrator
 PRODUCT_PACKAGES += \
