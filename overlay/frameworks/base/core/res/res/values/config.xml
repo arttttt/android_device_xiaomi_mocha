@@ -88,6 +88,17 @@
          Zone N + 1     array[N] <= LUX < infinity
 
          Must be overridden in platform specific overlays -->
+    <!-- How long the light has to hold a new level before the brightness follows.
+         AOSP asks for four seconds up and eight down, which on this board reads
+         as the screen ignoring you: the sensor is on-change and only speaks when
+         the light leaves a window around the last value, so the wait starts only
+         after that, and the two delays add up.
+
+         Halved. The sensor's own threshold is the other half of the same
+         question and is set in the kernel device tree. -->
+    <integer name="config_autoBrightnessBrighteningLightDebounce">2000</integer>
+    <integer name="config_autoBrightnessDarkeningLightDebounce">4000</integer>
+
     <integer-array name="config_autoBrightnessLevels">
         <item>3</item>
         <item>6</item>
