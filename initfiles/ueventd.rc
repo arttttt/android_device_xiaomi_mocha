@@ -70,7 +70,26 @@
 /dev/max_online_cpus	0660	system	system
 /dev/quadd	0660	shell	shell
 /dev/quadd_auth	0660	system	system
+# Two attributes, one letter apart, and only one of them does anything.
+#
+# "enabled" is the input core's own field. Nothing on this board registers the
+# enable/disable callbacks it drives, so writing it has no effect -- and it is
+# the one that has been chmod'ed here all along.
+#
+# "enable" belongs to the driver behind the device. On the ambient light
+# sensor, drivers/input/misc/isl29035.c keeps the chip powered down until both
+# that flag is set and something holds the event node open, so a sensors HAL
+# running as system could open the node, fail to write this, and report
+# nothing. That is what automatic brightness did here since the multihal was
+# imported in 2017: the framework subscribed, the blob tried, and the log said
+#
+#   SensorHAL: isl29035: Failed to write buffer enable file
+#     "/sys/class/input/input0/enable", err=13
+#
+# poll_delay goes with it -- the same HAL sets the period through it.
 /sys/devices/virtual/input/input*	enabled	0660	system	system
+/sys/devices/virtual/input/input*	enable	0660	system	system
+/sys/devices/virtual/input/input*	poll_delay	0660	system	system
 /dev/gps	0664	system	system
 /sys/power/sysedp/consumers/icemdm state 0660 radio system
 /dev/hidraw*    0660    system  system
