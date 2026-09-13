@@ -49,10 +49,21 @@ on init
     write /config/usb_gadget/g1/strings/0x409/product ${ro.product.model}
     write /config/usb_gadget/g1/configs/b.1/MaxPower 500
 
-    # What init.usb.configfs.rc writes to UDC to bind the gadget. The
-    # controller is the platform device behind tegra_udc, named after its
-    # device tree node udc@7d000000; /sys/class/udc has the final say.
-    setprop sys.usb.controller 7d000000.udc
+    # What init.usb.configfs.rc writes to UDC to bind the gadget. udc-core
+    # names the entry in /sys/class/udc after the parent device --
+    # dev_set_name(&udc->dev, "%s", kobject_name(&parent->kobj)) -- and the
+    # parent here is not called what the device tree node suggests. The
+    # controller is described by udc@7d000000, but board-ardbeg.c carries
+    #
+    #     OF_DEV_AUXDATA("nvidia,tegra124-udc", TEGRA_USB_BASE,
+    #                    "tegra-udc.0", &tegra_udc_pdata.u_data.dev)
+    #
+    # and auxdata exists precisely to give a device probed from the tree the
+    # legacy name a driver expects. So the device is tegra-udc.0, which is
+    # also what the kernel log calls it, and 7d000000.udc -- the name the
+    # node alone would imply -- matches nothing: writing it to UDC fails
+    # with ENODEV and the gadget is built and never bound.
+    setprop sys.usb.controller tegra-udc.0
 
 # sys.usb.configfs decides which half of init.usb.configfs.rc and init.usb.rc
 # answers a configuration change, and it cannot be set in "on init" above:
