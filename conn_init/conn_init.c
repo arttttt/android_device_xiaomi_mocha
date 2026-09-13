@@ -39,6 +39,7 @@
 #define NVRAM_DIR        "/data/vendor/wifi"
 #define NVRAM_DST        NVRAM_DIR "/nvram.txt"
 #define NVRAM_PATH_PARAM "/sys/module/bcmdhd/parameters/nvram_path"
+#define MACADDR_DST      NVRAM_DIR "/macaddr.txt"
 
 
 #define BT_MAC_TAG   "XIAOMIBT!"
@@ -257,11 +258,41 @@ static int write_str_file(const char *path, const char *value)
     return 0;
 }
 
+/*
+ * The address is handed to the driver twice, by two mechanisms, because one
+ * of them only fires once.
+ *
+ * The nvram copy is the older route: the stock nvram carries a Broadcom
+ * sample address, so we write a corrected copy and point the module
+ * parameter at it. But the driver consumes that parameter exactly once --
+ * dhd_update_fw_nv_path() copies it and then does
+ *
+ *     firmware_path[0] = '\0';
+ *     nvram_path[0] = '\0';
+ *
+ * -- and falls back to nv_path from the device tree on every later firmware
+ * download. Android 10 downloads the firmware again before each connect
+ * attempt, because ClientModeImpl asks the driver for the factory address
+ * and setting an address here means taking the interface down and up. So
+ * from the second attempt on, the sample address came back.
+ *
+ * The file below is the route that holds: the device tree names it in
+ * mac-address-file, and the kernel reads it on every download, ahead of the
+ * nvram and the OTP. It has to live somewhere writable, which is why the
+ * device tree points into /data rather than at /vendor/etc, where nothing
+ * could ever have created it.
+ */
 static void set_wifi_addr(const char *addr)
 {
     if (mkdir(NVRAM_DIR, 0771) != 0 && errno != EEXIST) {
         ALOGE("%s: can't create %s, error: %d", TAG, NVRAM_DIR, errno);
         return;
+    }
+
+    if (write_str_file(MACADDR_DST, addr) == 0) {
+        if (chmod(MACADDR_DST, 0644) != 0)
+            ALOGE("%s: can't chmod %s, error: %d", TAG, MACADDR_DST, errno);
+        ALOGI("%s: wifi address is in %s", TAG, MACADDR_DST);
     }
 
     if (write_nvram_copy(NVRAM_SRC, NVRAM_DST, addr) != 0)
