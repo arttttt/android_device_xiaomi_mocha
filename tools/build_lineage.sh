@@ -486,6 +486,29 @@ do_clean() {
     echo "==> clean OK"
 }
 
+# Removing a module from PRODUCT_PACKAGES does not remove the file it already
+# installed: out/ keeps it, the next package picks it up, and the image ships
+# an implementation the device no longer declares. That bit us moving the HAL
+# set to Q -- audio@2.0-impl, audio.effect@2.0-impl and mapper@2.0-impl stayed
+# beside their 5.0 and 2.1 replacements, and the mapper pair is genuinely
+# ambiguous: the passthrough loader searches for libraries whose name starts
+# with the requested version's prefix, both of those match
+# android.hardware.graphics.mapper@2.0-impl, and which one answers is whatever
+# order the directory happens to give.
+#
+# installclean is the narrow tool for it: the installed images and the staging
+# directories go, out/soong and the object files stay, so the rebuild is
+# minutes rather than the hours clobber costs. Reach for it whenever a module
+# leaves PRODUCT_PACKAGES.
+do_installclean() {
+    echo "==> make installclean ($VER)"
+    cd "$BUILD_DIR"
+    source build/envsetup.sh
+    lunch "lineage_${DEVICE}-userdebug"
+    make installclean
+    echo "==> installclean OK"
+}
+
 do_build() {
     echo "==> brunch $DEVICE ($VER)"
     echo "    KERNEL_TOOLCHAIN = $KERNEL_TOOLCHAIN"
@@ -545,10 +568,15 @@ usage() {
 usage: $(basename "$0") [<version> <action>]
 
   version   14.1 | 15.1 | 16.0 | 17.1
-  action    manifest | sync | post-sync | clean | build | full | status
+  action    manifest | sync | post-sync | clean | installclean | build
+            | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
                        (sync does this first, so it is only needed on its own
                        when adding a repo without a full sync)
+            installclean = drop the installed images and staging, keep the
+                       object files. Use after a module leaves
+                       PRODUCT_PACKAGES: the file it already installed
+                       survives in out/ otherwise and ships in the image
             full     = sync -> post-sync -> build
 
 Without arguments the interactive menus below are shown, so this stays usable
@@ -579,6 +607,7 @@ run_action() {
         sync)      do_sync ;;
         post-sync) do_post_sync ;;
         clean)     do_clean ;;
+        installclean) do_installclean ;;
         build)     do_build ;;
         full)      do_full ;;
         status)    do_status ;;
@@ -626,10 +655,11 @@ cat <<EOF
   1) repo sync
   2) post-sync patches
   3) clean (make clobber)
-  4) build (brunch)
-  5) full chain: sync -> post-sync -> build
-  6) status (last ROM)
-  7) install local manifest only
+  4) installclean (drop images, keep objects)
+  5) build (brunch)
+  6) full chain: sync -> post-sync -> build
+  7) status (last ROM)
+  8) install local manifest only
   q) quit
 ==========================================================
 EOF
@@ -638,10 +668,11 @@ case "$ans" in
     1) run_action sync ;;
     2) run_action post-sync ;;
     3) run_action clean ;;
-    4) run_action build ;;
-    5) run_action full ;;
-    6) run_action status ;;
-    7) run_action manifest ;;
+    4) run_action installclean ;;
+    5) run_action build ;;
+    6) run_action full ;;
+    7) run_action status ;;
+    8) run_action manifest ;;
     q|Q|"") echo "bye" ;;
     *) echo "unknown: $ans"; exit 1 ;;
 esac
