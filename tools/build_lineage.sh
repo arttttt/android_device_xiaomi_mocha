@@ -486,6 +486,60 @@ do_clean() {
     echo "==> clean OK"
 }
 
+# Whether the device manifest actually satisfies the framework's requirements
+# is a question the build does not answer here, despite
+# PRODUCT_ENFORCE_VINTF_MANIFEST being set. Two independent reasons:
+#
+#   - the rule that runs the check hangs off the vendor image, and mocha has
+#     no vendor partition at all -- /vendor is a symlink into /system, so
+#     INSTALLED_VENDORIMAGE_TARGET is empty and verified_assembled_vendor_manifest.xml
+#     is never built;
+#   - BUILT_SYSTEM_MATRIX, which that rule passes to assemble_vintf as the
+#     matrix to check against, is referenced four times in
+#     build/make/core/Makefile and assigned nowhere in the tree. Even where
+#     the rule does run, it expands to "-c" with no file, which is syntax
+#     validation and nothing more.
+#
+# So the check is run here instead, on the images the last build produced: the
+# framework matrices it installed, combined, against the device manifest it
+# assembled. Exit zero means the manifest is compatible at whatever
+# target-level it claims. Run it after touching hidl/manifest.xml.
+do_vintf() {
+    echo "==> verify VINTF manifest ($VER)"
+    local out="$BUILD_DIR/out/target/product/$DEVICE"
+    local av="$BUILD_DIR/out/host/linux-x86/bin/assemble_vintf"
+    if [ ! -x "$av" ]; then
+        echo "  assemble_vintf not built yet - build first" >&2
+        return 1
+    fi
+    # A device with a real vendor partition puts the manifest in the vendor
+    # image; ours lands under system/vendor. Take whichever exists.
+    local manifest
+    for manifest in "$out/vendor/etc/vintf/manifest.xml" \
+                    "$out/system/vendor/etc/vintf/manifest.xml"; do
+        [ -f "$manifest" ] && break
+    done
+    if [ ! -f "$manifest" ]; then
+        echo "  no assembled device manifest under $out - build first" >&2
+        return 1
+    fi
+    local mats
+    mats=$(ls "$out"/system/etc/vintf/compatibility_matrix.*.xml 2>/dev/null \
+           | tr '\n' ':' | sed 's/:$//')
+    if [ -z "$mats" ]; then
+        echo "  no framework matrices under $out/system/etc/vintf - build first" >&2
+        return 1
+    fi
+    echo "  manifest: $manifest"
+    if PRODUCT_ENFORCE_VINTF_MANIFEST=true "$av" -i "$mats" -c "$manifest" \
+            -o /dev/null; then
+        echo "==> VINTF OK"
+    else
+        echo "  the manifest is not compatible with the framework matrices" >&2
+        return 1
+    fi
+}
+
 # Removing a module from PRODUCT_PACKAGES does not remove the file it already
 # installed: out/ keeps it, the next package picks it up, and the image ships
 # an implementation the device no longer declares. That bit us moving the HAL
@@ -569,7 +623,7 @@ usage: $(basename "$0") [<version> <action>]
 
   version   14.1 | 15.1 | 16.0 | 17.1
   action    manifest | sync | post-sync | clean | installclean | build
-            | full | status
+            | vintf | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
                        (sync does this first, so it is only needed on its own
                        when adding a repo without a full sync)
@@ -577,6 +631,9 @@ usage: $(basename "$0") [<version> <action>]
                        object files. Use after a module leaves
                        PRODUCT_PACKAGES: the file it already installed
                        survives in out/ otherwise and ships in the image
+            vintf    = check the assembled device manifest against the
+                       framework matrices of the last build. The build does
+                       not do this for us here; see do_vintf for why
             full     = sync -> post-sync -> build
 
 Without arguments the interactive menus below are shown, so this stays usable
@@ -608,6 +665,7 @@ run_action() {
         post-sync) do_post_sync ;;
         clean)     do_clean ;;
         installclean) do_installclean ;;
+        vintf)     do_vintf ;;
         build)     do_build ;;
         full)      do_full ;;
         status)    do_status ;;
@@ -660,6 +718,7 @@ cat <<EOF
   6) full chain: sync -> post-sync -> build
   7) status (last ROM)
   8) install local manifest only
+  9) verify VINTF manifest
   q) quit
 ==========================================================
 EOF
@@ -673,6 +732,7 @@ case "$ans" in
     6) run_action full ;;
     7) run_action status ;;
     8) run_action manifest ;;
+    9) run_action vintf ;;
     q|Q|"") echo "bye" ;;
     *) echo "unknown: $ans"; exit 1 ;;
 esac
