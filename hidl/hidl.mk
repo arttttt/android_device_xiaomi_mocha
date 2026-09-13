@@ -71,9 +71,27 @@ PRODUCT_PACKAGES += \
     android.hardware.health@2.0-service
 
 # Keymaster
+#
+# 4.0 rather than 3.0, which compatibility_matrix.4.xml accepts either of --
+# both versions sit in the same non-optional block for the default instance.
+#
+# One package instead of two. The 3.0 service is a shell that looks an
+# implementation up through libhardware and talks to it across the legacy
+# keymaster1 interface; 4.0's builds its own and is done:
+#
+#     auto keymaster = ::keymaster::V4_0::ng::CreateKeymasterDevice(
+#             SecurityLevel::SOFTWARE);
+#     keymaster->registerAsService();
+#
+# Software either way. This board's secure world runs, but its trusted
+# application list has no keymaster in it and the image is signed by Xiaomi,
+# so SecurityLevel::SOFTWARE is the honest answer here and was the honest
+# answer before -- see gatekeeper/README for the same story one interface
+# over. What 4.0 buys is the interface Q was written against: version
+# binding, the newer tag set, and an implementation that is maintained rather
+# than kept for compatibility.
 PRODUCT_PACKAGES += \
-    android.hardware.keymaster@3.0-impl \
-    android.hardware.keymaster@3.0-service
+    android.hardware.keymaster@4.0-service
 
 # Light
 PRODUCT_PACKAGES += \
