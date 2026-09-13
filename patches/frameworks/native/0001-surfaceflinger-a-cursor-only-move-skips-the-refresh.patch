@@ -129,6 +129,16 @@ diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinge
 diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
 --- a/services/surfaceflinger/SurfaceFlinger.cpp
 +++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -3981,5 +3981,5 @@
+ uint32_t SurfaceFlinger::setClientStateLocked(
+         const ComposerState& composerState, int64_t desiredPresentTime,
+         const std::vector<ListenerCallbacks>& listenerCallbacks, int64_t postTime,
+-        bool privileged) {
++        bool privileged, uint32_t txFlags) {
+     const layer_state_t& s = composerState.state;
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
 @@ -4006,4 +4006,16 @@
          if (layer->setPosition(s.x, s.y, !geometryAppliesWithResize)) {
 -            flags |= eTraversalNeeded;
@@ -162,7 +172,8 @@ diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.c
 --- a/services/surfaceflinger/Layer.cpp
 +++ b/services/surfaceflinger/Layer.cpp
 @@ -480,15 +480,23 @@
- void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
+-void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
++bool Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
      const auto outputLayer = findOutputLayerForDisplay(display);
 -    LOG_FATAL_IF(!outputLayer);
 +    // mocha: the cursor-only fast road iterates every display and calls in
