@@ -115,13 +115,16 @@ PRODUCT_PACKAGES += libs \
 # RenderScript shims
 #
 # The board sets OVERRIDE_RS_DRIVER := libnvRSDriver.so, and that driver does
-# not load: it needs the name libLLVM.so, which AOSP now builds as
-# libLLVM_android.so, and the four-parameter GraphicBufferMapper::lock, which
-# AOSP has since extended. Both are answered in shims/; see the comments
-# there. Without them libRS quietly loads libRSDriver.so instead and the
-# setting above is decoration.
+# not load. It wants three things the tree no longer offers under the names it
+# knows: libLLVM.so, which AOSP now builds as libLLVM_android.so; the
+# four-parameter GraphicBufferMapper::lock, which AOSP has since extended; and
+# libgui.so, which vendor code may not link -- libgui_vendor is the same
+# library built for the vendor side, and shims/Android.mk bridges the name.
+# All three are answered in shims/; see the comments there. Without them libRS
+# quietly loads libRSDriver.so instead and the setting above is decoration.
 PRODUCT_PACKAGES += libLLVM \
-                    libshim_rs
+                    libshim_rs \
+                    libgui_vendor
                     
 # HIDL HALs
 $(call inherit-product, device/xiaomi/mocha/hidl/hidl.mk)

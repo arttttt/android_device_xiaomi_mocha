@@ -56,4 +56,26 @@ LOCAL_SHARED_LIBRARIES := libui
 LOCAL_MODULE := libshim_rs
 LOCAL_MODULE_TAGS := optional
 LOCAL_VENDOR_MODULE := true
+
+# The third thing libnvRSDriver.so needs, and the only one that is not code.
+#
+# It has libgui.so in DT_NEEDED and takes one symbol from it,
+# GLConsumer::updateTexImage(). libgui is VNDK-private -- vendor code cannot
+# link it -- but AOSP builds the same sources a second time for exactly this
+# case, frameworks/native/libs/gui/Android.bp:212, as libgui_vendor. Nothing
+# in the tree refers to that module; it is provided and left for whoever needs
+# it, and on this board that is the RenderScript driver.
+#
+# It installs as libgui_vendor.so, and the prebuilt asks for libgui.so, so the
+# name is bridged here. A symlink rather than a wrapper: the file on the other
+# end is the real library, and the alternative -- a small library of ours that
+# links libgui_vendor and answers to libgui.so -- would put something in
+# /vendor/lib that is named after a library it is not.
+#
+# The rule hangs off this module because both exist for the same reason. There
+# is no symlink primitive in this build system that does not need a real
+# installed file to attach to.
+LOCAL_POST_INSTALL_CMD := \
+    ln -sf libgui_vendor.so $(TARGET_OUT_VENDOR)/lib/libgui.so
+
 include $(BUILD_SHARED_LIBRARY)
