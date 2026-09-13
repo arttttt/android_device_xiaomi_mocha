@@ -226,6 +226,27 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     conn_init
 
+# VINTF
+# target-level in the manifest is what picks the matrix: without it the device
+# is UNSPECIFIED, which means legacy, and compatibility_matrix.legacy.xml
+# accepts nearly anything -- which is how audio 2.0, health 1.0 and mapper 2.0
+# went unnoticed. Level 4 is Q's own, so the device is now measured against
+# what it actually runs on.
+#
+# This makes assemble_vintf verify the assembled vendor manifest against the
+# framework matrix at build time instead of leaving the mismatch to be
+# discovered on the device. Note what is deliberately NOT set:
+# PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS, which would also check the
+# kernel version and config against the matrix -- matrix.4 wants 4.9 or newer
+# and this board runs 3.10, so that check would refuse a device that works.
+PRODUCT_ENFORCE_VINTF_MANIFEST := true
+
+# The API level this tablet actually shipped with, in 2014. Only consumed by
+# build/make/core/main.mk to set ro.product.first_api_level; nothing else in
+# the tree reads it. Declaring it honestly is what keeps the Treble and VNDK
+# requirements that arrived long after this hardware from being applied to it.
+PRODUCT_SHIPPING_API_LEVEL := 19
+
 # Software gatekeeper
 # The stock secure world runs, but its seven trusted applications do not
 # include a gatekeeper and the image is signed, so there is no hardware one

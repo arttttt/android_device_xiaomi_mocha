@@ -1,8 +1,20 @@
 # Audio
+# The service keeps its 2.0 name and is the right one anyway: it registers
+# whatever it can find, newest first --
+#
+#     bool fail = registerPassthroughServiceImplementation<audio::V5_0::IDevicesFactory>() != OK &&
+#                 registerPassthroughServiceImplementation<audio::V4_0::IDevicesFactory>() != OK &&
+#                 registerPassthroughServiceImplementation<audio::V2_0::IDevicesFactory>() != OK;
+#
+# so it was serving 2.0 only because 2.0 was the only implementation beside
+# it. compatibility_matrix.4.xml asks for 5.0 with optional="false". The
+# wrapper still opens a legacy audio_hw_device through libhardware and only
+# refuses one older than AUDIO_DEVICE_API_VERSION_MIN, which is 2.0 --
+# audio.primary.tegra declares exactly that, so it goes on working unchanged.
 PRODUCT_PACKAGES += \
-    android.hardware.audio@2.0-impl \
+    android.hardware.audio@5.0-impl \
     android.hardware.audio@2.0-service \
-    android.hardware.audio.effect@2.0-impl \
+    android.hardware.audio.effect@5.0-impl \
 
 # Bluetooth
 PRODUCT_PACKAGES += \
