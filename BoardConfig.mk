@@ -229,6 +229,12 @@ BOARD_FLASH_BLOCK_SIZE := 131072
 # linker matches on the resolved path.
 TARGET_LD_SHIM_LIBS := /system/bin/app_process32|libshim_zw.so
 
+# The same rule about resolved paths applies here, and bites harder: /vendor is
+# a symlink into /system on this board, so the linker reports and matches
+# /system/vendor/lib/libnvRSDriver.so. Spelling it /vendor/lib would silently
+# match nothing.
+TARGET_LD_SHIM_LIBS += /system/vendor/lib/libnvRSDriver.so|libshim_rs.so
+
 # LINEAGEHW
 JAVA_SOURCE_OVERLAYS := org.lineageos.hardware|device/xiaomi/mocha/lineagehw|**/*.java
 
