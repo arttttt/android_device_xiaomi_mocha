@@ -32,13 +32,23 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.graphics.allocator@2.0-impl \
     android.hardware.graphics.allocator@2.0-service \
-    android.hardware.graphics.mapper@2.0-impl \
+    android.hardware.graphics.mapper@2.0-impl-2.1 \
     android.hardware.graphics.composer@2.2-service
 
 # Health HAL
+# The generic service, not our own: it reads the battery through
+# libbatterymonitor and /sys/class/power_supply, which is all this board
+# offers anyway. It declares "overrides: healthd", so the framework's own
+# healthd stops being installed -- and that is the point. With health@1.0
+# from us and healthd from the system, the device served IHealth twice:
+#
+#     DM,FC android.hardware.health@1.0::IHealth/default   (ours)
+#     FM    android.hardware.health@2.0::IHealth/backup    (healthd)
+#
+# The framework was reading the battery through its own fallback while our
+# HAL sat beside it answering an interface Q no longer asks for.
 PRODUCT_PACKAGES += \
-    android.hardware.health@1.0-impl \
-    android.hardware.health@1.0-service
+    android.hardware.health@2.0-service
 
 # Keymaster
 PRODUCT_PACKAGES += \
