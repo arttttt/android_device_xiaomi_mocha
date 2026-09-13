@@ -1,75 +1,106 @@
-on boot
-    write /sys/class/android_usb/android0/iSerial ${ro.serialno}
-    write /sys/class/android_usb/android0/iManufacturer ${ro.product.manufacturer}
-    write /sys/class/android_usb/android0/iProduct ${ro.product.model}
-    
-    write /sys/class/android_usb/android0/f_rndis/manufacturer ${ro.product.manufacturer}
-    write /sys/class/android_usb/android0/f_rndis/vendorID 0955
-    write /sys/class/android_usb/android0/f_rndis/wceis 1
+# USB gadget setup for mocha.
+#
+# The kernel no longer has android.c, so there is no /sys/class/android_usb
+# to write to: the gadget is composed through configfs instead. That moves
+# the work, and it does not move all of it to the platform.
+#
+# system/core supplies init.usb.configfs.rc, and that file only ever does
+# the last three steps of a configuration change -- name the configuration,
+# symlink functions into it, and write the controller to UDC. It has no
+# "on init" block at all. Nothing in system/core, and nothing in
+# UsbDeviceManager, creates the gadget, its strings, its configuration or
+# any function instance except rndis.gs4. On a device with an
+# android.hardware.usb.gadget HAL that is the HAL's job; we have no such
+# HAL, so it is ours, and it has to be finished before the first
+# sys.usb.config arrives.
+#
+# The instance names below are not ours to choose. init.usb.configfs.rc
+# symlinks exactly these paths, so mtp is gs0, ptp is gs1, accessory is
+# gs2 and audio_source is gs3 -- a name that does not match is a function
+# that silently never appears. rndis.gs4 is deliberately absent: the
+# platform file creates it itself before writing its attributes, and
+# removes it again when the configuration goes to none.
+#
+# The board is called tn8 here and elsewhere. It shares its kernel and its
+# drivers with NVIDIA's SHIELD Tablet, which is where the name comes from,
+# and it is kept on purpose.
+
+on init
+    # configfs is already mounted: the platform init.rc does it in its own
+    # "on init", which runs before this one.
+    mkdir /config/usb_gadget/g1 0770 shell shell
+    mkdir /config/usb_gadget/g1/strings/0x409 0770 shell shell
+    mkdir /config/usb_gadget/g1/functions/ffs.adb
+    mkdir /config/usb_gadget/g1/functions/mtp.gs0
+    mkdir /config/usb_gadget/g1/functions/ptp.gs1
+    mkdir /config/usb_gadget/g1/functions/accessory.gs2
+    mkdir /config/usb_gadget/g1/functions/audio_source.gs3
+    mkdir /config/usb_gadget/g1/configs/b.1 0770 shell shell
+    mkdir /config/usb_gadget/g1/configs/b.1/strings/0x409 0770 shell shell
+
+    write /config/usb_gadget/g1/idVendor 0x0955
+    write /config/usb_gadget/g1/idProduct 0xCF09
+    write /config/usb_gadget/g1/bcdDevice 0x0223
+    write /config/usb_gadget/g1/bDeviceClass 0
+    write /config/usb_gadget/g1/bDeviceSubClass 0
+    write /config/usb_gadget/g1/bDeviceProtocol 0
+    write /config/usb_gadget/g1/strings/0x409/serialnumber ${ro.serialno}
+    write /config/usb_gadget/g1/strings/0x409/manufacturer ${ro.product.manufacturer}
+    write /config/usb_gadget/g1/strings/0x409/product ${ro.product.model}
+    write /config/usb_gadget/g1/configs/b.1/MaxPower 500
+
+    # Which branch of init.usb.configfs.rc applies, and what it writes to
+    # UDC. The controller is the platform device behind tegra_udc, named
+    # after its device tree node udc@7d000000; /sys/class/udc has the
+    # final say.
+    setprop sys.usb.configfs 1
+    setprop sys.usb.controller 7d000000.udc
 
 on fs
+    # The mount attaches to the FunctionFS instance named adb, which is
+    # the ffs.adb created above -- "on init" has already run by now.
     mkdir /dev/usb-ffs 0770 shell shell
     mkdir /dev/usb-ffs/adb 0770 shell shell
     mount functionfs adb /dev/usb-ffs/adb uid=2000,gid=2000
-    write /sys/class/android_usb/android0/f_ffs/aliases adb
-    setprop sys.usb.ffs.aio_compat 1
 
-on property:sys.usb.config=mtp
-    write /sys/class/android_usb/android0/enable 0
-    write /sys/class/android_usb/android0/idVendor 0955
-    write /sys/class/android_usb/android0/idProduct CF07
-    write /sys/class/android_usb/android0/functions ${sys.usb.config}
-    write /sys/class/android_usb/android0/enable 1
-    setprop sys.usb.state ${sys.usb.config}
+    # Nothing here selects adbd's FunctionFS implementation. The property
+    # this file used to set, sys.usb.ffs.aio_compat, is not one adbd reads
+    # on Q; the choice is ro.adb.nonblocking_ffs in system.prop, and it is
+    # pinned to the blocking path because the old kernel's FunctionFS had
+    # no AIO at all. The kernel has it now, so that pin can come out -- but
+    # on its own, after configfs is known to work, since adb is the only
+    # way back in if it does not.
 
-on property:sys.usb.config=mtp,adb
-    write /sys/class/android_usb/android0/enable 0
-    write /sys/class/android_usb/android0/idVendor 0955
-    write /sys/class/android_usb/android0/idProduct CF05
-    write /sys/class/android_usb/android0/functions ${sys.usb.config}
-    write /sys/class/android_usb/android0/enable 1
-    start adbd
-    setprop sys.usb.state ${sys.usb.config}
+# Product id per combination, which the platform file never writes -- it
+# leaves whatever was set last. These blocks carry over the ids this board
+# has always reported. They only set the id: naming the configuration,
+# symlinking the functions and binding the controller all still belong to
+# init.usb.configfs.rc, which init.rc imports on the line after this file's
+# and which therefore runs second for any trigger they share.
+#
+# An id can only be written while the gadget is unbound, and it is:
+# UsbHandlerLegacy.trySetEnabledFunctions() sets sys.usb.config to none and
+# waits for the state before setting the real one, so the none block of
+# init.usb.configfs.rc has already written UDC empty by the time any
+# trigger below is reached.
 
-on property:sys.usb.config=rndis
-    write /sys/class/android_usb/android0/enable 0
-    write /sys/class/android_usb/android0/idVendor 0955
-    write /sys/class/android_usb/android0/idProduct CF08
-    write /sys/class/android_usb/android0/functions ${sys.usb.config}
-    write /sys/class/android_usb/android0/enable 1
-    setprop sys.usb.state ${sys.usb.config}
+on property:sys.usb.config=adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xCF09
 
-on property:sys.usb.config=rndis,adb
-    write /sys/class/android_usb/android0/enable 0
-    write /sys/class/android_usb/android0/idVendor 0955
-    write /sys/class/android_usb/android0/idProduct CF08
-    write /sys/class/android_usb/android0/functions ${sys.usb.config}
-    write /sys/class/android_usb/android0/enable 1
-    start adbd
-    setprop sys.usb.state ${sys.usb.config}
+on property:sys.usb.config=mtp && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xCF07
 
-on property:sys.usb.config=ptp
-    write /sys/class/android_usb/android0/enable 0
-    write /sys/class/android_usb/android0/idVendor 0955
-    write /sys/class/android_usb/android0/idProduct CF07
-    write /sys/class/android_usb/android0/functions ${sys.usb.config}
-    write /sys/class/android_usb/android0/enable 1
-    setprop sys.usb.state ${sys.usb.config}
+on property:sys.usb.config=mtp,adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xCF05
 
-on property:sys.usb.config=ptp,adb
-    write /sys/class/android_usb/android0/enable 0
-    write /sys/class/android_usb/android0/idVendor 0955
-    write /sys/class/android_usb/android0/idProduct CF05
-    write /sys/class/android_usb/android0/functions ${sys.usb.config}
-    write /sys/class/android_usb/android0/enable 1
-    start adbd
-    setprop sys.usb.state ${sys.usb.config}
+on property:sys.usb.config=ptp && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xCF07
 
-on property:sys.usb.config=adb
-    write /sys/class/android_usb/android0/enable 0
-    write /sys/class/android_usb/android0/idVendor 0955
-    write /sys/class/android_usb/android0/idProduct CF09
-    write /sys/class/android_usb/android0/functions ${sys.usb.config}
-    write /sys/class/android_usb/android0/enable 1
-    start adbd
-    setprop sys.usb.state ${sys.usb.config}
+on property:sys.usb.config=ptp,adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xCF05
+
+on property:sys.usb.config=rndis && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xCF08
+
+on property:sys.usb.config=rndis,adb && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0xCF08
