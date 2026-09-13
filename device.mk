@@ -268,11 +268,28 @@ PRODUCT_PACKAGES += \
 # and this board runs 3.10, so that check would refuse a device that works.
 PRODUCT_ENFORCE_VINTF_MANIFEST := true
 
-# The API level this tablet actually shipped with, in 2014. Only consumed by
-# build/make/core/main.mk to set ro.product.first_api_level; nothing else in
-# the tree reads it. Declaring it honestly is what keeps the Treble and VNDK
-# requirements that arrived long after this hardware from being applied to it.
-PRODUCT_SHIPPING_API_LEVEL := 19
+# The age of the stack this board runs, not the date the tablet went on sale.
+#
+# AOSP defines this as the API level the device shipped with, and by that
+# reading it would be 19: the Mi Pad went out on KitKat in 2014. But what it
+# is used for is deciding which era's requirements apply, and the software
+# here is not KitKat's. The kernel and the vendor blobs are tn8's -- the
+# SHIELD Tablet -- and tn8's last release was Android 7. Twenty-four says
+# that, and stops the build asking on our behalf for leniency granted to
+# hardware five years older than what we actually carry.
+#
+# Free in both directions, which is why it can be said honestly rather than
+# defensively. The thresholds in build/make/core/config.mk are 26 for
+# PRODUCT_FULL_TREBLE and 28 for PRODUCT_COMPATIBLE_PROPERTY, PRODUCT_USE_VNDK
+# (which would then force BOARD_VNDK_VERSION), BOARD_SYSTEMSDK_VERSIONS and
+# the 64-bit binder requirement. Twenty-four clears none of them. At run time
+# the two readers of ro.product.first_api_level test for greater than 28
+# (ConnectivityService) and at most 29 (PackageManagerService), and 19 and 24
+# fall the same side of both.
+#
+# Not verified: that tn8's last release was Android 7 is taken from what the
+# board is, not from the blobs, which carry no version string to read.
+PRODUCT_SHIPPING_API_LEVEL := 24
 
 # Software gatekeeper
 # The stock secure world runs, but its seven trusted applications do not
