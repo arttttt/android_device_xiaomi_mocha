@@ -1,4 +1,4 @@
-From: Artem Bambalov <artembambalov1993@gmail.com>
+From: Nickolay Semendyaev <agent00791@gmail.com>
 Subject: [PATCH] surfaceflinger: a narrow panel still deserves its colours
 
 populateColorModes returns early for a display without a wide gamut,
@@ -11,14 +11,19 @@ well, and the composer behind it maps every intent onto its own
 colour machinery. The SDR half is now built for every display; the
 HDR half keeps the original gate.
 
-diff --git a/services/surfaceflinger/DisplayDevice.cpp b/services/surfaceflinger/DisplayDevice.cpp
-index 6755ab6ed..0e3cc1ac0 100644
---- a/services/surfaceflinger/DisplayDevice.cpp
-+++ b/services/surfaceflinger/DisplayDevice.cpp
-@@ -716,9 +716,12 @@ void DisplayDevice::addColorMode(
- 
- void DisplayDevice::populateColorModes(
-         const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes) {
+Rebased for Q. The code is unchanged in substance but has moved out of
+DisplayDevice into the composition engine: DisplayColorProfile owns the
+table now, and the argument is spelled DisplayColorProfileCreationArgs::
+HwcColorModes rather than the bare map. The early return survived the
+move untouched, so the fix is the same one, in its new house.
+
+diff --git a/services/surfaceflinger/CompositionEngine/src/DisplayColorProfile.cpp b/services/surfaceflinger/CompositionEngine/src/DisplayColorProfile.cpp
+--- a/services/surfaceflinger/CompositionEngine/src/DisplayColorProfile.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/DisplayColorProfile.cpp
+@@ -271,9 +271,12 @@
+
+ void DisplayColorProfile::populateColorModes(
+         const DisplayColorProfileCreationArgs::HwcColorModes& hwcColorModes) {
 -    if (!hasWideColorGamut()) {
 -        return;
 -    }
@@ -28,13 +33,13 @@ index 6755ab6ed..0e3cc1ac0 100644
 +    // nothing below this line needs a wide panel: sRGB and native
 +    // modes with their render intents describe an sRGB-class display
 +    // exactly as well. The HDR half keeps the original gate.
- 
+
      // collect all known SDR render intents
      std::unordered_set<RenderIntent> sdrRenderIntents(sSdrRenderIntents.begin(),
-@@ -737,6 +740,10 @@ void DisplayDevice::populateColorModes(
+@@ -292,6 +295,10 @@
          }
      }
- 
+
 +    if (!hasWideColorGamut()) {
 +        return;
 +    }

@@ -385,7 +385,20 @@ config_171() {
 # Each of those returns only when the bring-up hits the failure it cures,
 # so the list stays a record of observed needs rather than inherited habit.
 post_sync_171() {
-    echo "==> post-sync patches (17.1): none by decision"
+    echo "==> post-sync patches (17.1)"
+    # The zlib and webview hacks the older branches need are not wanted here:
+    # Q hands out its own python through prebuilts/build-tools, and this tree
+    # syncs with --git-lfs, so the webview prebuilts arrive whole.
+    #
+    # The tree patches are a different matter. They were left off while it was
+    # unclear which of them Q had made unnecessary, and that turned out to cost
+    # more than it saved: without 0001-libbt-fm-bt-via-v4l2 the controller is
+    # brought up twice, once by the kernel's shared line discipline and once by
+    # libbt, and the second pass wedges it -- Bluetooth restarts every sixteen
+    # seconds and never pairs. That patch's own message had already said 17.1
+    # would need it.
+    patch_trees || return 1
+    echo "==> post-sync OK"
 }
 
 #==============================================================================
