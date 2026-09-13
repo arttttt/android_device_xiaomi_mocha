@@ -84,6 +84,17 @@ PRODUCT_PACKAGES += \
     android.hardware.wifi@1.0-service \
     wificond
 
-# HIDL
-PRODUCT_COPY_FILES += \
-    device/xiaomi/mocha/hidl/manifest.xml:system/vendor/manifest.xml
+# The device manifest is declared in BoardConfig.mk through
+# DEVICE_MANIFEST_FILE, not copied into place from here.
+#
+# It used to be copied, to /vendor/manifest.xml, which is where Android 8 and
+# 9 read it from. Q reads /vendor/etc/vintf/manifest.xml and nothing else, so
+# every vendor interface on this board was undeclared: hwservicemanager
+# answered "Cannot find entry ... in either framework or device manifest" for
+# each one in turn, and the framework treated running services as absent. Wifi
+# is where it showed -- HalDeviceManager kept saying "isWifiStarted called but
+# mWifi is null" while android.hardware.wifi@1.0-service sat there running.
+#
+# DEVICE_MANIFEST_FILE installs it where Q looks and, more usefully, checks it
+# against the framework compatibility matrix at build time. A version
+# understated here now fails the build instead of silently hiding a HAL.

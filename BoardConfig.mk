@@ -130,6 +130,17 @@ NUM_FRAMEBUFFER_SURFACE_BUFFERS := 3
 # Include an expanded selection of fonts
 EXTENDED_FONT_FOOTPRINT := true
 
+# HIDL
+#
+# What this board serves, told to the framework. Before this it was copied by
+# hand to /vendor/manifest.xml, the Android 8 and 9 address; Q reads
+# /vendor/etc/vintf/manifest.xml, so the file sat where nothing looked and
+# every vendor interface counted as undeclared. Declaring it here puts it in
+# the right place and has the build check it against the framework
+# compatibility matrix, so the next version we understate fails a build
+# instead of hiding a working HAL.
+DEVICE_MANIFEST_FILE := device/xiaomi/mocha/hidl/manifest.xml
+
 # Init
 TARGET_INIT_VENDOR_LIB := mocha_init
 TARGET_RECOVERY_DEVICE_MODULES := mocha_init
