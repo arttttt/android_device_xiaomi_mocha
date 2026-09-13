@@ -107,6 +107,22 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     hwcomposer.tegra
 
+# The loader configuration for the software codec APEX.
+#
+# mediaswcodec runs out of com.android.media.swcodec and uses the APEX's own
+# ld.config.txt, which is written for a device with a VNDK. This board has
+# none, so its sphal namespace searches three vndk-sp directories that do not
+# exist and the mapper implementation Codec2 needs can never be found --
+# C2AllocatorGralloc ends up with a null IMapper and media.swcodec takes
+# SIGSEGV on the first software codec that wants a graphic block.
+#
+# The file below is that configuration with /system/${LIB} added to the sphal
+# search paths. It is only a source: init bind-mounts it over the copy inside
+# the APEX, because the loader looks nowhere else. See configs/ld.config.txt
+# for the reasoning and initfiles/init.tegra.rc for the mount.
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/configs/ld.config.txt:$(TARGET_COPY_OUT_SYSTEM)/etc/swcodec/ld.config.txt
+
 # Graphics shim
 PRODUCT_PACKAGES += libs \
                     libshim_zw \

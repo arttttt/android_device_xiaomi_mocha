@@ -132,6 +132,19 @@ on boot
     chown system system /sys/bus/i2c/drivers/lp5521/0-0032/select_engine
     chown system system /sys/bus/i2c/drivers/lp5521/0-0032/run_engine
 
+# The loader configuration mediaswcodec actually reads.
+#
+# It lives inside com.android.media.swcodec and the loader resolves it from
+# the executable's own path, so nothing we install elsewhere is consulted --
+# bionic/linker/linker.cpp, get_ld_config_file_path(). The copy that
+# device.mk puts in /system/etc/swcodec is mounted over it instead, which is
+# how three other boards in this tree solve the same problem.
+#
+# Gated on apexd.status=ready because the mount point does not exist until
+# apexd has activated the APEX; run earlier it would silently do nothing.
+on property:apexd.status=ready
+    mount none /system/etc/swcodec/ld.config.txt /apex/com.android.media.swcodec/etc/ld.config.txt bind
+
 # TLK storage service
 import /vendor/etc/init/hw/init.tlk.rc
 
