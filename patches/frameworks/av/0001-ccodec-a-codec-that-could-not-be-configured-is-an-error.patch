@@ -1,0 +1,65 @@
+From: Artem Bambalov <artembambalov1993@gmail.com>
+Subject: [PATCH] ccodec: a codec that could not be configured is an error
+
+CCodec::allocate() asks the config to initialize itself, and when that
+fails it writes a warning and carries on:
+
+    status_t err = config->initialize(mClient, comp);
+    if (err != OK) {
+        ALOGW("Failed to initialize configuration support");
+        // TODO: report error once we complete implementation.
+    }
+
+The TODO is upstream's own, and the consequence is not a degraded codec but
+a dead process. initialize() builds mParamUpdater, so a failure leaves it
+null, and the very next thing anyone does with the codec walks into it:
+
+    F libc: Fatal signal 11 (SIGSEGV), fault addr 0x4 in tid (NDK MediaCodec_)
+      #00 libsfplugin_ccodec.so CCodecConfig::getReflectedFormat(...)
+      #01 libsfplugin_ccodec.so CCodecConfig::getConfigUpdateFromSdkParams(...)
+      #03 libsfplugin_ccodec.so CCodec::configure(...)
+
+On this board that is not a corner case. SystemUI decodes the interface
+sounds through Codec2 while it starts, so an initialize() failure kills
+SystemUI, which is a persistent process, so it starts again, decodes again
+and dies again -- a loop fast enough that the screen only flickers and the
+device cannot be used at all. Nothing in that picture names the cause: the
+log fills with crashes in a media library and with binder replies that
+cannot be delivered to a process which is, by then, already dying.
+
+Report the failure instead. The same function three lines above already
+shows the shape for it, for a component that could not be created: set the
+state to RELEASED, drop the lock, call onError. A codec whose configuration
+support never came up is no more usable than one that was never created,
+and the callers -- SoundPool here -- handle "no codec" perfectly well.
+
+This does not fix whatever made initialize() fail; it stops that failure
+from taking the process with it, which is also what makes the real cause
+observable, since a system restarting SystemUI twice a second cannot be
+measured.
+
+---
+diff --git a/media/codec2/sfplugin/CCodec.cpp b/media/codec2/sfplugin/CCodec.cpp
+--- a/media/codec2/sfplugin/CCodec.cpp
++++ b/media/codec2/sfplugin/CCodec.cpp
+@@ -654,9 +654,19 @@
+     // initialize config here in case setParameters is called prior to configure
+     Mutexed<Config>::Locked config(mConfig);
+     status_t err = config->initialize(mClient, comp);
+     if (err != OK) {
+         ALOGW("Failed to initialize configuration support");
+-        // TODO: report error once we complete implementation.
++        // mocha: and then stop, rather than continue with a half-built
++        // config. initialize() is what creates mParamUpdater, so carrying on
++        // means the next caller dereferences it and the process dies -- which
++        // on a persistent process is a boot loop rather than a failed codec.
++        config.unlock();
++        Mutexed<State>::Locked state(mState);
++        state->set(RELEASED);
++        state.unlock();
++        mCallback->onError(err, ACTION_CODE_FATAL);
++        state.lock();
++        return;
+     }
+     config->queryConfiguration(comp);
+
