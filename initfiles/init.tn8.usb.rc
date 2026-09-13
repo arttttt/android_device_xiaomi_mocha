@@ -49,12 +49,28 @@ on init
     write /config/usb_gadget/g1/strings/0x409/product ${ro.product.model}
     write /config/usb_gadget/g1/configs/b.1/MaxPower 500
 
-    # Which branch of init.usb.configfs.rc applies, and what it writes to
-    # UDC. The controller is the platform device behind tegra_udc, named
-    # after its device tree node udc@7d000000; /sys/class/udc has the
-    # final say.
-    setprop sys.usb.configfs 1
+    # What init.usb.configfs.rc writes to UDC to bind the gadget. The
+    # controller is the platform device behind tegra_udc, named after its
+    # device tree node udc@7d000000; /sys/class/udc has the final say.
     setprop sys.usb.controller 7d000000.udc
+
+# sys.usb.configfs decides which half of init.usb.configfs.rc and init.usb.rc
+# answers a configuration change, and it cannot be set in "on init" above:
+# the platform's own init.usb.rc says
+#
+#     on boot
+#         setprop sys.usb.configfs 0
+#
+# and "on boot" runs after "on init", so anything set earlier is overwritten.
+# Set from here it survives, because init.rc imports this file on the line
+# before init.usb.rc's neighbour and actions sharing a trigger run in the
+# order they were parsed -- ours is simply the last write.
+#
+# Without this every configuration change takes the legacy branch and writes
+# to /sys/class/android_usb, which this kernel no longer has. The gadget is
+# built correctly and then never bound: no error, no USB.
+on boot
+    setprop sys.usb.configfs 1
 
 on fs
     # The mount attaches to the FunctionFS instance named adb, which is
