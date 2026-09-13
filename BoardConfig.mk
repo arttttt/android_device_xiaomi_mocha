@@ -140,12 +140,22 @@ TARGET_RECOVERY_DEVICE_MODULES := mocha_init
 # serializes behind ~1.3 KB of synchronous 115200-baud UART printk,
 # capping video recording at ~5 fps. Level 4 keeps warnings/panics on
 # the wire and INFO spam off it.
-# Bring-up setting: ignore_loglevel instead of loglevel=4. With the level gate
-# in place the console shows only messages of error rank or worse, which during
-# the 17.1 bring-up hid both the early boot and init's own failures -- the board
-# looked as if the kernel never started when in fact init was dying. Put the
-# gate back before a release: it costs boot time and fills the log.
-BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive console=ttyS0,115200n8 ignore_loglevel
+# The serial console carried this bring-up from the first boot that produced no
+# adb to the one that found the watchdog, and it is no longer needed: the board
+# boots far enough for adb, which is both faster and does not cost anything at
+# runtime. printk to a 115200 port is synchronous and holds the console lock
+# while the bytes go out, so leaving it on taxes every message the kernel
+# emits, and ignore_loglevel meant every message.
+#
+# To bring it back for a boot that adb cannot reach, append:
+#
+#     console=ttyS0,115200n8 ignore_loglevel
+#
+# androidboot.selinux=permissive stays for now. Going enforcing is its own
+# step and has known work in front of it -- /dev/ion has no rule yet, and
+# without one C2AllocatorIon reproduces the null dereference that cost us this
+# release's longest detour.
+BOARD_KERNEL_CMDLINE := vpr_resize androidboot.selinux=permissive loglevel=4
 BOARD_KERNEL_BASE := 0x10000000
 BOARD_RAMDISK_OFFSET := 0x02000000
 BOARD_KERNEL_PAGESIZE := 2048
