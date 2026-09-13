@@ -469,7 +469,18 @@ do_sync() {
         repo init -u "$REPO_INIT_URL" -b "$REPO_INIT_BRANCH" $REPO_INIT_FLAGS
     fi
     do_manifest || return 1
-    repo sync -j$(nproc) --force-sync
+    # repo sync's exit status is the only thing that distinguishes a finished
+    # sync from one that gave up halfway. It reports per-project failures on
+    # stderr and keeps going, so without this check the function announced
+    # "sync OK" over a tree that had not moved -- and the build that followed
+    # used whatever was there. A local edit to a tracked file is enough to
+    # trigger it: --force-sync overrides a project whose path or remote
+    # changed, not a dirty working file.
+    if ! repo sync -j$(nproc) --force-sync; then
+        echo "  repo sync did not complete - the tree is not at the revisions" >&2
+        echo "  the manifest names, so do not build from it" >&2
+        return 1
+    fi
     echo "==> sync OK"
 }
 
