@@ -165,6 +165,21 @@ static void wifi_addr_from_serial(const char *hex, unsigned char addr[ADDR_LEN])
 
     for (i = 0; i < sizeof(off) / sizeof(off[0]); i++)
         addr[i + 2] = hex_octet(hex, off[i]);
+
+    /*
+     * The same correction the bluetooth address gets above, and for the same
+     * reason -- it was simply missing here.
+     *
+     * Only two octets are fixed, so the third, which completes the OUI,
+     * comes out of the hash and differs on every tablet. The result claimed
+     * to be an IEEE-assigned address under an OUI nobody owns: Xiaomi's is
+     * 0c:1d:af, and what this produced was 0c:1d:<hash>. Raising the
+     * locally-administered bit says what is true -- that the address was
+     * computed here, not issued -- and it is the same kind of address
+     * Android's own MAC randomisation hands out, so an access point that
+     * refuses it refuses every modern phone too.
+     */
+    addr[0] = (addr[0] & ~0x01) | 0x02;
 }
 
 static void addr_to_str(const unsigned char addr[ADDR_LEN], char out[ADDR_STR_LEN])
