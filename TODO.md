@@ -59,12 +59,15 @@ device-side verification before cleanup:
   create empty unused directories at boot.
 - `initfiles/init.tegra.rc:44-53` — chown/chmod on `/usercalib`, creating
   `/usercalib/lost+found`, `restorecon_recursive /usercalib`. Same story.
-- `initfiles/init.tegra.rc:131-140` — permissions on
-  `/sys/class/invensense/mpu/{akm89xx,bmpX80}/...`. These sysfs paths
-  come from the **Invensense MPL userspace blob** (MotionProLink), which
-  mocha doesn't ship. Only the in-kernel mpu6515 driver is present,
-  exposing different paths (`/sys/class/invensense/mpu/...` top-level,
-  which *are* used in lines 116-130 and should stay).
+
+The Invensense entry that used to stand here is done, and its reasoning was
+half wrong, which is the part worth keeping. It called the MPL sub-paths
+dead but the top-level `/sys/class/invensense/mpu/...` ones live, to be
+left alone. They were not live: mocha has an ST LSM6DB0, the kernel device
+tree carries no MPU node at all, and `/sys/class/invensense` therefore
+never appears on the device. All fifty-five permission lines were dead, not
+the ten the note allowed for. One command on the device settled what
+reading the file carefully had got wrong.
 
 Low-risk to drop these chunks once someone can boot and confirm nothing
 regresses. High-value for cleanliness: `init.tegra.rc` becomes a coherent

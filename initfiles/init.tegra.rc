@@ -119,21 +119,6 @@ on boot
     chown system system /sys/devices/platform/tegra_wakeup_monitor/del_ports
 
 # Sensor
-    chown system system /sys/class/invensense/mpu/accl_enable
-    chown system system /sys/class/invensense/mpu/accl_fifo_enable
-    chown system system /sys/class/invensense/mpu/accl_delay
-    chown system system /sys/class/invensense/mpu/accl_max_range
-    chown system system /sys/class/invensense/mpu/enable
-    chown system system /sys/class/invensense/mpu/gyro_enable
-    chown system system /sys/class/invensense/mpu/gyro_fifo_enable
-    chown system system /sys/class/invensense/mpu/gyro_delay
-    chown system system /sys/class/invensense/mpu/gyro_max_range
-    chown system system /sys/class/invensense/mpu/lpa_delay
-    chown system system /sys/class/invensense/mpu/motion_enable
-    chown system system /sys/class/invensense/mpu/motion_threshold
-    chown system system /sys/class/invensense/mpu/power_state
-    chown system system /sys/class/invensense/mpu/key
-
     chown system system /sys/class/sensors/light/device/amb_clear
 
 # Touch
@@ -153,50 +138,6 @@ import /vendor/etc/init/hw/init.tlk.rc
 on property:ro.debuggable=1
     # EMC debug interface
     chmod 666 /sys/kernel/debug/tegra_emc/eack_state
-    # Invensense interface
-    chmod 0666 /sys/class/invensense/mpu/accl_bias
-    chmod 0666 /sys/class/invensense/mpu/accl_enable
-    chmod 0666 /sys/class/invensense/mpu/accl_fifo_enable
-    chmod 0666 /sys/class/invensense/mpu/accl_fs
-    chmod 0666 /sys/class/invensense/mpu/accl_matrix
-    chmod 0666 /sys/class/invensense/mpu/clock_source
-    chmod 0666 /sys/class/invensense/mpu/compass_enable
-    chmod 0666 /sys/class/invensense/mpu/compass_matrix
-    chmod 0666 /sys/class/invensense/mpu/compass_scale
-    chmod 0666 /sys/class/invensense/mpu/dev
-    chmod 0666 /sys/class/invensense/mpu/dmp_firmware
-    chmod 0666 /sys/class/invensense/mpu/enable
-    chmod 0666 /sys/class/invensense/mpu/fifo_rate
-    chmod 0666 /sys/class/invensense/mpu/firmware_loaded
-    chmod 0666 /sys/class/invensense/mpu/flick_axis
-    chmod 0666 /sys/class/invensense/mpu/flick_counter
-    chmod 0666 /sys/class/invensense/mpu/flick_int_on
-    chmod 0666 /sys/class/invensense/mpu/flick_lower
-    chmod 0666 /sys/class/invensense/mpu/flick_message_on
-    chmod 0666 /sys/class/invensense/mpu/flick_upper
-    chmod 0666 /sys/class/invensense/mpu/gyro_enable
-    chmod 0666 /sys/class/invensense/mpu/gyro_fifo_enable
-    chmod 0666 /sys/class/invensense/mpu/gyro_fs
-    chmod 0666 /sys/class/invensense/mpu/gyro_matrix
-    chmod 0666 /sys/class/invensense/mpu/key
-    chmod 0666 /sys/class/invensense/mpu/lpa_freq
-    chmod 0666 /sys/class/invensense/mpu/lpa_mode
-    chmod 0666 /sys/class/invensense/mpu/pedometer_steps
-    chmod 0666 /sys/class/invensense/mpu/pedometer_time
-    chmod 0666 /sys/class/invensense/mpu/power
-    chmod 0666 /sys/class/invensense/mpu/power_state
-    chmod 0666 /sys/class/invensense/mpu/raw_accl
-    chmod 0666 /sys/class/invensense/mpu/raw_gyro
-    chmod 0666 /sys/class/invensense/mpu/reg_dump
-    chmod 0666 /sys/class/invensense/mpu/self_test
-    chmod 0666 /sys/class/invensense/mpu/temp_offset
-    chmod 0666 /sys/class/invensense/mpu/temp_scale
-    chmod 0666 /sys/class/invensense/mpu/temperature
-    chmod 0666 /sys/class/invensense/mpu/uevent
-
-    # Invensense debug register interface.
-    chmod 0666 /sys/class/invensense/mpu/dbg_reg
-    chmod 0666 /sys/class/invensense/mpu/dbg_dat
 
 # bugreport is triggered by the VOLUME-DOWN and VOLUME-UP keys
 service bugreport /system/bin/dumpstate -d -p -B -o /data/data/com.android.shell/files/bugreports/bugreport
