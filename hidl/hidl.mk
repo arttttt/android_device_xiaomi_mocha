@@ -24,6 +24,14 @@ PRODUCT_PACKAGES += \
     android.hardware.drm@1.0-impl \
     android.hardware.drm@1.0-service
 
+# Gatekeeper
+# The service carries no crypto: it finds an implementation through
+# hw_get_module_by_class() and exposes it over HIDL. Ours is the software
+# module built from gatekeeper/, installed as gatekeeper.tegra.
+PRODUCT_PACKAGES += \
+    android.hardware.gatekeeper@1.0-impl \
+    android.hardware.gatekeeper@1.0-service
+
 # Graphics
 # The composer pair works like the camera one above: the passthrough impl
 # loads hwcomposer.tegra through libhardware and the service exposes it over

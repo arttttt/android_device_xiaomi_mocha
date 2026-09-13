@@ -1,0 +1,73 @@
+A software gatekeeper for a board whose secure world has no room for one.
+
+WHERE THESE FILES CAME FROM
+
+module.cpp, SoftGateKeeperDevice.cpp, SoftGateKeeperDevice.h and
+SoftGateKeeper.h are copied verbatim from AOSP:
+
+    device/generic/goldfish/gatekeeper/
+
+That is the emulator's gatekeeper -- scrypt in the normal world, no secure
+hardware behind it. They are kept byte-for-byte so that pulling a newer
+upstream version stays a copy rather than a merge; only Android.mk is ours,
+and it differs from the emulator's in one line, the module name. The log tag
+still says GoldfishGatekeeper on purpose: when something goes wrong it is
+worth knowing at a glance which implementation answered.
+
+WHY NOT THE REAL THING
+
+mocha does have a secure world. The stock TOS partition holds NVIDIA's TLK
+and it runs: /dev/tlk_device is there, tlk_daemon is up, and the kernel
+carries security/tlk_driver. The image bundles seven trusted applications --
+oemcrypto_secure_service, crypto_service, secure_otf, secure_rtc,
+hdcp_secure_service, hwkeystore and tlkstoragedemo_task -- and none of them
+is a gatekeeper. The image is signed by Xiaomi, so an eighth cannot be added,
+and replacing the whole trusted OS with OP-TEE is a four-thousand-line
+platform port. The kernel tree's docs/trustzone-tlk.md has the full analysis.
+
+So the choice was between this and nothing, and nothing was what we had.
+
+WHAT IT ACTUALLY BUYS
+
+Almost nothing, and that is worth stating plainly. Without a gatekeeper HAL,
+gatekeeperd does not fail -- it falls back to the very same code:
+
+    hw_device = IGatekeeper::getService();
+    if (hw_device == nullptr) {
+        ALOGW("falling back to software GateKeeper");
+        soft_device.reset(new SoftGateKeeperDevice());
+    }
+
+The lockscreen has therefore always worked, through an identical scrypt
+implementation, one process to the left. What changes is that the interface
+is now declared and served, so
+
+    E init: Could not find 'android.hardware.gatekeeper@1.0::IGatekeeper/default'
+
+stops appearing, and -- the reason this exists at all -- the device can
+satisfy compatibility_matrix.4.xml, which lists gatekeeper 1.0 as
+optional="false". Without it, claiming target-level 4 is impossible.
+
+Security is unchanged either way: the signing key in SoftGateKeeper is zeros,
+attempt counters live in the normal world, and root can reach them. That is
+the honest state of a board whose secure world will not take a passenger.
+
+NOBODY HAS TO RESET THEIR PIN
+
+Adding a HAL where there was none is a case AOSP anticipated. A password
+handle enrolled by gatekeeperd's own fallback is marked as not hardware
+backed, and verifyChallenge() notices:
+
+    } else {
+        // upgrade scenario, a HAL has been added to this device where there was none before
+        SoftGateKeeperDevice soft_dev;
+        ret = soft_dev.verify(...);
+        if (ret == 0) {
+            // success! re-enroll with HAL
+            if (request_reenroll != nullptr) *request_reenroll = true;
+        }
+    }
+
+The old handle is checked against a local software device and, once it
+passes, the framework is told to re-enroll it through the HAL. The user
+enters the PIN they already had, once, and the migration happens underneath.

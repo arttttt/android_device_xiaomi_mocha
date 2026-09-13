@@ -226,6 +226,13 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     conn_init
 
+# Software gatekeeper
+# The stock secure world runs, but its seven trusted applications do not
+# include a gatekeeper and the image is signed, so there is no hardware one
+# to reach. See gatekeeper/README for what this does and does not buy.
+PRODUCT_PACKAGES += \
+    gatekeeper.tegra
+
 # Disable adb auth so adb works without on-device "Allow USB debugging?"
 # prompt. Necessary because mocha has no UART and we may need to reach a
 # half-booted device for early-boot debug without UI being available to
