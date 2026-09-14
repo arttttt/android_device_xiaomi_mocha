@@ -17,28 +17,28 @@
 /*
  * What this service is for.
  *
- * Android composes a USB gadget in one of two ways, and UsbDeviceManager
- * decides which by asking hwservicemanager for IUsbGadget. Without one it
- * falls back to UsbHandlerLegacy, which writes sys.usb.config and leaves the
- * work to init: the blocks in init.usb.configfs.rc do the symlinking and bind
- * the controller. With one it uses UsbHandlerHal and calls here instead.
+ * UsbDeviceManager composes a gadget in one of two ways and picks between them
+ * by asking hwservicemanager for IUsbGadget. Without one it uses
+ * UsbHandlerLegacy, writes sys.usb.config and leaves the work to init. With one
+ * it uses UsbHandlerHal and calls here.
  *
- * The reason to prefer this side is not tidiness. The legacy path routes every
- * change through the "none" configuration, and the none block in
- * init.usb.configfs.rc stops adbd unconditionally; the next block starts it
- * again. So adb is torn down and rebuilt on every change of function, even
- * when adb is in both the old set and the new one -- and each restart reopens
- * /dev/usb-ffs/adb/ep0 and rewrites the descriptors. On this kernel that is
- * not free: the release of a dying daemon's last descriptor is deferred to a
- * workqueue, so a new adbd can open ep0 before the old count has been given
- * back, the count never passes through zero, FunctionFS never returns to
- * FFS_READ_DESCRIPTORS, and the write lands on an active instance and fails
- * with ESRCH. Measured at roughly one configuration change in ten.
+ * The reason to be here is that the legacy path routes every change through the
+ * "none" configuration, whose block in init.usb.configfs.rc stops adbd
+ * unconditionally, so adb is torn down and rebuilt even when it is in both the
+ * old set of functions and the new one. UsbHandlerHal stops adbd only when the
+ * new configuration has no ADB in it, so switching between two that both carry
+ * adb leaves the daemon alone.
  *
- * UsbHandlerHal starts adbd when ADB is in the new configuration and stops it
- * only when it is not (UsbDeviceManager.java, setUsbConfig). ctl.start on a
- * running service does nothing, so switching between configurations that both
- * carry adb leaves the daemon alone, and the window closes.
+ * The shape of this file follows the implementations that ship on devices which
+ * have had this HAL since it existed -- wahoo, coral, barbet. What that shape
+ * gets right, and what the interface does not suggest, is that binding the
+ * controller is not part of answering the call. Writing UDC needs the
+ * FunctionFS endpoints to exist, and they do not exist until a daemon has
+ * written its descriptors, which happens on its own schedule. So the call links
+ * the functions and hands the rest to a monitor thread, and the monitor is what
+ * writes UDC -- once at first, and again whenever a daemon goes away and comes
+ * back. One path serves both, which is why a restart of adbd needs no special
+ * case of its own.
  */
 
 #define LOG_TAG "android.hardware.usb.gadget@1.0-service.mocha"
@@ -49,17 +49,16 @@
 #include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
-#include <android-base/strings.h>
 
-#include <cstring>
-
+#include <ctype.h>
 #include <dirent.h>
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/inotify.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include <chrono>
-#include <thread>
 
 namespace android {
 namespace hardware {
@@ -69,19 +68,20 @@ namespace V1_0 {
 namespace implementation {
 
 using ::android::base::GetProperty;
-using ::android::base::ReadFileToString;
 using ::android::base::StringPrintf;
 using ::android::base::WriteStringToFile;
 
 static constexpr char kGadget[] = "/config/usb_gadget/g1";
 static constexpr char kConfig[] = "/config/usb_gadget/g1/configs/b.1";
+static constexpr char kUdc[] = "/config/usb_gadget/g1/UDC";
+static constexpr char kFfsAdbDir[] = "/dev/usb-ffs/adb/";
 
 /*
- * The instance names are not ours to choose even here. They were fixed when
- * init.tn8.usb.rc created the instances, and the names it uses are the ones
- * init.usb.configfs.rc symlinks, so anything that falls back to the legacy
- * path still finds what it expects. ptp is gs1 rather than gs0 because mtp
- * and ptp are two instances of one driver, numbered in turn.
+ * The instance names are not ours to choose. init.tn8.usb.rc created them, and
+ * the platform's init.usb.configfs.rc symlinks exactly these, so keeping them
+ * means anything that falls back to that file still finds what it expects. ptp
+ * is gs1 rather than gs0 because mtp and ptp are two instances of one driver,
+ * numbered in turn.
  */
 static constexpr char kFfsAdb[] = "ffs.adb";
 static constexpr char kMtp[] = "mtp.gs0";
@@ -90,33 +90,117 @@ static constexpr char kAccessory[] = "accessory.gs2";
 static constexpr char kAudioSource[] = "audio_source.gs3";
 static constexpr char kRndis[] = "rndis.gs4";
 
-/* Where init.tn8.usb.rc mounts the FunctionFS instance named adb, and the
- * endpoint file that appears in it once a daemon has described itself. */
-static constexpr char kFfsDir[] = "/dev/usb-ffs/adb";
-static constexpr char kFfsEp[] = "ep1";
+/* Long enough for the host to see the device go before it comes back as
+ * something else. The implementations this follows all wait here. */
+static constexpr useconds_t kDisconnectWaitUs = 100000;
 
-/* How long to wait for adbd to say it has written its descriptors. The
- * framework has already started it by the time it calls us; what is left is
- * the daemon opening ep0 and describing itself, which is milliseconds when it
- * goes well. The ceiling only has to be short enough to leave the caller's
- * own timeout room to report a failure rather than be cut off by it. */
-static constexpr int kFfsReadyPollMs = 50;
+static constexpr int kEpollEvents = 10;
+static constexpr int kBufferSize = 512;
+static constexpr uint64_t kStopMonitor = 100;
 
-UsbGadget::UsbGadget() : mCurrentFunctions(static_cast<uint64_t>(GadgetFunction::NONE)),
-                         mCurrentApplied(false) {
-    mMonitor = std::thread(&UsbGadget::monitorFfs, this);
-    mMonitor.detach();
+/* Set once the controller has been written, read by the call waiting for it.
+ * Guarded by UsbGadget::mLock. */
+static volatile bool gGadgetPullup;
+
+static std::string controllerName() {
+    /*
+     * udc-core names the entry in /sys/class/udc after the parent device, and
+     * board-ardbeg.c gives the device probed from udc@7d000000 the legacy name
+     * tegra-udc.0 through OF_DEV_AUXDATA. init.tn8.usb.rc puts that name in the
+     * property; /sys/class/udc is the final word on it.
+     */
+    return GetProperty("sys.usb.controller", "");
 }
 
-static bool write(const std::string& path, const std::string& value) {
-    if (!WriteStringToFile(value, path)) {
-        PLOG(ERROR) << "cannot write \"" << value << "\" to " << path;
+static bool endpointsPresent(const std::vector<std::string>& endpoints) {
+    for (const auto& endpoint : endpoints)
+        if (access(endpoint.c_str(), R_OK)) return false;
+    return true;
+}
+
+static bool pullUp() {
+    std::string controller = controllerName();
+
+    if (controller.empty()) {
+        LOG(ERROR) << "sys.usb.controller is not set";
+        return false;
+    }
+    if (!WriteStringToFile(controller, kUdc)) {
+        PLOG(ERROR) << "cannot bind " << controller;
         return false;
     }
     return true;
 }
 
-static bool link(const char* function, int index) {
+/*
+ * Waits for the endpoints of every FunctionFS function in the configuration to
+ * appear, and binds the controller when they have.
+ *
+ * It keeps running afterwards, because they can go away again. When a daemon
+ * dies, f_fs unregisters the gadget rather than reset an instance a gadget
+ * still holds -- ffs_data_clear() asserts on exactly that -- and the endpoint
+ * files go with it. Their return is a new daemon that has described itself, and
+ * the controller then wants writing again. writeUdc is what makes that
+ * edge-triggered rather than repeated on every event.
+ */
+static void monitorFfs(UsbGadget* gadget) {
+    char buf[kBufferSize];
+    bool writeUdc = true, stopMonitor = false;
+    struct epoll_event events[kEpollEvents];
+
+    /* The descriptors may already be written by the time we get here. */
+    if (endpointsPresent(gadget->mEndpointList) && pullUp()) {
+        std::lock_guard<std::mutex> lock(gadget->mLock);
+        gadget->mCurrentUsbFunctionsApplied = true;
+        writeUdc = false;
+        gGadgetPullup = true;
+        gadget->mCv.notify_all();
+    }
+
+    while (!stopMonitor) {
+        int n = epoll_wait(gadget->mEpollFd, events, kEpollEvents, -1);
+        if (n <= 0) continue;
+
+        for (int i = 0; i < n && !stopMonitor; i++) {
+            if (events[i].data.fd != gadget->mInotifyFd) {
+                uint64_t flag;
+                if (read(gadget->mEventFd, &flag, sizeof(flag)) == sizeof(flag) &&
+                    flag == kStopMonitor)
+                    stopMonitor = true;
+                break;
+            }
+
+            int len = read(gadget->mInotifyFd, buf, sizeof(buf));
+            if (len <= 0) continue;
+
+            for (char* p = buf; p < buf + len;) {
+                auto* event = reinterpret_cast<struct inotify_event*>(p);
+                p += sizeof(struct inotify_event) + event->len;
+
+                bool present = endpointsPresent(gadget->mEndpointList);
+
+                if (!present && !writeUdc) {
+                    /* The daemon has gone, and taken the binding with it. */
+                    writeUdc = true;
+                } else if (present && writeUdc && pullUp()) {
+                    std::lock_guard<std::mutex> lock(gadget->mLock);
+                    gadget->mCurrentUsbFunctionsApplied = true;
+                    writeUdc = false;
+                    gGadgetPullup = true;
+                    gadget->mCv.notify_all();
+                    LOG(INFO) << "gadget bound";
+                }
+            }
+        }
+    }
+}
+
+UsbGadget::UsbGadget()
+    : mCurrentUsbFunctions(static_cast<uint64_t>(GadgetFunction::NONE)),
+      mCurrentUsbFunctionsApplied(false),
+      mMonitorCreated(false) {}
+
+static bool linkFunction(const char* function, int index) {
     std::string from = StringPrintf("%s/functions/%s", kGadget, function);
     std::string to = StringPrintf("%s/f%d", kConfig, index);
 
@@ -127,20 +211,49 @@ static bool link(const char* function, int index) {
     return true;
 }
 
+static bool unlinkFunctions() {
+    DIR* dir = opendir(kConfig);
+    struct dirent* entry;
+    bool ok = true;
+
+    if (!dir) {
+        PLOG(ERROR) << "cannot read " << kConfig;
+        return false;
+    }
+
+    /* d_type is not reported in configfs, so the name is what there is to go
+     * on -- and every link this service makes is called fN. */
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_name[0] != 'f' || !isdigit(entry->d_name[1])) continue;
+
+        std::string path = StringPrintf("%s/%s", kConfig, entry->d_name);
+        if (unlink(path.c_str())) {
+            PLOG(ERROR) << "cannot unlink " << path;
+            ok = false;
+        }
+    }
+    closedir(dir);
+    return ok;
+}
+
 /*
  * The product id this board has always reported for each combination. The
- * platform never writes one -- init.usb.configfs.rc leaves whatever was set
- * last -- so it is ours to keep, and the host sees the same device it saw
- * before the gadget moved to configfs.
+ * platform never writes one, so it is ours to keep, and the host sees the same
+ * device it saw before the gadget moved to configfs.
  */
-static const char* productId(uint64_t functions) {
+static bool setVidPid(uint64_t functions) {
     bool adb = functions & GadgetFunction::ADB;
+    const char* pid;
 
-    if (functions & GadgetFunction::RNDIS) return "0xCF08";
-    if (functions & (GadgetFunction::MTP | GadgetFunction::PTP))
-        return adb ? "0xCF05" : "0xCF07";
-    if (adb) return "0xCF09";
-    return "0xCF09";
+    if (functions & GadgetFunction::RNDIS)
+        pid = "0xCF08";
+    else if (functions & (GadgetFunction::MTP | GadgetFunction::PTP))
+        pid = adb ? "0xCF05" : "0xCF07";
+    else
+        pid = "0xCF09";
+
+    return WriteStringToFile("0x0955", StringPrintf("%s/idVendor", kGadget)) &&
+           WriteStringToFile(pid, StringPrintf("%s/idProduct", kGadget));
 }
 
 static const char* configName(uint64_t functions) {
@@ -156,203 +269,184 @@ static const char* configName(uint64_t functions) {
     return "adb";
 }
 
-void UsbGadget::tearDown() {
-    /*
-     * Unbinding first is what makes the rest legal: configfs refuses to change
-     * a bound gadget. Writing "none" to a gadget that is already unbound comes
-     * back ENODEV, which is not a failure here -- it is the state we wanted.
-     */
-    WriteStringToFile("none", StringPrintf("%s/UDC", kGadget));
+Status UsbGadget::tearDownGadget() {
+    /* Unbinding first is what makes the rest legal: configfs refuses to change
+     * a bound gadget. An already unbound one answers ENODEV, which is the state
+     * we wanted anyway. */
+    WriteStringToFile("none", kUdc);
 
-    for (int i = 1; i <= 4; i++) {
-        std::string path = StringPrintf("%s/f%d", kConfig, i);
-        if (unlink(path.c_str()) && errno != ENOENT)
-            PLOG(WARNING) << "cannot unlink " << path;
-    }
+    if (!WriteStringToFile("0", StringPrintf("%s/bDeviceClass", kGadget)) ||
+        !WriteStringToFile("0", StringPrintf("%s/bDeviceSubClass", kGadget)) ||
+        !WriteStringToFile("0", StringPrintf("%s/bDeviceProtocol", kGadget)))
+        return Status::ERROR;
 
-    /*
-     * rndis is the one instance that does not outlive its configuration: it
-     * claims a network interface while it exists, and the platform file
-     * removes it the same way for the same reason.
-     */
+    if (!unlinkFunctions()) return Status::ERROR;
+
+    /* rndis is the one instance that does not outlive its configuration: it
+     * claims a network interface while it exists. */
     std::string rndis = StringPrintf("%s/functions/%s", kGadget, kRndis);
     if (rmdir(rndis.c_str()) && errno != ENOENT)
         PLOG(WARNING) << "cannot remove " << rndis;
 
-    mCurrentApplied = false;
+    if (mMonitorCreated) {
+        uint64_t flag = kStopMonitor;
+        write(mEventFd, &flag, sizeof(flag));
+        mMonitor->join();
+        mMonitorCreated = false;
+    }
+
+    mInotifyFd.reset(-1);
+    mEventFd.reset(-1);
+    mEpollFd.reset(-1);
+    mEndpointList.clear();
+    return Status::SUCCESS;
 }
 
-bool UsbGadget::compose(uint64_t functions, uint64_t timeoutMs) {
-    int index = 1;
+static bool addEpollFd(const unique_fd& epfd, const unique_fd& fd) {
+    struct epoll_event event;
 
-    if (!write(StringPrintf("%s/idProduct", kGadget), productId(functions)))
+    event.data.fd = fd;
+    event.events = EPOLLIN;
+
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &event)) {
+        PLOG(ERROR) << "epoll_ctl failed";
         return false;
+    }
+    return true;
+}
+
+Status UsbGadget::setupFunctions(uint64_t functions,
+                                 const sp<IUsbGadgetCallback>& callback,
+                                 uint64_t timeoutMs) {
+    std::unique_lock<std::mutex> lock(mLock);
+    unique_fd inotifyFd(inotify_init());
+    bool ffsEnabled = false;
+    int index = 0;
+
+    if (inotifyFd < 0) {
+        PLOG(ERROR) << "cannot create an inotify descriptor";
+        return Status::ERROR;
+    }
 
     if (functions & GadgetFunction::RNDIS) {
         std::string path = StringPrintf("%s/functions/%s", kGadget, kRndis);
         if (mkdir(path.c_str(), 0770) && errno != EEXIST) {
             PLOG(ERROR) << "cannot create " << path;
-            return false;
+            return Status::ERROR;
         }
-        if (!link(kRndis, index++)) return false;
+        if (!linkFunction(kRndis, index++)) return Status::ERROR;
     }
-    if (functions & GadgetFunction::MTP && !link(kMtp, index++)) return false;
-    if (functions & GadgetFunction::PTP && !link(kPtp, index++)) return false;
-    if (functions & GadgetFunction::ACCESSORY && !link(kAccessory, index++)) return false;
-    if (functions & GadgetFunction::AUDIO_SOURCE && !link(kAudioSource, index++)) return false;
+    if ((functions & GadgetFunction::MTP) && !linkFunction(kMtp, index++))
+        return Status::ERROR;
+    if ((functions & GadgetFunction::PTP) && !linkFunction(kPtp, index++))
+        return Status::ERROR;
+    if ((functions & GadgetFunction::ACCESSORY) &&
+        !linkFunction(kAccessory, index++))
+        return Status::ERROR;
+    if ((functions & GadgetFunction::AUDIO_SOURCE) &&
+        !linkFunction(kAudioSource, index++))
+        return Status::ERROR;
 
     if (functions & GadgetFunction::ADB) {
-        /*
-         * adbd has been started by the caller, and it -- not this service --
-         * writes the FunctionFS descriptors. sys.usb.ffs.ready is how it says
-         * it has, and linking ffs.adb before then would bind a function that
-         * cannot describe itself.
-         */
-        auto deadline = std::chrono::steady_clock::now() +
-                        std::chrono::milliseconds(timeoutMs);
-        while (GetProperty("sys.usb.ffs.ready", "0") != "1") {
-            if (std::chrono::steady_clock::now() >= deadline) {
-                LOG(ERROR) << "adbd did not report its descriptors in time";
-                return false;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(kFfsReadyPollMs));
+        ffsEnabled = true;
+
+        if (inotify_add_watch(inotifyFd, kFfsAdbDir, IN_ALL_EVENTS) == -1) {
+            PLOG(ERROR) << "cannot watch " << kFfsAdbDir;
+            return Status::ERROR;
         }
-        if (!link(kFfsAdb, index++)) return false;
+        if (!linkFunction(kFfsAdb, index++)) return Status::ERROR;
+
+        mEndpointList.push_back(std::string(kFfsAdbDir) + "ep1");
+        mEndpointList.push_back(std::string(kFfsAdbDir) + "ep2");
     }
 
-    if (!write(StringPrintf("%s/strings/0x409/configuration", kConfig),
-               configName(functions)))
-        return false;
+    if (!WriteStringToFile(configName(functions),
+                           StringPrintf("%s/strings/0x409/configuration", kConfig)))
+        return Status::ERROR;
 
-    /*
-     * The controller is named after the parent device rather than after the
-     * device tree node: board-ardbeg.c renames what udc@7d000000 becomes to
-     * tegra-udc.0 through OF_DEV_AUXDATA. init.tn8.usb.rc puts that name in
-     * sys.usb.controller, and /sys/class/udc is the final word on it.
-     */
-    std::string udc = GetProperty("sys.usb.controller", "");
-    if (udc.empty()) {
-        LOG(ERROR) << "sys.usb.controller is not set";
-        return false;
+    /* Nothing here waits on a daemon, so the controller can be written at once
+     * and the answer is already known. */
+    if (!ffsEnabled) {
+        if (!pullUp()) return Status::ERROR;
+
+        mCurrentUsbFunctionsApplied = true;
+        if (callback) callback->setCurrentUsbFunctionsCb(functions, Status::SUCCESS);
+        return Status::SUCCESS;
     }
-    return write(StringPrintf("%s/UDC", kGadget), udc);
+
+    unique_fd eventFd(eventfd(0, 0));
+    unique_fd epollFd(epoll_create(2));
+
+    if (eventFd < 0 || epollFd < 0) {
+        PLOG(ERROR) << "cannot create the monitor's descriptors";
+        return Status::ERROR;
+    }
+    if (!addEpollFd(epollFd, inotifyFd) || !addEpollFd(epollFd, eventFd))
+        return Status::ERROR;
+
+    mEpollFd = std::move(epollFd);
+    mInotifyFd = std::move(inotifyFd);
+    mEventFd = std::move(eventFd);
+    gGadgetPullup = false;
+
+    mMonitor = std::make_unique<std::thread>(monitorFfs, this);
+    mMonitorCreated = true;
+
+    if (callback) {
+        if (!mCv.wait_for(lock, std::chrono::milliseconds(timeoutMs),
+                          [] { return gGadgetPullup; }))
+            LOG(INFO) << "no daemon yet; the monitor goes on waiting for one";
+
+        callback->setCurrentUsbFunctionsCb(
+                functions, gGadgetPullup ? Status::SUCCESS : Status::ERROR);
+    }
+
+    return Status::SUCCESS;
 }
 
 Return<void> UsbGadget::setCurrentUsbFunctions(uint64_t functions,
                                               const sp<IUsbGadgetCallback>& callback,
                                               uint64_t timeoutMs) {
-    std::lock_guard<std::mutex> lock(mLock);
+    std::unique_lock<std::mutex> lock(mLockSetCurrentFunction);
+    Status status;
 
-    mCurrentFunctions = functions;
-    mCurrentApplied = false;
+    mCurrentUsbFunctions = functions;
+    mCurrentUsbFunctionsApplied = false;
 
-    tearDown();
+    status = tearDownGadget();
+    if (status != Status::SUCCESS) goto error;
+
+    /* Leave it down long enough for the host to see it go. */
+    usleep(kDisconnectWaitUs);
 
     if (functions == static_cast<uint64_t>(GadgetFunction::NONE)) {
-        mCurrentApplied = true;
         if (callback) callback->setCurrentUsbFunctionsCb(functions, Status::SUCCESS);
         return Void();
     }
 
-    bool ok = compose(functions, timeoutMs);
-    mCurrentApplied = ok;
-
-    if (!ok) {
-        /* Leave nothing half-built behind: a configuration with some of its
-         * functions linked and no controller is worse than none at all,
-         * because the next attempt would find f1 taken. */
-        tearDown();
+    if (!setVidPid(functions)) {
+        status = Status::ERROR;
+        goto error;
     }
 
-    if (callback)
-        callback->setCurrentUsbFunctionsCb(functions, ok ? Status::SUCCESS : Status::ERROR);
+    status = setupFunctions(functions, callback, timeoutMs);
+    if (status != Status::SUCCESS) goto error;
 
+    return Void();
+
+error:
+    LOG(ERROR) << "could not set the functions";
+    if (callback) callback->setCurrentUsbFunctionsCb(functions, status);
     return Void();
 }
 
 Return<void> UsbGadget::getCurrentUsbFunctions(const sp<IUsbGadgetCallback>& callback) {
-    std::lock_guard<std::mutex> lock(mLock);
-
     if (callback)
-        callback->getCurrentUsbFunctionsCb(
-                mCurrentFunctions,
-                mCurrentApplied ? Status::FUNCTIONS_APPLIED : Status::FUNCTIONS_NOT_APPLIED);
+        callback->getCurrentUsbFunctionsCb(mCurrentUsbFunctions,
+                                          mCurrentUsbFunctionsApplied
+                                                  ? Status::FUNCTIONS_APPLIED
+                                                  : Status::FUNCTIONS_NOT_APPLIED);
     return Void();
-}
-
-void UsbGadget::monitorFfs() {
-    int fd = inotify_init1(IN_CLOEXEC);
-    if (fd < 0) {
-        PLOG(ERROR) << "no inotify descriptor: a daemon that restarts will "
-                       "leave the gadget down";
-        return;
-    }
-
-    if (inotify_add_watch(fd, kFfsDir, IN_CREATE) < 0) {
-        PLOG(ERROR) << "cannot watch " << kFfsDir;
-        close(fd);
-        return;
-    }
-
-    char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
-
-    while (true) {
-        ssize_t len = read(fd, buf, sizeof(buf));
-        if (len <= 0) {
-            if (errno == EINTR) continue;
-            PLOG(ERROR) << "inotify read failed, giving up the watch";
-            break;
-        }
-
-        bool described = false;
-        for (char* p = buf; p < buf + len;) {
-            auto* event = reinterpret_cast<struct inotify_event*>(p);
-            if ((event->mask & IN_CREATE) && event->len &&
-                !strcmp(event->name, kFfsEp))
-                described = true;
-            p += sizeof(struct inotify_event) + event->len;
-        }
-        if (!described) continue;
-
-        std::lock_guard<std::mutex> lock(mLock);
-
-        /*
-         * Only a configuration that carries adb can be one f_fs took down, and
-         * only an unbound gadget needs putting back. Anything else is a daemon
-         * arriving during a change the framework asked for, which is already
-         * being handled and must not be composed twice.
-         */
-        if (!(mCurrentFunctions & GadgetFunction::ADB)) continue;
-
-        std::string udc;
-        ReadFileToString(StringPrintf("%s/UDC", kGadget), &udc);
-        if (!::android::base::Trim(udc).empty()) continue;
-
-        /*
-         * Bind it back, and change nothing else.
-         *
-         * What f_fs took away is only the binding: unregister_gadget_item()
-         * writes UDC empty, and the configuration it leaves behind -- the
-         * symlinks, the strings, the product id -- is still exactly what was
-         * composed. Taking that apart and building it again would unlink
-         * ffs.adb, and unlinking ffs.adb unbinds the function underneath the
-         * daemon that has just finished describing itself: its endpoint files
-         * are then stale, and it goes on writing to endpoints that no longer
-         * belong to a gadget. The host still enumerates the device, and
-         * nothing it sends arrives -- an adb that connects and then hangs.
-         */
-        std::string controller = GetProperty("sys.usb.controller", "");
-        if (controller.empty()) {
-            LOG(ERROR) << "sys.usb.controller is not set";
-            continue;
-        }
-
-        LOG(INFO) << "adbd described itself with the gadget unbound; binding "
-                  << "the controller back";
-        mCurrentApplied = write(StringPrintf("%s/UDC", kGadget), controller);
-    }
-
-    close(fd);
 }
 
 }  // namespace implementation
