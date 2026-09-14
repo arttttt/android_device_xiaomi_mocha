@@ -270,9 +270,35 @@ static const char* configName(uint64_t functions) {
 }
 
 Status UsbGadget::tearDownGadget() {
-    /* Unbinding first is what makes the rest legal: configfs refuses to change
-     * a bound gadget. An already unbound one answers ENODEV, which is the state
-     * we wanted anyway. */
+    /*
+     * The monitor goes first, before anything is unlinked.
+     *
+     * Unlinking a FunctionFS function unbinds it, which resets the instance,
+     * which makes the daemon write its descriptors again -- and the endpoint
+     * files reappear within milliseconds. A monitor still running at that
+     * moment sees exactly what it is watching for and binds the controller to
+     * the configuration being taken apart. The host then asks for a
+     * descriptor of a function that is no longer there:
+     *
+     *     unbind function 'Function FS Gadget'
+     *     unbind function 'mtp'
+     *     read descriptors
+     *     tegra-udc: bind to driver configfs-gadget
+     *     Unable to handle kernel NULL pointer dereference
+     *     PC is at usb_descriptor_fillbuf
+     *
+     * Six milliseconds between the unbind and the bind that killed it.
+     */
+    if (mMonitorCreated) {
+        uint64_t flag = kStopMonitor;
+        write(mEventFd, &flag, sizeof(flag));
+        mMonitor->join();
+        mMonitorCreated = false;
+    }
+
+    /* Unbinding before touching the configuration is what makes the rest
+     * legal: configfs refuses to change a bound gadget. An already unbound one
+     * answers ENODEV, which is the state we wanted anyway. */
     WriteStringToFile("none", kUdc);
 
     if (!WriteStringToFile("0", StringPrintf("%s/bDeviceClass", kGadget)) ||
@@ -287,13 +313,6 @@ Status UsbGadget::tearDownGadget() {
     std::string rndis = StringPrintf("%s/functions/%s", kGadget, kRndis);
     if (rmdir(rndis.c_str()) && errno != ENOENT)
         PLOG(WARNING) << "cannot remove " << rndis;
-
-    if (mMonitorCreated) {
-        uint64_t flag = kStopMonitor;
-        write(mEventFd, &flag, sizeof(flag));
-        mMonitor->join();
-        mMonitorCreated = false;
-    }
 
     mInotifyFd.reset(-1);
     mEventFd.reset(-1);
