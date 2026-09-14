@@ -104,7 +104,7 @@ PRODUCT_PACKAGES += \
 
 # Power
 PRODUCT_PACKAGES += \
-    android.hardware.power@1.0-service.mocha
+    android.hardware.power@1.3-service.mocha
 
 # Renderscript
 PRODUCT_PACKAGES += \

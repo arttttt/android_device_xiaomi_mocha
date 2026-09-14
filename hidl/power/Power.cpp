@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.power@1.0-service.mocha"
+#define LOG_TAG "android.hardware.power@1.3-service.mocha"
 
 #include <android/log.h>
 #include <cutils/properties.h>
@@ -32,7 +32,7 @@
 namespace android {
 namespace hardware {
 namespace power {
-namespace V1_0 {
+namespace V1_3 {
 namespace implementation {
 
 using ::android::hardware::power::V1_0::Feature;
@@ -44,6 +44,28 @@ using ::android::hardware::Return;
 using ::android::hardware::Void;
 
 static const std::string TAP_TO_WAKE_NODE = "/proc/touchpanel/double_tap_enable";
+static const std::string GPU_FLOOR_NODE = "/sys/kernel/tegra_gpu/gpu_floor_rate";
+
+/* The floor the GPU is allowed to fall to, and the one to hold while the
+ * composition is expensive.
+ *
+ * 72 MHz is the bottom of gpu_available_rates and where the clock sits
+ * whenever nothing is asking for the GPU -- measured here, 57 samples out of
+ * 60 while an application was being launched. The same measurement is where
+ * 252 MHz comes from: it is the step the governor reaches by itself when
+ * something does happen. So holding it as a floor does not overrule the
+ * governor's own judgement of what this work costs; it stops the clock
+ * dropping back to the bottom between frames, which is the only part the
+ * governor gets wrong here.
+ *
+ * It is a choice, not a measurement of the scene it is for. Forcing client
+ * composition to measure that properly needs SurfaceFlinger's debug
+ * transaction, which answers only to uid system, and root is not it. If a
+ * scene that does fall to the GPU ever turns up, sample gpu_rate during it
+ * and let the number settle the argument.
+ */
+static const std::string GPU_FLOOR_IDLE = "72000000";
+static const std::string GPU_FLOOR_RENDER = "252000000";
 static const std::string POWER_PROFILE_PROPERTY = "sys.perf.profile";
 static const int PROFILE_MAX = 4;
 
@@ -129,8 +151,39 @@ static void SetProfile(int profile) {
  * provide it is gone, and Power.cpp still dispatches on it. */
 const static power_hint_t POWER_HINT_SET_PROFILE = (power_hint_t) 0x00000111;
 
+/* Whether the floor is currently held up, so that letting go is idempotent
+ * and a stray "no longer expensive" cannot lower a floor nobody raised. */
+static bool render_floor_held = false;
+
+static void HoldRenderFloor(bool hold) {
+    if (hold) {
+        /* Not while the battery saver is on, for the same reason a touch does
+         * not get a boost pulse under it: the user asked this device to spend
+         * less, and spending the GPU on frames is spending. */
+        if (CurrentProfile() == PROFILE_POWER_SAVE) return;
+
+        utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_RENDER);
+        render_floor_held = true;
+    } else if (render_floor_held) {
+        utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
+        render_floor_held = false;
+    }
+}
+
 Power::Power() {
     ALOGI("power_init\n");
+
+    /* Whatever happened to the last incarnation of this service, it does not
+     * get to leave the GPU floor raised behind it. The node outlives the
+     * process, and a floor left at 252 MHz is battery spent on nothing, for
+     * as long as the board stays up, with nothing in any log to say why.
+     *
+     * Doing it here rather than in a destructor is deliberate: a destructor
+     * answers only the orderly exits, and those are not the ones that worry
+     * me. This answers all of them, because whatever the last one did, the
+     * next start puts the floor back.
+     */
+    utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
 }
 
 // Methods from ::android::hardware::power::V1_0::IPower follow.
@@ -149,6 +202,12 @@ Return<void> Power::setInteractive(bool interactive)  {
      * inventing a number and then quietly overruling them with it.
      */
     utils::sysfs_write(IO_IS_BUSY_NODE, interactive ? "1" : "0");
+
+    /* Nothing is being composed for anyone with the screen off, so any floor
+     * held for composition is held for no one. SurfaceFlinger does say so
+     * itself, but it says it in its own time, and there is no reason to spend
+     * the difference. */
+    if (!interactive) HoldRenderFloor(false);
 
     return Void();
 }
@@ -233,6 +292,72 @@ Return<int32_t> Power::getFeature(LineageFeature feature)  {
     return -1;
 }
 
+/* Methods from ::android::hardware::power::V1_1::IPower follow.
+ *
+ * The same hints as 1.0, asked for without waiting. That is the whole of 1.1,
+ * and the whole of why this service is not still 1.0: the framework sends
+ * INTERACTION on every touch, and at 1.0 it sends it synchronously -- a
+ * system_server thread waiting on a binder round trip, and inside it on a
+ * write to sysfs, for every finger that lands on the glass.
+ */
+Return<void> Power::powerHintAsync(PowerHint hint, int32_t data) {
+    return powerHint(hint, data);
+}
+
+/* What each subsystem spent asleep, which is asked for by the battery stats
+ * service and by nothing else.
+ *
+ * Answered empty, as the platform states above are. Both want counters the
+ * firmware keeps -- how long a modem or a sensor hub or a WLAN block stayed
+ * in its own low power state, and how often it got there -- and this board
+ * has nothing that keeps them: no modem at all, and nothing else here exposes
+ * a residency counter to the kernel, let alone to us.
+ *
+ * Answering empty with SUCCESS rather than failing is the distinction the
+ * interface draws: the question was understood and there is nothing to
+ * report, as against the service being broken. The caller then shows no
+ * subsystem breakdown, which is the truth. At 1.0 it could not ask at all and
+ * logged that this device does not support it.
+ */
+Return<void> Power::getSubsystemLowPowerStats(getSubsystemLowPowerStats_cb _hidl_cb) {
+    hidl_vec<V1_1::PowerStateSubsystem> subsystems;
+
+    subsystems.resize(0);
+    _hidl_cb(subsystems, Status::SUCCESS);
+
+    return Void();
+}
+
+/* Methods from ::android::hardware::power::V1_2::IPower follow.
+ *
+ * 1.2 widened the enumeration by five: two for audio, three for the camera.
+ * Nothing in the platform sends any of them -- not frameworks/base, not av,
+ * not native -- and the vendor stacks on this board do not either, so they
+ * arrive here never. Passed through unchanged; the switch they land in
+ * ignores what it does not know.
+ */
+Return<void> Power::powerHintAsync_1_2(V1_2::PowerHint hint, int32_t data) {
+    return powerHint(static_cast<PowerHint>(hint), data);
+}
+
+/* Methods from ::android::hardware::power::V1_3::IPower follow.
+ *
+ * 1.3 added one value, and unlike 1.2's five it has a sender: SurfaceFlinger,
+ * when the composition has fallen to the GPU and will stay there for a while
+ * -- a rotation, a screenshot, a layer the composer would not take. It is
+ * rare on this board, where every layer of an ordinary scene is composed by
+ * the hardware, which is exactly why the GPU is at its floor when it does
+ * happen.
+ */
+Return<void> Power::powerHintAsync_1_3(V1_3::PowerHint hint, int32_t data) {
+    if (hint == V1_3::PowerHint::EXPENSIVE_RENDERING) {
+        HoldRenderFloor(data != 0);
+        return Void();
+    }
+
+    return powerHint(static_cast<PowerHint>(hint), data);
+}
+
 status_t Power::registerAsSystemService() {
     status_t ret = 0;
 
@@ -257,7 +382,7 @@ fail:
 }
 
 }  // namespace implementation
-}  // namespace V1_0
+}  // namespace V1_3
 }  // namespace power
 }  // namespace hardware
 }  // namespace android

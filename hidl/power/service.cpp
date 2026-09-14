@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.power@1.0-service.mocha"
+#define LOG_TAG "android.hardware.power@1.3-service.mocha"
 
 #include <android/log.h>
 #include <hidl/HidlTransportSupport.h>
@@ -30,13 +30,13 @@ using android::hardware::configureRpcThreadpool;
 using android::hardware::joinRpcThreadpool;
 
 // Generated HIDL files
-using android::hardware::power::V1_0::implementation::Power;
+using android::hardware::power::V1_3::implementation::Power;
 
 int main() {
     status_t status;
     android::sp<Power> service = nullptr;
 
-    ALOGI("Power HAL Service 1.0 for Mocha is starting.");
+    ALOGI("Power HAL Service 1.3 for Mocha is starting.");
 
     service = new Power();
     if (service == nullptr) {
