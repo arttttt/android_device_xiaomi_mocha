@@ -96,6 +96,18 @@ static std::mutex boost_lock;
 static int boostpulse_fd = -1;
 static bool boostpulse_complained = false;
 
+/* Everything this service remembers about what it has done to the machine,
+ * and the lock over it.
+ *
+ * Both are read and written from hint handlers, and hints arrive from more
+ * than one caller: the framework sends INTERACTION and LOW_POWER,
+ * SurfaceFlinger sends EXPENSIVE_RENDERING, and from 1.1 they arrive one-way,
+ * which is to say the callers do not take turns. Whether two of them can be
+ * in here at once is a property of the thread pool, and the thread pool is one
+ * number in service.cpp -- not a thing to build correctness on.
+ */
+static std::mutex state_lock;
+
 /* What the profile was before the battery saver took over, so it can be given
  * back. The framework only says "low power on" and "low power off"; it does
  * not remember what the user had chosen, and neither would we if this were
@@ -152,22 +164,33 @@ static void SetProfile(int profile) {
 const static power_hint_t POWER_HINT_SET_PROFILE = (power_hint_t) 0x00000111;
 
 /* Whether the floor is currently held up, so that letting go is idempotent
- * and a stray "no longer expensive" cannot lower a floor nobody raised. */
+ * and a stray "no longer expensive" cannot lower a floor nobody raised.
+ * Guarded by state_lock. */
 static bool render_floor_held = false;
 
-static void HoldRenderFloor(bool hold) {
-    if (hold) {
-        /* Not while the battery saver is on, for the same reason a touch does
-         * not get a boost pulse under it: the user asked this device to spend
-         * less, and spending the GPU on frames is spending. */
-        if (CurrentProfile() == PROFILE_POWER_SAVE) return;
+/* Callers already holding state_lock. */
+static void DropRenderFloorLocked() {
+    if (!render_floor_held) return;
 
-        utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_RENDER);
-        render_floor_held = true;
-    } else if (render_floor_held) {
-        utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
-        render_floor_held = false;
+    utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
+    render_floor_held = false;
+}
+
+static void HoldRenderFloor(bool hold) {
+    const std::lock_guard<std::mutex> lock(state_lock);
+
+    if (!hold) {
+        DropRenderFloorLocked();
+        return;
     }
+
+    /* Not while the battery saver is on, for the same reason a touch does not
+     * get a boost pulse under it: the user asked this device to spend less,
+     * and spending the GPU on frames is spending. */
+    if (CurrentProfile() == PROFILE_POWER_SAVE) return;
+
+    utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_RENDER);
+    render_floor_held = true;
 }
 
 Power::Power() {
@@ -246,14 +269,25 @@ Return<void> Power::powerHint(PowerHint hint, int32_t data) {
              * on the way out, since the framework does not carry it and would
              * otherwise leave whatever was chosen replaced for good.
              */
-            if (data != 0) {
-                if (profile_before_low_power < 0) {
-                    profile_before_low_power = CurrentProfile();
+            {
+                const std::lock_guard<std::mutex> lock(state_lock);
+
+                if (data != 0) {
+                    if (profile_before_low_power < 0) {
+                        profile_before_low_power = CurrentProfile();
+                    }
+                    SetProfile(PROFILE_POWER_SAVE);
+
+                    /* And let go of anything already being spent. A floor
+                     * raised a moment before the battery saver came on is
+                     * exactly what the battery saver is refusing, and it
+                     * would otherwise stay up until the composition that
+                     * asked for it ended. */
+                    DropRenderFloorLocked();
+                } else if (profile_before_low_power >= 0) {
+                    SetProfile(profile_before_low_power);
+                    profile_before_low_power = -1;
                 }
-                SetProfile(PROFILE_POWER_SAVE);
-            } else if (profile_before_low_power >= 0) {
-                SetProfile(profile_before_low_power);
-                profile_before_low_power = -1;
             }
             break;
 
