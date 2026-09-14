@@ -49,8 +49,12 @@
 #include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
+#include <android-base/strings.h>
+
+#include <cstring>
 
 #include <dirent.h>
+#include <sys/inotify.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -65,6 +69,7 @@ namespace V1_0 {
 namespace implementation {
 
 using ::android::base::GetProperty;
+using ::android::base::ReadFileToString;
 using ::android::base::StringPrintf;
 using ::android::base::WriteStringToFile;
 
@@ -85,6 +90,11 @@ static constexpr char kAccessory[] = "accessory.gs2";
 static constexpr char kAudioSource[] = "audio_source.gs3";
 static constexpr char kRndis[] = "rndis.gs4";
 
+/* Where init.tn8.usb.rc mounts the FunctionFS instance named adb, and the
+ * endpoint file that appears in it once a daemon has described itself. */
+static constexpr char kFfsDir[] = "/dev/usb-ffs/adb";
+static constexpr char kFfsEp[] = "ep1";
+
 /* How long to wait for adbd to say it has written its descriptors. The
  * framework has already started it by the time it calls us; what is left is
  * the daemon opening ep0 and describing itself, which is milliseconds when it
@@ -93,7 +103,10 @@ static constexpr char kRndis[] = "rndis.gs4";
 static constexpr int kFfsReadyPollMs = 50;
 
 UsbGadget::UsbGadget() : mCurrentFunctions(static_cast<uint64_t>(GadgetFunction::NONE)),
-                         mCurrentApplied(false) {}
+                         mCurrentApplied(false) {
+    mMonitor = std::thread(&UsbGadget::monitorFfs, this);
+    mMonitor.detach();
+}
 
 static bool write(const std::string& path, const std::string& value) {
     if (!WriteStringToFile(value, path)) {
@@ -228,6 +241,8 @@ bool UsbGadget::compose(uint64_t functions, uint64_t timeoutMs) {
 Return<void> UsbGadget::setCurrentUsbFunctions(uint64_t functions,
                                               const sp<IUsbGadgetCallback>& callback,
                                               uint64_t timeoutMs) {
+    std::lock_guard<std::mutex> lock(mLock);
+
     mCurrentFunctions = functions;
     mCurrentApplied = false;
 
@@ -256,11 +271,74 @@ Return<void> UsbGadget::setCurrentUsbFunctions(uint64_t functions,
 }
 
 Return<void> UsbGadget::getCurrentUsbFunctions(const sp<IUsbGadgetCallback>& callback) {
+    std::lock_guard<std::mutex> lock(mLock);
+
     if (callback)
         callback->getCurrentUsbFunctionsCb(
                 mCurrentFunctions,
                 mCurrentApplied ? Status::FUNCTIONS_APPLIED : Status::FUNCTIONS_NOT_APPLIED);
     return Void();
+}
+
+void UsbGadget::monitorFfs() {
+    int fd = inotify_init1(IN_CLOEXEC);
+    if (fd < 0) {
+        PLOG(ERROR) << "no inotify descriptor: a daemon that restarts will "
+                       "leave the gadget down";
+        return;
+    }
+
+    if (inotify_add_watch(fd, kFfsDir, IN_CREATE) < 0) {
+        PLOG(ERROR) << "cannot watch " << kFfsDir;
+        close(fd);
+        return;
+    }
+
+    char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+
+    while (true) {
+        ssize_t len = read(fd, buf, sizeof(buf));
+        if (len <= 0) {
+            if (errno == EINTR) continue;
+            PLOG(ERROR) << "inotify read failed, giving up the watch";
+            break;
+        }
+
+        bool described = false;
+        for (char* p = buf; p < buf + len;) {
+            auto* event = reinterpret_cast<struct inotify_event*>(p);
+            if ((event->mask & IN_CREATE) && event->len &&
+                !strcmp(event->name, kFfsEp))
+                described = true;
+            p += sizeof(struct inotify_event) + event->len;
+        }
+        if (!described) continue;
+
+        std::lock_guard<std::mutex> lock(mLock);
+
+        /*
+         * Only a configuration that carries adb can be one f_fs took down, and
+         * only an unbound gadget needs putting back. Anything else is a daemon
+         * arriving during a change the framework asked for, which is already
+         * being handled and must not be composed twice.
+         */
+        if (!(mCurrentFunctions & GadgetFunction::ADB)) continue;
+
+        std::string udc;
+        ReadFileToString(StringPrintf("%s/UDC", kGadget), &udc);
+        if (!::android::base::Trim(udc).empty()) continue;
+
+        LOG(INFO) << "adbd described itself with the gadget unbound; composing "
+                  << "it back";
+        tearDown();
+        mCurrentApplied = compose(mCurrentFunctions, 1000);
+        if (!mCurrentApplied) {
+            LOG(ERROR) << "could not compose the gadget back";
+            tearDown();
+        }
+    }
+
+    close(fd);
 }
 
 }  // namespace implementation

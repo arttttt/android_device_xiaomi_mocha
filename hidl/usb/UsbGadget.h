@@ -20,7 +20,10 @@
 #include <android/hardware/usb/gadget/1.0/IUsbGadget.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
+
+#include <mutex>
 #include <string>
+#include <thread>
 
 namespace android {
 namespace hardware {
@@ -44,17 +47,44 @@ struct UsbGadget : public IUsbGadget {
     Return<void> getCurrentUsbFunctions(const sp<IUsbGadgetCallback>& callback) override;
 
   private:
+    /* Guards everything below, because the monitor thread reads and writes it
+     * alongside the RPC calls. */
+    std::mutex mLock;
+
     /* What is composed right now, and whether the controller took it. */
     uint64_t mCurrentFunctions;
     bool mCurrentApplied;
 
+    /* Watches FunctionFS for adbd describing itself again. See monitorFfs(). */
+    std::thread mMonitor;
+
     /* Take the gadget apart: unbind the controller and empty the
-     * configuration. Safe to call when it is already apart. */
+     * configuration. Safe to call when it is already apart. Call with mLock
+     * held. */
     void tearDown();
 
     /* Build the configuration for `functions` and bind it. Returns false on
-     * the first step that fails, having said which in the log. */
+     * the first step that fails, having said which in the log. Call with
+     * mLock held. */
     bool compose(uint64_t functions, uint64_t timeoutMs);
+
+    /*
+     * Rebuild what was composed, if something took it down behind our back.
+     *
+     * adbd dying does exactly that. FunctionFS cannot let an instance be
+     * reset while a gadget still holds it -- ffs_data_clear() asserts on it --
+     * so when the last descriptor of a departing daemon is released, f_fs
+     * unregisters the gadget itself. Under the legacy path init noticed,
+     * because init.svc.adbd is a property and its blocks rebuild the
+     * configuration. Here nothing notices: the framework did not ask for a
+     * change and so is not told of one, and the gadget stays down.
+     *
+     * So this watches the FunctionFS directory instead. The endpoint files
+     * appear when adbd has written its descriptors and vanish when the
+     * instance resets, which makes their arrival the signal that a daemon is
+     * ready to be composed back in.
+     */
+    void monitorFfs();
 };
 
 }  // namespace implementation
