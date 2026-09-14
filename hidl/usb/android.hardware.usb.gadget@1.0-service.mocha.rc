@@ -1,0 +1,10 @@
+# The gadget skeleton this service composes into -- g1, its strings, its
+# configuration and every function instance -- is built by init.tn8.usb.rc in
+# "on init", so this can start as soon as hwservicemanager is up.
+#
+# root, because composing the gadget means writing configfs under
+# /config/usb_gadget, and the files there are owned by root.
+service usb-gadget-hal-1-0 /vendor/bin/hw/android.hardware.usb.gadget@1.0-service.mocha
+    class hal
+    user root
+    group root shell

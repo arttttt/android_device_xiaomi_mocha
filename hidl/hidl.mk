@@ -134,6 +134,20 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.usb@1.0-service.basic
 
+# The gadget side of USB, which is ours because nothing generic exists: AOSP Q
+# ships only the interface -- hardware/interfaces/usb/gadget/1.0 is four .hal
+# files and no implementation -- and leaves composing the gadget to each board.
+#
+# Declaring it changes which half of UsbDeviceManager runs. Without an
+# IUsbGadget service it picks UsbHandlerLegacy, which drives sys.usb.config and
+# lets init.usb.configfs.rc do the work; every change then passes through the
+# "none" configuration, whose block stops adbd unconditionally. With this
+# service it picks UsbHandlerHal, which stops adbd only when the new
+# configuration has no ADB in it -- so switching between two that both carry
+# adb leaves the daemon, and its FunctionFS descriptors, alone.
+PRODUCT_PACKAGES += \
+    android.hardware.usb.gadget@1.0-service.mocha
+
 # Vibrator
 PRODUCT_PACKAGES += \
     android.hardware.vibrator@1.0-service.mocha
