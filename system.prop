@@ -41,7 +41,13 @@ pbc.gpu.cap.af=/sys/devices/platform/host1x/gk20a.0/devfreq/gk20a.0/available_fr
 persist.tegra.didim.enable = 1
 persist.tegra.didim.video = 5
 persist.tegra.didim.normal = 3
-persist.sys.usb.config=mtp,adb
+# On Q this is not the list of functions to compose -- UsbDeviceManager owns
+# that -- it is only where the framework keeps whether adb survives a reboot:
+# it reads containsFunction(prop, "adb") at startup and rewrites the property
+# itself when adb is turned on or off. Naming mtp here achieves nothing at the
+# framework end and does real damage at init's, which takes the value
+# literally and composes an mtp,adb gadget behind the HAL's back.
+persist.sys.usb.config=adb
 persist.sys.isUsbOtgEnabled=1
 
 media.stagefright.less-secure=true

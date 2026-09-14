@@ -8,11 +8,10 @@
 # function instance -- because nothing in system/core creates any of that,
 # and the service is started too late to be first.
 #
-# The instance names are not ours to choose. The platform's own
-# init.usb.configfs.rc symlinks exactly these paths, so mtp is gs0, ptp is
-# gs1, accessory is gs2 and audio_source is gs3 -- a name that does not match
-# is a function that silently never appears. Keeping them means anything
-# falling back to that file still finds what it expects. rndis.gs4 is
+# The instance names are the platform's, so mtp is gs0, ptp is gs1, accessory
+# is gs2 and audio_source is gs3: the HAL looks functions up by exactly these
+# paths, and a name that does not match is a function that silently never
+# appears. rndis.gs4 is
 # deliberately absent from the list below: it claims a network interface
 # while it exists, so it is created when asked for and removed again after,
 # by whichever side is composing.
@@ -65,23 +64,41 @@ on init
     # with ENODEV and the gadget is built and never bound.
     setprop sys.usb.controller tegra-udc.0
 
-# sys.usb.configfs decides which half of init.usb.configfs.rc and init.usb.rc
-# answers a configuration change, and it cannot be set in "on init" above:
-# the platform's own init.usb.rc says
+# sys.usb.configfs is deliberately NOT set here, so it keeps the 0 the
+# platform's own init.usb.rc gives it. It is the switch that says "init
+# composes the configfs gadget", and init must not: the gadget HAL does, and
+# two composers is not a division of labour but a race.
 #
-#     on boot
-#         setprop sys.usb.configfs 0
+# It was set to 1 while init was the only composer, and that was right then.
+# With the HAL it is actively harmful. persist.sys.usb.config makes
+# init.usb.rc raise sys.usb.config at boot, and init.usb.configfs.rc answers
 #
-# and "on boot" runs after "on init", so anything set earlier is overwritten.
-# Set from here it survives, because init.rc imports this file on the line
-# before init.usb.rc's neighbour and actions sharing a trigger run in the
-# order they were parsed -- ours is simply the last write.
+#     on property:sys.usb.ffs.ready=1 && property:sys.usb.config=mtp,adb \
+#                                    && property:sys.usb.configfs=1
+#         symlink .../functions/mtp.gs0 .../configs/b.1/f1
+#         symlink .../functions/ffs.adb .../configs/b.1/f2
+#         write .../UDC ${sys.usb.controller}
 #
-# Without this every configuration change takes the legacy branch and writes
-# to /sys/class/android_usb, which this kernel no longer has. The gadget is
-# built correctly and then never bound: no error, no USB.
-on boot
-    setprop sys.usb.configfs 1
+# which arrives after the HAL has already composed and bound, because
+# sys.usb.ffs.ready is set by adbd once it has written its descriptors. The
+# second symlink of mtp is what kills the board. config_usb_cfg_link() only
+# refuses a function that is still on the configuration's func_list, and by
+# then the bind has moved every function off that list, so the check passes.
+# f_mtp hands out one usb_function per instance -- function_alloc_mtp_ptp()
+# returns &dev->function from its single mtp_dev -- so the link gets back the
+# function that is already in the configuration and list_add_tail() splices
+# the two lists. The next time the host asks for the configuration
+# descriptor, config_buf() walks off the end and dereferences the
+# configuration's own next_interface_id as a descriptor table:
+#
+#     Unable to handle kernel NULL pointer dereference at 00000702
+#     PC is at usb_descriptor_fillbuf+0x1c
+#
+# With it left at 0 none of init.usb.configfs.rc's actions can match, and the
+# legacy half of init.usb.rc answers instead -- its writes to
+# /sys/class/android_usb fail harmlessly, since nothing there is writable any
+# more, and the one thing it does that still matters, starting adbd, is
+# wanted. The composition itself is the HAL's alone.
 
 on fs
     # The mount attaches to the FunctionFS instance named adb, which is
