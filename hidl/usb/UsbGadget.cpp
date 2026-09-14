@@ -328,14 +328,28 @@ void UsbGadget::monitorFfs() {
         ReadFileToString(StringPrintf("%s/UDC", kGadget), &udc);
         if (!::android::base::Trim(udc).empty()) continue;
 
-        LOG(INFO) << "adbd described itself with the gadget unbound; composing "
-                  << "it back";
-        tearDown();
-        mCurrentApplied = compose(mCurrentFunctions, 1000);
-        if (!mCurrentApplied) {
-            LOG(ERROR) << "could not compose the gadget back";
-            tearDown();
+        /*
+         * Bind it back, and change nothing else.
+         *
+         * What f_fs took away is only the binding: unregister_gadget_item()
+         * writes UDC empty, and the configuration it leaves behind -- the
+         * symlinks, the strings, the product id -- is still exactly what was
+         * composed. Taking that apart and building it again would unlink
+         * ffs.adb, and unlinking ffs.adb unbinds the function underneath the
+         * daemon that has just finished describing itself: its endpoint files
+         * are then stale, and it goes on writing to endpoints that no longer
+         * belong to a gadget. The host still enumerates the device, and
+         * nothing it sends arrives -- an adb that connects and then hangs.
+         */
+        std::string controller = GetProperty("sys.usb.controller", "");
+        if (controller.empty()) {
+            LOG(ERROR) << "sys.usb.controller is not set";
+            continue;
         }
+
+        LOG(INFO) << "adbd described itself with the gadget unbound; binding "
+                  << "the controller back";
+        mCurrentApplied = write(StringPrintf("%s/UDC", kGadget), controller);
     }
 
     close(fd);
