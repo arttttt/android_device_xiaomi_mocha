@@ -26,8 +26,9 @@
 #include <mutex>
 #include <string>
 #include <utils/Log.h>
+#include <SysfsNode.h>
+
 #include "Power.h"
-#include "sysfs.h"
 
 namespace android {
 namespace hardware {
@@ -172,7 +173,7 @@ static bool render_floor_held = false;
 static void DropRenderFloorLocked() {
     if (!render_floor_held) return;
 
-    utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
+    mocha::sysfs::write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
     render_floor_held = false;
 }
 
@@ -189,7 +190,7 @@ static void HoldRenderFloor(bool hold) {
      * and spending the GPU on frames is spending. */
     if (CurrentProfile() == PROFILE_POWER_SAVE) return;
 
-    utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_RENDER);
+    mocha::sysfs::write(GPU_FLOOR_NODE, GPU_FLOOR_RENDER);
     render_floor_held = true;
 }
 
@@ -206,7 +207,7 @@ Power::Power() {
      * me. This answers all of them, because whatever the last one did, the
      * next start puts the floor back.
      */
-    utils::sysfs_write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
+    mocha::sysfs::write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
 }
 
 // Methods from ::android::hardware::power::V1_0::IPower follow.
@@ -224,7 +225,7 @@ Return<void> Power::setInteractive(bool interactive)  {
      * profile, which the user chooses; picking a second one here would be
      * inventing a number and then quietly overruling them with it.
      */
-    utils::sysfs_write(IO_IS_BUSY_NODE, interactive ? "1" : "0");
+    mocha::sysfs::write(IO_IS_BUSY_NODE, interactive ? 1 : 0);
 
     /* Nothing is being composed for anyone with the screen off, so any floor
      * held for composition is held for no one. SurfaceFlinger does say so
@@ -305,8 +306,7 @@ Return<void> Power::powerHint(PowerHint hint, int32_t data) {
 Return<void> Power::setFeature(Feature feature, bool activate)  {
     if (feature == Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE) {
         ALOGI("POWER_FEATURE_DOUBLE_TAP_TO_WAKE activate = %d\n", activate);
-        std::string data = std::to_string(activate);
-        utils::sysfs_write(TAP_TO_WAKE_NODE, data);
+        mocha::sysfs::write(TAP_TO_WAKE_NODE, activate ? 1 : 0);
     }
     return Void();
 }

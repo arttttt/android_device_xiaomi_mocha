@@ -20,12 +20,9 @@
 
 #include "Vibrator.h"
 
-#include <fcntl.h>
-#include <unistd.h>
-#include <cerrno>
+#include <SysfsNode.h>
+
 #include <cmath>
-#include <cstdio>
-#include <cstring>
 #include <utility>
 #include <vector>
 
@@ -36,14 +33,14 @@ namespace V1_0 {
 namespace implementation {
 
 /* How long the motor runs, in milliseconds, and how hard. */
-static const char *ENABLE_PATH = "/sys/class/timed_output/vibrator/enable";
-static const char *AMPLITUDE_PATH = "/sys/vibrator/pwmvalue";
+static const std::string ENABLE_PATH = "/sys/class/timed_output/vibrator/enable";
+static const std::string AMPLITUDE_PATH = "/sys/vibrator/pwmvalue";
 
 /* A sequence of strengths and durations, played by the driver rather than by
  * this process. An effect written here keeps its timing whether or not the
  * thread that asked for it is running, which a pair of writes separated by a
  * sleep would not. */
-static const char *PATTERN_PATH = "/sys/class/timed_output/vibrator/pattern";
+static const std::string PATTERN_PATH = "/sys/class/timed_output/vibrator/pattern";
 
 /* The strength the actuator ends at.
  *
@@ -77,43 +74,6 @@ static const uint8_t STRENGTH_STRONG = MAX_STRENGTH;
 static const uint32_t CLICK_MS = 20;
 static const uint32_t DOUBLE_CLICK_GAP_MS = 60;
 
-/* Open, write, close -- every time, deliberately.
- *
- * What was here instead were two std::ofstream kept open for the life of the
- * service. A stream that fails once sets failbit and keeps it: every write
- * after that silently does nothing, and every check reports failure, until
- * the process is restarted. Nothing cleared it. One transient error and the
- * tablet stops vibrating for good, with nothing to show why.
- *
- * These are sysfs files. Opening one costs nothing worth keeping a failure
- * mode of that shape to avoid. */
-static bool writeNode(const char *path, const void *data, size_t length) {
-    int fd = open(path, O_WRONLY | O_CLOEXEC);
-
-    if (fd < 0) {
-        ALOGE("cannot open %s: %s", path, strerror(errno));
-        return false;
-    }
-
-    ssize_t written = write(fd, data, length);
-    int saved = errno;
-
-    close(fd);
-
-    if (written != static_cast<ssize_t>(length)) {
-        ALOGE("cannot write %s: %s", path, strerror(saved));
-        return false;
-    }
-    return true;
-}
-
-static bool writeValue(const char *path, int value) {
-    char buf[16];
-    int n = snprintf(buf, sizeof(buf), "%d\n", value);
-
-    return writeNode(path, buf, n);
-}
-
 static uint8_t strengthOf(EffectStrength strength) {
     switch (strength) {
         case EffectStrength::LIGHT:  return STRENGTH_LIGHT;
@@ -140,31 +100,24 @@ static bool playPattern(const std::vector<std::pair<uint8_t, uint8_t>> &steps) {
     buf.push_back(0);
     buf.push_back(0);
 
-    return writeNode(PATTERN_PATH, buf.data(), buf.size());
+    return mocha::sysfs::write(PATTERN_PATH, buf.data(), buf.size());
 }
 
-Vibrator::Vibrator() {
-    /* Asked by writing what is already there, which is the only way to learn
-     * whether a write would be permitted without changing anything. A node
-     * that is missing, or that init has not handed over, answers here rather
-     * than on the first effect. */
-    int fd = open(AMPLITUDE_PATH, O_WRONLY | O_CLOEXEC);
-
-    mAmplitudeControl = fd >= 0;
-    if (fd >= 0) {
-        close(fd);
-    } else {
+Vibrator::Vibrator() : mAmplitudeControl(mocha::sysfs::writable(AMPLITUDE_PATH)) {
+    /* A node that is missing, or that init has not handed over, says so here
+     * rather than on the first effect. */
+    if (!mAmplitudeControl) {
         ALOGW("no %s; effects will play at whatever strength was last set",
-              AMPLITUDE_PATH);
+              AMPLITUDE_PATH.c_str());
     }
 }
 
 Return<Status> Vibrator::on(uint32_t timeoutMs) {
-    return writeValue(ENABLE_PATH, timeoutMs) ? Status::OK : Status::UNKNOWN_ERROR;
+    return mocha::sysfs::write(ENABLE_PATH, timeoutMs) ? Status::OK : Status::UNKNOWN_ERROR;
 }
 
 Return<Status> Vibrator::off() {
-    return writeValue(ENABLE_PATH, 0) ? Status::OK : Status::UNKNOWN_ERROR;
+    return mocha::sysfs::write(ENABLE_PATH, 0) ? Status::OK : Status::UNKNOWN_ERROR;
 }
 
 Return<bool> Vibrator::supportsAmplitudeControl() {
@@ -184,7 +137,7 @@ Return<Status> Vibrator::setAmplitude(uint8_t amplitude) {
      * ends onto each other and space the rest evenly between them. */
     long strength = std::lround((amplitude - 1) / 254.0 * (MAX_STRENGTH - 1) + 1);
 
-    return writeValue(AMPLITUDE_PATH, strength) ? Status::OK : Status::UNKNOWN_ERROR;
+    return mocha::sysfs::write(AMPLITUDE_PATH, strength) ? Status::OK : Status::UNKNOWN_ERROR;
 }
 
 Return<void> Vibrator::perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) {
