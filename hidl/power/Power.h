@@ -20,6 +20,12 @@
 
 #include <android/hardware/power/1.3/IPower.h>
 #include <vendor/lineage/power/1.0/ILineagePower.h>
+
+#include <mutex>
+
+#include "BoostPulse.h"
+#include "GpuFloor.h"
+#include "Profiles.h"
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
 #include <hardware/power.h>
@@ -60,6 +66,23 @@ struct Power : public IPower, public ILineagePower {
 
     // Methods from ::vendor::lineage::power::V1_0::ILineagePower follow.
     Return<int32_t> getFeature(LineageFeature feature) override;
+
+  private:
+    /* What a hint means on this board. The three below are what it is
+     * expressed with. */
+    void handleHint(PowerHint hint, int32_t data);
+    void handleExpensiveRendering(bool expensive);
+    void handleLowPower(bool on);
+
+    BoostPulse mBoost;
+    GpuFloor mGpuFloor;
+    Profiles mProfiles;
+
+    /* Holds a whole decision together. The pieces each look after their own
+     * state, but a decision made of two of them -- the battery saver coming
+     * on and the GPU floor going down with it -- has to be one thing or the
+     * other, never half. */
+    std::mutex mPolicyLock;
 };
 
 }  // namespace implementation

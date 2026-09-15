@@ -17,17 +17,9 @@
 
 #define LOG_TAG "android.hardware.power@1.3-service.mocha"
 
-#include <android/log.h>
-#include <cutils/properties.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <cerrno>
-#include <cstring>
-#include <fstream>
-#include <mutex>
-#include <string>
-#include <utils/Log.h>
 #include <SysfsNode.h>
+#include <hardware/power.h>
+#include <log/log.h>
 
 #include "Power.h"
 
@@ -46,172 +38,17 @@ using ::android::hardware::Return;
 using ::android::hardware::Void;
 
 static const std::string TAP_TO_WAKE_NODE = "/proc/touchpanel/double_tap_enable";
-static const std::string GPU_FLOOR_NODE = "/sys/kernel/tegra_gpu/gpu_floor_rate";
+static const std::string IO_IS_BUSY_NODE =
+        "/sys/devices/system/cpu/cpufreq/interactive/io_is_busy";
 
-/* The floor the GPU is allowed to fall to, and the one to hold while the
- * composition is expensive.
- *
- * 72 MHz is the bottom of gpu_available_rates and where the clock sits
- * whenever nothing is asking for the GPU -- measured here, 57 samples out of
- * 60 while an application was being launched. The same measurement is where
- * 252 MHz comes from: it is the step the governor reaches by itself when
- * something does happen. So holding it as a floor does not overrule the
- * governor's own judgement of what this work costs; it stops the clock
- * dropping back to the bottom between frames, which is the only part the
- * governor gets wrong here.
- *
- * It is a choice, not a measurement of the scene it is for. Forcing client
- * composition to measure that properly needs SurfaceFlinger's debug
- * transaction, which answers only to uid system, and root is not it. If a
- * scene that does fall to the GPU ever turns up, sample gpu_rate during it
- * and let the number settle the argument.
- */
-static const std::string GPU_FLOOR_IDLE = "72000000";
-static const std::string GPU_FLOOR_RENDER = "252000000";
-static const std::string POWER_PROFILE_PROPERTY = "sys.perf.profile";
-static const int PROFILE_MAX = 4;
-
-/* Where the framework's hints land.
- *
- * A pulse raises the frequency and lets the governor drop it again after a
- * duration the governor itself was configured with -- so how long a touch is
- * worth is decided by the performance profile, not here. That is the right
- * division: this file knows WHEN, the profile knows HOW MUCH.
- *
- * Writing these fails harmlessly when another governor is in charge, since the
- * files exist only while interactive does. That is the honest failure: the
- * hint is not acted on, rather than acted on wrongly.
- */
-static const std::string CPUFREQ_INTERACTIVE = "/sys/devices/system/cpu/cpufreq/interactive/";
-static const std::string BOOSTPULSE_NODE = CPUFREQ_INTERACTIVE + "boostpulse";
-static const std::string IO_IS_BUSY_NODE = CPUFREQ_INTERACTIVE + "io_is_busy";
-
-/* The profiles, as the quick settings tile numbers them. */
-static const int PROFILE_POWER_SAVE = 0;
-static const int PROFILE_BALANCED = 1;
-
-/* The descriptor is kept open rather than reopened per hint. Touching produces
- * these continuously, and an open-write-close for each is three system calls
- * spent on saying something that costs one. Every implementation surveyed that
- * takes this hint seriously does the same. */
-static std::mutex boost_lock;
-static int boostpulse_fd = -1;
-static bool boostpulse_complained = false;
-
-/* Everything this service remembers about what it has done to the machine,
- * and the lock over it.
- *
- * Both are read and written from hint handlers, and hints arrive from more
- * than one caller: the framework sends INTERACTION and LOW_POWER,
- * SurfaceFlinger sends EXPENSIVE_RENDERING, and from 1.1 they arrive one-way,
- * which is to say the callers do not take turns. Whether two of them can be
- * in here at once is a property of the thread pool, and the thread pool is one
- * number in service.cpp -- not a thing to build correctness on.
- */
-static std::mutex state_lock;
-
-/* What the profile was before the battery saver took over, so it can be given
- * back. The framework only says "low power on" and "low power off"; it does
- * not remember what the user had chosen, and neither would we if this were
- * not kept. */
-static int profile_before_low_power = -1;
-
-static void SendBoostPulse() {
-    const std::lock_guard<std::mutex> lock(boost_lock);
-
-    if (boostpulse_fd < 0) {
-        boostpulse_fd = open(BOOSTPULSE_NODE.c_str(), O_WRONLY | O_CLOEXEC);
-        if (boostpulse_fd < 0) {
-            /* Said once. Under a governor without this node it would otherwise
-             * be said on every touch, which is the sort of logging that costs
-             * more than what it reports on. */
-            if (!boostpulse_complained) {
-                boostpulse_complained = true;
-                ALOGW("no %s; touch and launch hints will not raise the clock",
-                      BOOSTPULSE_NODE.c_str());
-            }
-            return;
-        }
-
-        /* And once when it opens, if it had not before. Without this the log
-         * is silent in both cases, so silence says nothing about which of the
-         * two is happening -- which is how this node stayed unwritable for
-         * months. init grants it after the governor is chosen, so the first
-         * hints of a boot can legitimately arrive before it exists. */
-        if (boostpulse_complained) {
-            boostpulse_complained = false;
-            ALOGI("%s opened; touch and launch hints raise the clock",
-                  BOOSTPULSE_NODE.c_str());
-        }
-    }
-
-    if (write(boostpulse_fd, "1", 1) < 0) {
-        ALOGE("cannot pulse the boost: %s", strerror(errno));
-        close(boostpulse_fd);
-        boostpulse_fd = -1;
-    }
-}
-
-static int CurrentProfile() {
-    return property_get_int32(POWER_PROFILE_PROPERTY.c_str(), PROFILE_BALANCED);
-}
-
-static void SetProfile(int profile) {
-    property_set(POWER_PROFILE_PROPERTY.c_str(),
-                 std::to_string(profile).c_str());
-}
-
-/* Not declared by power.h on P; the LineageOS extension that used to
- * provide it is gone, and Power.cpp still dispatches on it. */
+/* Not declared by power.h on P; the LineageOS extension that used to provide
+ * it is gone, and this still dispatches on it. */
 const static power_hint_t POWER_HINT_SET_PROFILE = (power_hint_t) 0x00000111;
-
-/* Whether the floor is currently held up, so that letting go is idempotent
- * and a stray "no longer expensive" cannot lower a floor nobody raised.
- * Guarded by state_lock. */
-static bool render_floor_held = false;
-
-/* Callers already holding state_lock. */
-static void DropRenderFloorLocked() {
-    if (!render_floor_held) return;
-
-    mocha::sysfs::write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
-    render_floor_held = false;
-}
-
-static void HoldRenderFloor(bool hold) {
-    const std::lock_guard<std::mutex> lock(state_lock);
-
-    if (!hold) {
-        DropRenderFloorLocked();
-        return;
-    }
-
-    /* Not while the battery saver is on, for the same reason a touch does not
-     * get a boost pulse under it: the user asked this device to spend less,
-     * and spending the GPU on frames is spending. */
-    if (CurrentProfile() == PROFILE_POWER_SAVE) return;
-
-    mocha::sysfs::write(GPU_FLOOR_NODE, GPU_FLOOR_RENDER);
-    render_floor_held = true;
-}
 
 Power::Power() {
     ALOGI("power_init\n");
-
-    /* Whatever happened to the last incarnation of this service, it does not
-     * get to leave the GPU floor raised behind it. The node outlives the
-     * process, and a floor left at 252 MHz is battery spent on nothing, for
-     * as long as the board stays up, with nothing in any log to say why.
-     *
-     * Doing it here rather than in a destructor is deliberate: a destructor
-     * answers only the orderly exits, and those are not the ones that worry
-     * me. This answers all of them, because whatever the last one did, the
-     * next start puts the floor back.
-     */
-    mocha::sysfs::write(GPU_FLOOR_NODE, GPU_FLOOR_IDLE);
 }
 
-// Methods from ::android::hardware::power::V1_0::IPower follow.
 Return<void> Power::setInteractive(bool interactive)  {
     /* Whether anything is being shown to anyone.
      *
@@ -232,17 +69,21 @@ Return<void> Power::setInteractive(bool interactive)  {
      * held for composition is held for no one. SurfaceFlinger does say so
      * itself, but it says it in its own time, and there is no reason to spend
      * the difference. */
-    if (!interactive) HoldRenderFloor(false);
+    if (!interactive) mGpuFloor.release();
 
     return Void();
 }
 
 Return<void> Power::powerHint(PowerHint hint, int32_t data) {
+    handleHint(hint, data);
+    return Void();
+}
+
+void Power::handleHint(PowerHint hint, int32_t data) {
     if (static_cast<power_hint_t>(hint) == POWER_HINT_SET_PROFILE) {
-        std::string value = std::to_string(data);
-        property_set(POWER_PROFILE_PROPERTY.c_str(), value.c_str());
         ALOGI("set power profile = %d", data);
-        return Void();
+        mProfiles.set(data);
+        return;
     }
 
     switch (hint) {
@@ -254,54 +95,64 @@ Return<void> Power::powerHint(PowerHint hint, int32_t data) {
              *
              * Not while the battery saver is on. Being asked to hurry and
              * being told to save power are contradictory instructions, and
-             * the one the user chose wins.
-             */
-            if (CurrentProfile() != PROFILE_POWER_SAVE) {
-                SendBoostPulse();
-            }
+             * the one the user chose wins. */
+            if (!mProfiles.isPowerSave()) mBoost.pulse();
             break;
 
         case PowerHint::LOW_POWER:
-            /* The battery saver going on and off. It is the same thing the
-             * profile tile already expresses, so it is expressed that way --
-             * one notion of how hard this device should try, not two that can
-             * disagree.
-             *
-             * The profile in force is remembered on the way in and given back
-             * on the way out, since the framework does not carry it and would
-             * otherwise leave whatever was chosen replaced for good.
-             */
-            {
-                const std::lock_guard<std::mutex> lock(state_lock);
-
-                if (data != 0) {
-                    if (profile_before_low_power < 0) {
-                        profile_before_low_power = CurrentProfile();
-                    }
-                    SetProfile(PROFILE_POWER_SAVE);
-
-                    /* And let go of anything already being spent. A floor
-                     * raised a moment before the battery saver came on is
-                     * exactly what the battery saver is refusing, and it
-                     * would otherwise stay up until the composition that
-                     * asked for it ended. */
-                    DropRenderFloorLocked();
-                } else if (profile_before_low_power >= 0) {
-                    SetProfile(profile_before_low_power);
-                    profile_before_low_power = -1;
-                }
-            }
+            handleLowPower(data != 0);
             break;
 
         default:
             /* VSYNC arrives constantly and says only that something is
              * watching for blanks; the rest do not apply to this board.
-             * Deliberately nothing.
-             */
+             * Deliberately nothing. */
             break;
     }
+}
 
-    return Void();
+/*
+ * The battery saver going on and off.
+ *
+ * It is the same thing the profile tile already expresses, so it is expressed
+ * that way -- one notion of how hard this device should try, not two that can
+ * disagree.
+ */
+void Power::handleLowPower(bool on) {
+    std::lock_guard<std::mutex> lock(mPolicyLock);
+
+    if (!on) {
+        mProfiles.leaveLowPower();
+        return;
+    }
+
+    mProfiles.enterLowPower();
+
+    /* And let go of anything already being spent. A floor raised a moment
+     * before the battery saver came on is exactly what the battery saver is
+     * refusing, and it would otherwise stay up until the composition that
+     * asked for it ended. */
+    mGpuFloor.release();
+}
+
+/*
+ * SurfaceFlinger saying the composition has fallen to the GPU and will stay
+ * there -- a rotation, a screenshot, a layer the composer would not take.
+ */
+void Power::handleExpensiveRendering(bool expensive) {
+    std::lock_guard<std::mutex> lock(mPolicyLock);
+
+    if (!expensive) {
+        mGpuFloor.release();
+        return;
+    }
+
+    /* Held back under the battery saver for the same reason a touch does not
+     * get a boost pulse: the user asked this device to spend less, and
+     * spending the GPU on frames is spending. */
+    if (mProfiles.isPowerSave()) return;
+
+    mGpuFloor.hold();
 }
 
 Return<void> Power::setFeature(Feature feature, bool activate)  {
@@ -322,7 +173,7 @@ Return<void> Power::getPlatformLowPowerStats(getPlatformLowPowerStats_cb _hidl_c
 Return<int32_t> Power::getFeature(LineageFeature feature)  {
     if (feature == LineageFeature::SUPPORTED_PROFILES) {
         ALOGI("power profiles POWER_FEATURE_SUPPORTED_PROFILES\n");
-        return PROFILE_MAX;
+        return Profiles::COUNT;
     }
     return -1;
 }
@@ -386,7 +237,7 @@ Return<void> Power::powerHintAsync_1_2(V1_2::PowerHint hint, int32_t data) {
  */
 Return<void> Power::powerHintAsync_1_3(V1_3::PowerHint hint, int32_t data) {
     if (hint == V1_3::PowerHint::EXPENSIVE_RENDERING) {
-        HoldRenderFloor(data != 0);
+        handleExpensiveRendering(data != 0);
         return Void();
     }
 

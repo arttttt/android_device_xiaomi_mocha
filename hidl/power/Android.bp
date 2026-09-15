@@ -5,8 +5,11 @@ cc_binary {
     name: "android.hardware.power@1.3-service.mocha",
     init_rc: ["android.hardware.power@1.3-service.mocha.rc"],
     srcs: [
-        "service.cpp",
+        "BoostPulse.cpp",
+        "GpuFloor.cpp",
         "Power.cpp",
+        "Profiles.cpp",
+        "service.cpp",
     ],
 
     cflags: [
