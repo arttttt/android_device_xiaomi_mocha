@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #ifndef ANDROID_HARDWARE_LIGHT_V2_0_LIGHT_H
 #define ANDROID_HARDWARE_LIGHT_V2_0_LIGHT_H
 
 #include <android/hardware/light/2.0/ILight.h>
 #include <hidl/Status.h>
 
-#include <fstream>
 #include <mutex>
-#include <unordered_map>
+
+#include "Backlight.h"
+#include "NotificationLed.h"
 
 namespace android {
 namespace hardware {
@@ -30,47 +30,38 @@ namespace light {
 namespace V2_0 {
 namespace implementation {
 
-struct Light : public ILight {
-    Light(std::pair<std::ofstream, uint32_t>&& lcd_backlight, std::pair<std::ofstream, uint32_t>&& button_backlight,
-          std::ofstream&& red_led, std::ofstream&& green_led, std::ofstream&& blue_led, std::ofstream&& led_select_engine, 
-          std::ofstream&& led_run_engine);
+using ::android::hardware::Return;
+using ::android::hardware::Void;
 
-    // Methods from ::android::hardware::light::V2_0::ILight follow.
+/*
+ * Which lamp answers which kind of light, and -- for the one diode three
+ * kinds share -- which of them wins.
+ *
+ * The lamps themselves are elsewhere: this decides, they act.
+ */
+struct Light : public ILight {
+    Light();
+
     Return<Status> setLight(Type type, const LightState& state) override;
     Return<void> getSupportedTypes(getSupportedTypes_cb _hidl_cb) override;
 
   private:
-    void setAttentionLight(const LightState& state);
-    void setBatteryLight(const LightState& state);
-    void setButtonsBacklight(const LightState& state);
-    void setLcdBacklight(const LightState& state);
-    void setNotificationLight(const LightState& state);
-    void setSpeakerBatteryLightLocked();
-    void setSpeakerLightLocked(const LightState& state);
+    void showHighestPriority();
 
-    std::pair<std::ofstream, uint32_t> mLcdBacklight;
-    std::pair<std::ofstream, uint32_t> mButtonBacklight;
-    std::ofstream mRedLed;
-    std::ofstream mGreenLed;
-    std::ofstream mBlueLed;
-    std::ofstream mLedSelectEngine;
-    std::ofstream mLedRunEngine;
+    Backlight mLcd;
+    Backlight mButtons;
+    NotificationLed mLed;
 
-    LightState mAttentionState;
-    LightState mBatteryState;
-    LightState mNotificationState;
+    /* The three kinds of light that share the diode, each remembered whether
+     * or not it is the one currently shown. */
+    LightState mAttention;
+    LightState mBattery;
+    LightState mNotification;
 
-    std::unordered_map<Type, std::function<void(const LightState&)>> mLights;
-    std::mutex mLock;
-    std::mutex mBacklightLock;
-
-    /* What the LED chip is already showing. The framework re-asserts the
-     * battery light on every clock tick; without this memory each assert
-     * turned the diode off and back on. */
-    bool mSpeakerSet = false;
-    uint32_t mSpeakerColor = 0;
-    int mSpeakerOnMs = 0;
-    int mSpeakerOffMs = 0;
+    /* Guards the three states above and the diode, which they decide
+     * together. The backlights share nothing with them and are not held up
+     * behind them. */
+    std::mutex mLedLock;
 };
 
 }  // namespace implementation

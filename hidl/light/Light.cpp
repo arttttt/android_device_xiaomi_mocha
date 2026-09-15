@@ -18,140 +18,7 @@
 
 #include "Light.h"
 
-#include <android-base/logging.h>
-
-namespace {
-using android::hardware::light::V2_0::LightState;
-
-static constexpr int DEFAULT_MAX_BRIGHTNESS = 255;
-
-static uint32_t rgbToBrightness(const LightState& state) {
-    uint32_t color = state.color & 0x00ffffff;
-    return ((77 * ((color >> 16) & 0xff)) + (150 * ((color >> 8) & 0xff)) +
-            (29 * (color & 0xff))) >> 8;
-}
-
-static bool isLit(const LightState& state) {
-    return (state.color & 0x00ffffff);
-}
-
-struct color {
-    unsigned int r, g, b;
-    float _L, _a, _b;
-};
-
-// This hardware only allows primary colors
-static struct color colors[] = {
-    { 255,   0,   0, 0, 0, 0 }, // red
-    { 255, 255,   0, 0, 0, 0 }, // yellow
-    {   0, 255,   0, 0, 0, 0 }, // green
-    {   0, 255, 255, 0, 0, 0 }, // cyan
-    {   0,   0, 255, 0, 0, 0 }, // blue
-    { 255,   0, 255, 0, 0, 0 }, // magenta
-    { 255, 255, 255, 0, 0, 0 }, // white
-    { 127, 127, 127, 0, 0, 0 }, // grey
-    {   0,   0,   0, 0, 0, 0 }, // black
-};
-
-static constexpr int MAX_COLOR = 9;
-
-// Convert RGB to L*a*b colorspace
-// from http://www.brucelindbloom.com
-static void rgb2lab(unsigned int R, unsigned int G, unsigned int B,
-                    float *_L, float *_a, float *_b) {
-
-    float r, g, b, X, Y, Z, fx, fy, fz, xr, yr, zr;
-    float Ls, as, bs;
-    float eps = 216.f / 24389.f;
-    float k = 24389.f / 27.f;
-
-    float Xr = 0.964221f;  // reference white D50
-    float Yr = 1.0f;
-    float Zr = 0.825211f;
-
-    // RGB to XYZ
-    r = R / 255.f; //R 0..1
-    g = G / 255.f; //G 0..1
-    b = B / 255.f; //B 0..1
-
-    // assuming sRGB (D65)
-    if (r <= 0.04045)
-        r = r / 12;
-    else
-        r = (float) pow((r + 0.055) / 1.055, 2.4);
-
-    if (g <= 0.04045)
-        g = g / 12;
-    else
-        g = (float) pow((g + 0.055) / 1.055, 2.4);
-
-    if (b <= 0.04045)
-        b = b / 12;
-    else
-        b = (float) pow((b + 0.055) / 1.055, 2.4);
-
-
-    X = 0.436052025f * r + 0.385081593f * g + 0.143087414f * b;
-    Y = 0.222491598f * r + 0.71688606f * g + 0.060621486f * b;
-    Z = 0.013929122f * r + 0.097097002f * g + 0.71418547f * b;
-
-    // XYZ to Lab
-    xr = X / Xr;
-    yr = Y / Yr;
-    zr = Z / Zr;
-
-    if (xr > eps)
-        fx = (float) pow(xr, 1 / 3.);
-    else
-        fx = (float) ((k * xr + 16.) / 116.);
-
-    if (yr > eps)
-        fy = (float) pow(yr, 1 / 3.);
-    else
-        fy = (float) ((k * yr + 16.) / 116.);
-
-    if (zr > eps)
-        fz = (float) pow(zr, 1 / 3.);
-    else
-        fz = (float) ((k * zr + 16.) / 116);
-
-    Ls = (116 * fy) - 16;
-    as = 500 * (fx - fy);
-    bs = 200 * (fy - fz);
-
-    *_L = (2.55 * Ls + .5);
-    *_a = (as + .5);
-    *_b = (bs + .5);
-}
-
-// find the color with the shortest distance
-static struct color *
-nearest_color(unsigned int r, unsigned int g, unsigned int b)
-{
-    int i = 0;
-    float _L, _a, _b;
-    double L_dist, a_dist, b_dist, total;
-    double distance = 3 * 255;
-
-    struct color *nearest = NULL;
-
-    rgb2lab(r, g, b, &_L, &_a, &_b);
-
-    for (i = 0; i < MAX_COLOR; i++) {
-        L_dist = pow(_L - colors[i]._L, 2);
-        a_dist = pow(_a - colors[i]._a, 2);
-        b_dist = pow(_b - colors[i]._b, 2);
-        total = sqrt(L_dist + a_dist + b_dist);
-        if (total < distance) {
-            nearest = &colors[i];
-            distance = total;
-        }
-    }
-
-    return nearest;
-}
-
-}  // anonymous namespace
+#include <vector>
 
 namespace android {
 namespace hardware {
@@ -159,213 +26,93 @@ namespace light {
 namespace V2_0 {
 namespace implementation {
 
-Light::Light(std::pair<std::ofstream, uint32_t>&& lcd_backlight, std::pair<std::ofstream, uint32_t>&& button_backlight,
-             std::ofstream&& red_led, std::ofstream&& green_led, std::ofstream&& blue_led, std::ofstream&& led_select_engine,
-             std::ofstream&& led_run_engine)
-    : mLcdBacklight(std::move(lcd_backlight)),
-      mButtonBacklight(std::move(button_backlight)),
-      mRedLed(std::move(red_led)),
-      mGreenLed(std::move(green_led)),
-      mBlueLed(std::move(blue_led)),
-      mLedSelectEngine(std::move(led_select_engine)),
-      mLedRunEngine(std::move(led_run_engine)) {
-    auto attnFn(std::bind(&Light::setAttentionLight, this, std::placeholders::_1));
-    auto backlightFn(std::bind(&Light::setLcdBacklight, this, std::placeholders::_1));
-    auto batteryFn(std::bind(&Light::setBatteryLight, this, std::placeholders::_1));
-    auto buttonsFn(std::bind(&Light::setButtonsBacklight, this, std::placeholders::_1));
-    auto notifFn(std::bind(&Light::setNotificationLight, this, std::placeholders::_1));
-    mLights.emplace(std::make_pair(Type::ATTENTION, attnFn));
-    mLights.emplace(std::make_pair(Type::BACKLIGHT, backlightFn));
-    mLights.emplace(std::make_pair(Type::BATTERY, batteryFn));
-    mLights.emplace(std::make_pair(Type::BUTTONS, buttonsFn));
-    mLights.emplace(std::make_pair(Type::NOTIFICATIONS, notifFn));
+static const std::string LCD_BRIGHTNESS =
+        "/sys/class/backlight/lcd-backlight/brightness";
+static const std::string LCD_MAX_BRIGHTNESS =
+        "/sys/class/backlight/lcd-backlight/max_brightness";
+static const std::string BUTTONS_BRIGHTNESS =
+        "/sys/class/leds/button-backlight/brightness";
+static const std::string BUTTONS_MAX_BRIGHTNESS =
+        "/sys/class/leds/button-backlight/max_brightness";
 
-    for (int i = 0; i < MAX_COLOR; i++) {
-        rgb2lab(colors[i].r, colors[i].g, colors[i].b,
-                &colors[i]._L, &colors[i]._a, &colors[i]._b);
-    }
+/* A colour asked of a lamp that has one brightness and no colour.
+ *
+ * The weights are the usual approximation of how much each primary
+ * contributes to how bright a colour looks, which is not how much each
+ * contributes to it numerically -- green carries most of the impression of
+ * brightness and blue almost none. */
+static uint32_t brightnessOf(const LightState& state) {
+    uint32_t colour = state.color & 0x00ffffff;
+
+    return ((77 * ((colour >> 16) & 0xff)) +
+            (150 * ((colour >> 8) & 0xff)) +
+            (29 * (colour & 0xff))) >> 8;
 }
 
-// Methods from ::android::hardware::light::V2_0::ILight follow.
+static bool isLit(const LightState& state) {
+    return state.color & 0x00ffffff;
+}
+
+Light::Light()
+    : mLcd(LCD_BRIGHTNESS, LCD_MAX_BRIGHTNESS),
+      mButtons(BUTTONS_BRIGHTNESS, BUTTONS_MAX_BRIGHTNESS) {}
+
 Return<Status> Light::setLight(Type type, const LightState& state) {
-    auto it = mLights.find(type);
+    switch (type) {
+        case Type::BACKLIGHT:
+            mLcd.set(brightnessOf(state));
+            return Status::SUCCESS;
 
-    if (it == mLights.end()) {
-        return Status::LIGHT_NOT_SUPPORTED;
+        case Type::BUTTONS:
+            mButtons.set(brightnessOf(state));
+            return Status::SUCCESS;
+
+        case Type::ATTENTION:
+        case Type::BATTERY:
+        case Type::NOTIFICATIONS: {
+            std::lock_guard<std::mutex> lock(mLedLock);
+
+            if (type == Type::ATTENTION) mAttention = state;
+            else if (type == Type::BATTERY) mBattery = state;
+            else mNotification = state;
+
+            showHighestPriority();
+            return Status::SUCCESS;
+        }
+
+        default:
+            return Status::LIGHT_NOT_SUPPORTED;
     }
-
-    it->second(state);
-
-    return Status::SUCCESS;
 }
 
 Return<void> Light::getSupportedTypes(getSupportedTypes_cb _hidl_cb) {
-    std::vector<Type> types;
-
-    for (auto const& light : mLights) {
-        types.push_back(light.first);
-    }
-
-    _hidl_cb(types);
-
+    _hidl_cb(std::vector<Type>{Type::BACKLIGHT, Type::BUTTONS, Type::ATTENTION,
+                               Type::BATTERY, Type::NOTIFICATIONS});
     return Void();
 }
 
-void Light::setAttentionLight(const LightState& state) {
-    LOG(WARNING) << "setAttentionLight";
-    std::lock_guard<std::mutex> lock(mLock);
-    mAttentionState = state;
-    setSpeakerBatteryLightLocked();
-}
+/* One diode, three things that want it.
+ *
+ * A notification is what the user is waiting to see, so it comes first.
+ * Attention is the system asking for a look and comes next. The battery is
+ * the standing condition underneath both, shown when nothing is on top of it.
+ */
+void Light::showHighestPriority() {
+    const LightState* shown = nullptr;
 
-void Light::setLcdBacklight(const LightState& state) {
-    /* Brightness shares nothing with the LED machinery, so it does not
-     * queue behind it: its own lock only orders concurrent writers of
-     * the same sysfs stream. */
-    std::lock_guard<std::mutex> lock(mBacklightLock);
+    if (isLit(mNotification)) shown = &mNotification;
+    else if (isLit(mAttention)) shown = &mAttention;
+    else if (isLit(mBattery)) shown = &mBattery;
 
-    uint32_t brightness = rgbToBrightness(state);
-
-    // If max panel brightness is not the default (255),
-    // apply linear scaling across the accepted range.
-    if (mLcdBacklight.second != DEFAULT_MAX_BRIGHTNESS) {
-        int old_brightness = brightness;
-        brightness = brightness * mLcdBacklight.second / DEFAULT_MAX_BRIGHTNESS;
-        LOG(VERBOSE) << "scaling brightness " << old_brightness << " => " << brightness;
-    }
-
-    mLcdBacklight.first << brightness << std::endl;
-}
-
-void Light::setButtonsBacklight(const LightState& state) {
-    std::lock_guard<std::mutex> lock(mBacklightLock);
-    
-    uint32_t brightness = rgbToBrightness(state);
-    
-    // If max panel brightness is not the default (255),
-    // apply linear scaling across the accepted range.
-    if (mButtonBacklight.second != DEFAULT_MAX_BRIGHTNESS) {
-        int old_brightness = brightness;
-        brightness = brightness * mButtonBacklight.second / DEFAULT_MAX_BRIGHTNESS;
-        LOG(VERBOSE) << "scaling brightness " << old_brightness << " => " << brightness;
-    }
-
-    mButtonBacklight.first << brightness << std::endl;
-}
-
-void Light::setBatteryLight(const LightState& state) {
-    std::lock_guard<std::mutex> lock(mLock);
-    mBatteryState = state;
-    setSpeakerBatteryLightLocked();
-}
-
-void Light::setNotificationLight(const LightState& state) {
-    std::lock_guard<std::mutex> lock(mLock);
-    mNotificationState = state;
-    setSpeakerBatteryLightLocked();
-}
-
-void Light::setSpeakerBatteryLightLocked() {
-    if (isLit(mNotificationState)) {
-        setSpeakerLightLocked(mNotificationState);
-    } else if (isLit(mAttentionState)) {
-        setSpeakerLightLocked(mAttentionState);
-    } else if (isLit(mBatteryState)) {
-        setSpeakerLightLocked(mBatteryState);
-    } else {
-        // Lights off
-        if (mSpeakerSet && mSpeakerColor == 0) {
-            return;
-        }
-        mLedRunEngine << 0 << std::endl;
-        mRedLed << 0 << std::endl;
-        mGreenLed << 0 << std::endl;
-        mBlueLed << 0 << std::endl;
-        mSpeakerSet = true;
-        mSpeakerColor = 0;
-        mSpeakerOnMs = 0;
-        mSpeakerOffMs = 0;
-    }
-}
-
-void Light::setSpeakerLightLocked(const LightState& state) {
-    int red, green, blue, blink;
-    int onMs, offMs;
-    uint32_t colorRGB = state.color & 0x00ffffff;
-    struct color *nearest = NULL;
-
-    switch (state.flashMode) {
-        case Flash::TIMED:
-            onMs = state.flashOnMs;
-            offMs = state.flashOffMs;
-            break;
-        case Flash::NONE:
-        default:
-            onMs = 0;
-            offMs = 0;
-            break;
-    }
-
-    // The chip is already showing exactly this; re-asserting it would
-    // only make the diode visibly blink off and on.
-    if (mSpeakerSet && colorRGB == mSpeakerColor && onMs == mSpeakerOnMs &&
-        offMs == mSpeakerOffMs) {
+    if (shown == nullptr) {
+        mLed.off();
         return;
     }
 
-    // Disable all blinking to start. No pause: the kernel driver orders
-    // these writes itself and waits out the chip's own settling times,
-    // measured in microseconds, inside its worker.
-    mLedRunEngine << 0 << std::endl;
-    mRedLed << 0 << std::endl;
-    mGreenLed << 0 << std::endl;
-    mBlueLed << 0 << std::endl;
+    bool timed = shown->flashMode == Flash::TIMED;
 
-    red = (colorRGB >> 16) & 0xff;
-    green = (colorRGB >> 8) & 0xff;
-    blue = colorRGB & 0xff;
-    blink = onMs > 0 && offMs > 0;
-
-    if (blink) {
-        // Driver doesn't permit us to set individual duty cycles, so only
-        // pick pure colors at max brightness when blinking.
-        nearest = nearest_color(red, green, blue);
-
-        red = nearest->r;
-        green = nearest->g;
-        blue = nearest->b;
-
-        // Make sure the values are between 1 and 7 seconds
-        if (onMs < 1000)
-            onMs = 1000;
-        else if (onMs > 7000)
-            onMs = 7000;
-
-        if (offMs < 1000)
-            offMs = 1000;
-        else if (offMs > 7000)
-            offMs = 7000;
-            
-        if (blink && red) {
-            mLedSelectEngine << 1 << std::endl;
-        }
-        if (blink && green) {
-            mLedSelectEngine << 2 << std::endl;
-        }
-        if (blink && blue) {
-            mLedSelectEngine << 3 << std::endl;
-        }
-        mLedRunEngine << 1 << std::endl;
-    } else {
-        mRedLed << red << std::endl;
-        mGreenLed << green << std::endl;
-        mBlueLed << blue << std::endl;
-    }
-
-    mSpeakerSet = true;
-    mSpeakerColor = colorRGB;
-    mSpeakerOnMs = onMs;
-    mSpeakerOffMs = offMs;
+    mLed.show(shown->color, timed ? shown->flashOnMs : 0,
+              timed ? shown->flashOffMs : 0);
 }
 
 }  // namespace implementation

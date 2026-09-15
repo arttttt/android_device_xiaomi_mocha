@@ -83,6 +83,40 @@ inline bool write(const std::string& path, int value) {
 }
 
 /*
+ * A number a driver is reporting -- a maximum, a capability, a current value.
+ *
+ * Returns the fallback when the node is missing or holds something that is not
+ * a number, so a caller that has a sensible default does not need to ask twice.
+ */
+inline int read(const std::string& path, int fallback) {
+    int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+
+    if (fd < 0) {
+        ALOGW("cannot open %s: %s; taking %d", path.c_str(), strerror(errno), fallback);
+        return fallback;
+    }
+
+    char buf[32];
+    ssize_t length = ::read(fd, buf, sizeof(buf) - 1);
+
+    close(fd);
+
+    if (length <= 0) {
+        ALOGW("cannot read %s; taking %d", path.c_str(), fallback);
+        return fallback;
+    }
+
+    buf[length] = '\0';
+
+    int value;
+    if (sscanf(buf, "%d", &value) != 1) {
+        ALOGW("%s does not hold a number; taking %d", path.c_str(), fallback);
+        return fallback;
+    }
+    return value;
+}
+
+/*
  * Whether a write would be allowed, asked without performing one.
  *
  * For the services that must answer whether the hardware supports something

@@ -16,115 +16,45 @@
 
 #define LOG_TAG "android.hardware.light@2.0-service.mocha"
 
-#include <android-base/logging.h>
 #include <hidl/HidlTransportSupport.h>
-#include <utils/Errors.h>
+#include <log/log.h>
 
 #include "Light.h"
 
-// libhwbinder:
 using android::hardware::configureRpcThreadpool;
 using android::hardware::joinRpcThreadpool;
 
-// Generated HIDL files
 using android::hardware::light::V2_0::ILight;
 using android::hardware::light::V2_0::implementation::Light;
 
-const static std::string kLcdBacklightPath = "/sys/class/backlight/lcd-backlight/brightness";
-const static std::string kLcdMaxBacklightPath = "/sys/class/backlight/lcd-backlight/max_brightness";
-const static std::string kButtonBacklightPath = "/sys/class/leds/button-backlight/brightness";
-const static std::string kButtonMaxBacklightPath = "/sys/class/leds/button-backlight/max_brightness";
-const static std::string kRedLedPath = "/sys/class/leds/red/brightness";
-const static std::string kGreenLedPath = "/sys/class/leds/green/brightness";
-const static std::string kBlueLedPath = "/sys/class/leds/blue/brightness";
-const static std::string kLedSelectEnginePath = "/sys/bus/i2c/drivers/lp5521/0-0032/select_engine";
-const static std::string kLedRunEnginePath = "/sys/bus/i2c/drivers/lp5521/0-0032/run_engine";
-
+/*
+ * Nothing here opens a node any more.
+ *
+ * It used to open all nine, in nine near-identical blocks, and pass them into
+ * a constructor of seven arguments where five had the same type -- so at the
+ * call site red, green and blue were told apart by their position and nothing
+ * else. Three of those nine blocks checked the wrong stream afterwards: two
+ * tested blueLed, one tested lcdMaxBacklight, each of them the variable from
+ * the block above. Nothing ever noticed, because the checks that fired were
+ * on nodes that were present anyway.
+ *
+ * Each lamp now opens what it needs, when it needs it. Starting the service
+ * is starting the service.
+ */
 int main() {
-    uint32_t lcdMaxBrightness = 255, buttonMaxBrightness = 255;
+    android::sp<ILight> light = new Light();
 
-    std::ofstream lcdBacklight(kLcdBacklightPath);
-    if (!lcdBacklight) {
-        LOG(ERROR) << "Failed to open " << kLcdBacklightPath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    }
+    configureRpcThreadpool(1, true /*callerWillJoin*/);
 
-    std::ifstream lcdMaxBacklight(kLcdMaxBacklightPath);
-    if (!lcdMaxBacklight) {
-        LOG(ERROR) << "Failed to open " << kLcdMaxBacklightPath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    } else {
-        lcdMaxBacklight >> lcdMaxBrightness;
-    }
-
-    std::ofstream buttonBacklight(kButtonBacklightPath);
-    if (!buttonBacklight) {
-        LOG(WARNING) << "Failed to open " << kButtonBacklightPath << ", error=" << errno
-                     << " (" << strerror(errno) << ")";
-    }
-    
-    std::ifstream buttonMaxBacklight(kButtonMaxBacklightPath);
-    if (!lcdMaxBacklight) {
-        LOG(ERROR) << "Failed to open " << kButtonMaxBacklightPath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    } else {
-        buttonMaxBacklight >> buttonMaxBrightness;
-    }
-
-    std::ofstream redLed(kRedLedPath);
-    if (!redLed) {
-        LOG(ERROR) << "Failed to open " << kRedLedPath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    }
-
-    std::ofstream greenLed(kGreenLedPath);
-    if (!greenLed) {
-        LOG(ERROR) << "Failed to open " << kGreenLedPath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    }
-
-    std::ofstream blueLed(kBlueLedPath);
-    if (!blueLed) {
-        LOG(ERROR) << "Failed to open " << kBlueLedPath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    }
-    
-    std::ofstream ledSelectEngine(kLedSelectEnginePath);
-    if (!blueLed) {
-        LOG(ERROR) << "Failed to open " << kLedSelectEnginePath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    }
-    
-    std::ofstream ledRunEngine(kLedRunEnginePath);
-    if (!blueLed) {
-        LOG(ERROR) << "Failed to open " << kLedRunEnginePath << ", error=" << errno
-                   << " (" << strerror(errno) << ")";
-        return -errno;
-    }
-
-    android::sp<ILight> service = new Light(
-            {std::move(lcdBacklight), lcdMaxBrightness}, {std::move(buttonBacklight), buttonMaxBrightness},
-            std::move(redLed), std::move(greenLed), std::move(blueLed), std::move(ledSelectEngine), std::move(ledRunEngine));
-
-    configureRpcThreadpool(1, true);
-
-    android::status_t status = service->registerAsService();
-
-    if (status != android::OK) {
-        LOG(ERROR) << "Cannot register Light HAL service";
+    if (light->registerAsService() != android::OK) {
+        ALOGE("cannot register the lights service");
         return 1;
     }
 
-    LOG(INFO) << "Light HAL Ready.";
+    ALOGI("lights service ready");
+
     joinRpcThreadpool();
-    // Under normal cases, execution will not reach this line.
-    LOG(ERROR) << "Light HAL failed to join thread pool.";
+
+    ALOGE("lights service left its thread pool");
     return 1;
 }
