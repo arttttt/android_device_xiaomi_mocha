@@ -20,28 +20,32 @@
 #include <android/hardware/vibrator/1.0/IVibrator.h>
 #include <hidl/Status.h>
 
+#include "Actuator.h"
+
 namespace android {
 namespace hardware {
 namespace vibrator {
 namespace V1_0 {
 namespace implementation {
 
+/*
+ * The interface, answered over the motor.
+ *
+ * Effects carry their own strength and are played as patterns, so they
+ * neither read nor disturb the amplitude the framework set for ordinary
+ * vibration through setAmplitude(). The two are separate settings and were
+ * not kept apart before.
+ */
 class Vibrator : public IVibrator {
-public:
-  Vibrator();
+  public:
+    Return<Status> on(uint32_t timeoutMs) override;
+    Return<Status> off() override;
+    Return<bool> supportsAmplitudeControl() override;
+    Return<Status> setAmplitude(uint8_t amplitude) override;
+    Return<void> perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) override;
 
-  Return<Status> on(uint32_t timeoutMs) override;
-  Return<Status> off() override;
-  Return<bool> supportsAmplitudeControl() override;
-  Return<Status> setAmplitude(uint8_t amplitude) override;
-  Return<void> perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) override;
-
-private:
-  /* Whether the strength node answered to a write when the service started.
-   * Asked once: the answer cannot change while the board is up, and
-   * supportsAmplitudeControl() is called often enough that finding out each
-   * time would be a file opened for nothing. */
-  bool mAmplitudeControl;
+  private:
+    Actuator mMotor;
 };
 
 }  // namespace implementation

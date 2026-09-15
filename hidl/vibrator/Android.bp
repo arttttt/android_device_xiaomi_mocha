@@ -17,7 +17,12 @@ cc_binary {
     name: "android.hardware.vibrator@1.0-service.mocha",
     relative_install_path: "hw",
     init_rc: ["android.hardware.vibrator@1.0-service.mocha.rc"],
-    srcs: ["service.cpp", "Vibrator.cpp"],
+    srcs: [
+        "Actuator.cpp",
+        "Effects.cpp",
+        "service.cpp",
+        "Vibrator.cpp",
+    ],
     shared_libs: [
         "libhidlbase",
         "libhidltransport",
