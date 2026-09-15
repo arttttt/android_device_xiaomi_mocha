@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.0-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.1-service.mocha"
 
 #include "Effects.h"
 
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_0 {
+namespace V1_1 {
 namespace implementation {
 
 /*
@@ -60,6 +60,23 @@ static constexpr uint8_t STRONG_MS = 48;
  */
 static constexpr uint8_t DOUBLE_CLICK_GAP_MS = 60;
 
+/*
+ * The tick.
+ *
+ * Shorter than the lightest click and at full strength, because at this
+ * length there is no room underneath: 20 ms is the floor of what the hand
+ * receives at all, and the same pulse quieter is simply nothing. That is why
+ * a tick does not answer to LIGHT, MEDIUM and STRONG the way a click does --
+ * there is one tick this motor can produce, and three names for it.
+ *
+ * Its whole job is to be told apart from a click, which means staying well
+ * under the lightest of them, and to survive being fired in a stream: the
+ * framework sends one per threshold crossing while a gesture is dragged.
+ * Listened to at 200, 120 and 60 ms apart -- eight of them stay eight, they
+ * do not smear into a rattle.
+ */
+static constexpr uint8_t TICK_MS = 20;
+
 uint8_t Effects::lengthOf(EffectStrength strength) {
     switch (strength) {
         case EffectStrength::LIGHT:  return LIGHT_MS;
@@ -69,26 +86,29 @@ uint8_t Effects::lengthOf(EffectStrength strength) {
     return MEDIUM_MS;
 }
 
-Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
+Effects::Shape Effects::of(Effect_1_1 effect, EffectStrength strength) {
     const uint8_t full = Actuator::MAX_STRENGTH;
     uint8_t length = lengthOf(strength);
 
     switch (effect) {
-        case Effect::CLICK:
+        case Effect_1_1::CLICK:
             return {{{full, length}}, length};
 
-        case Effect::DOUBLE_CLICK:
+        case Effect_1_1::DOUBLE_CLICK:
             return {{{full, length},
                      {0, DOUBLE_CLICK_GAP_MS},
                      {full, length}},
                     static_cast<uint32_t>(length) + DOUBLE_CLICK_GAP_MS + length};
+
+        case Effect_1_1::TICK:
+            return {{{full, TICK_MS}}, TICK_MS};
     }
 
     return {{}, 0};
 }
 
 }  // namespace implementation
-}  // namespace V1_0
+}  // namespace V1_1
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

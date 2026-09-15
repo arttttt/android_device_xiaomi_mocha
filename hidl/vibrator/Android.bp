@@ -1,5 +1,6 @@
 //
 // Copyright (C) 2017 The LineageOS Project
+// Copyright (C) 2026 Artem Bambalov
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +15,9 @@
 // limitations under the License.
 
 cc_binary {
-    name: "android.hardware.vibrator@1.0-service.mocha",
+    name: "android.hardware.vibrator@1.1-service.mocha",
     relative_install_path: "hw",
-    init_rc: ["android.hardware.vibrator@1.0-service.mocha.rc"],
+    init_rc: ["android.hardware.vibrator@1.1-service.mocha.rc"],
     srcs: [
         "Actuator.cpp",
         "Effects.cpp",
@@ -30,7 +31,7 @@ cc_binary {
         "libhwbinder",
         "libutils",
         "libhardware",
-        "android.hardware.vibrator@1.0",
+        "android.hardware.vibrator@1.1",
     ],
     proprietary: true,
 }

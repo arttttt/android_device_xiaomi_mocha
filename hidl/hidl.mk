@@ -150,7 +150,7 @@ PRODUCT_PACKAGES += \
 
 # Vibrator
 PRODUCT_PACKAGES += \
-    android.hardware.vibrator@1.0-service.mocha
+    android.hardware.vibrator@1.1-service.mocha
 
 # WiFi
 PRODUCT_PACKAGES += \

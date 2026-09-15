@@ -16,7 +16,7 @@
 #ifndef MOCHA_VIBRATOR_EFFECTS_H
 #define MOCHA_VIBRATOR_EFFECTS_H
 
-#include <android/hardware/vibrator/1.0/types.h>
+#include <android/hardware/vibrator/1.1/types.h>
 
 #include <cstdint>
 #include <vector>
@@ -26,8 +26,11 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_0 {
+namespace V1_1 {
 namespace implementation {
+
+using ::android::hardware::vibrator::V1_0::EffectStrength;
+using ::android::hardware::vibrator::V1_1::Effect_1_1;
 
 /*
  * What the named effects are made of on this board.
@@ -49,7 +52,7 @@ class Effects {
     };
 
     /* Empty steps mean this board has nothing to play for that effect. */
-    static Shape of(Effect effect, EffectStrength strength);
+    static Shape of(Effect_1_1 effect, EffectStrength strength);
 
   private:
     /* How long the pulse runs for a given strength. On this actuator that
@@ -58,7 +61,7 @@ class Effects {
 };
 
 }  // namespace implementation
-}  // namespace V1_0
+}  // namespace V1_1
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

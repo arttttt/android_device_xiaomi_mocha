@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.0-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.1-service.mocha"
 
 #include "Vibrator.h"
 
@@ -24,7 +24,7 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_0 {
+namespace V1_1 {
 namespace implementation {
 
 Return<Status> Vibrator::on(uint32_t timeoutMs) {
@@ -50,21 +50,31 @@ Return<Status> Vibrator::setAmplitude(uint8_t amplitude) {
 }
 
 Return<void> Vibrator::perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) {
+    return answerWith(static_cast<Effect_1_1>(effect), strength, _hidl_cb);
+}
+
+Return<void> Vibrator::perform_1_1(Effect_1_1 effect, EffectStrength strength,
+                                   perform_1_1_cb _hidl_cb) {
+    return answerWith(effect, strength, _hidl_cb);
+}
+
+Return<void> Vibrator::answerWith(Effect_1_1 effect, EffectStrength strength,
+                                  const std::function<void(Status, uint32_t)>& reply) {
     Effects::Shape shape = Effects::of(effect, strength);
 
     if (shape.steps.empty()) {
-        _hidl_cb(Status::UNSUPPORTED_OPERATION, 0);
+        reply(Status::UNSUPPORTED_OPERATION, 0);
         return Void();
     }
 
     bool played = mMotor.play(shape.steps);
 
-    _hidl_cb(played ? Status::OK : Status::UNKNOWN_ERROR, played ? shape.lengthMs : 0);
+    reply(played ? Status::OK : Status::UNKNOWN_ERROR, played ? shape.lengthMs : 0);
     return Void();
 }
 
 }  // namespace implementation
-}  // namespace V1_0
+}  // namespace V1_1
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android
