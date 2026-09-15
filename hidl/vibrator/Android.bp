@@ -31,6 +31,11 @@ cc_binary {
         "libhwbinder",
         "libutils",
         "libhardware",
+        // Both, not just the newer one. A minor version's generated library
+        // carries only what that version added; the vtable of the interface
+        // it extends lives in the older library, and a class deriving from
+        // 1.1 needs both to link.
+        "android.hardware.vibrator@1.0",
         "android.hardware.vibrator@1.1",
     ],
     proprietary: true,
