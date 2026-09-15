@@ -52,7 +52,9 @@ class Effects {
     static Shape of(Effect effect, EffectStrength strength);
 
   private:
-    static uint8_t strengthOf(EffectStrength strength);
+    /* How long the pulse runs for a given strength. On this actuator that
+     * is what strength means -- see Effects.cpp. */
+    static uint8_t lengthOf(EffectStrength strength);
 };
 
 }  // namespace implementation

@@ -25,55 +25,63 @@ namespace V1_0 {
 namespace implementation {
 
 /*
- * What the three strengths the framework knows come out as.
+ * How long each of the three strengths runs for, at full amplitude.
  *
- * Chosen, not measured -- measuring would want an accelerometer against the
- * back of the tablet and something to compare it to, and we have neither.
- * Even spacing of the voltage is not even spacing of the sensation, since
- * perceived intensity grows more slowly than amplitude, so these lean low
- * rather than sitting at a third and two thirds. If they feel wrong in the
- * hand, the hand is the better instrument and these are one line each.
+ * Strength on this actuator is duration, not voltage, and that is a
+ * measurement rather than a preference. Amplitude was tried first and does
+ * not work as a dial: below about 70 of the amplifier's 127 a pulse stops
+ * being felt at all, and above it nothing more arrives -- 70 and 127 at the
+ * same length are told apart only by which of them is nearer the threshold
+ * of noticing. Length, over the same range, rises evenly and audibly to the
+ * hand.
+ *
+ * So all three run at the maximum and differ in how long. 27 ms is present
+ * but quiet, 48 is firm; 55 was tried and was too much for a tap. Below
+ * about 20 nothing useful survives, because the mass of a linear actuator
+ * needs that long to reach speed and a pulse that ends first is one the
+ * finger never receives.
+ *
+ * Found by hand on the device, which is the only instrument there is for
+ * this: an accelerometer would say what the motor did, not what it felt
+ * like. They are three numbers in one place, so a different hand can move
+ * them.
  */
-static constexpr uint8_t LIGHT = 38;
-static constexpr uint8_t MEDIUM = 76;
-static constexpr uint8_t STRONG = Actuator::MAX_STRENGTH;
+static constexpr uint8_t LIGHT_MS = 27;
+static constexpr uint8_t MEDIUM_MS = 35;
+static constexpr uint8_t STRONG_MS = 48;
 
 /*
- * How long one click runs, and how long the silence inside a double one.
+ * The silence inside a double click.
  *
- * Both were found by hand on the device. Below about 20 ms a click does not
- * become crisper, it becomes weaker: the mass of a linear actuator needs that
- * long to reach speed, and a pulse that ends first is one the finger barely
- * feels. 12 and 15 ms were tried and rejected for exactly that.
- *
- * The gap is what makes two clicks read as one gesture rather than two
- * events. Too short and they blur into a rattle; too long and they are
- * separate taps.
+ * What makes two pulses read as one gesture rather than two taps. Chosen
+ * when the pulses were 20 ms long and not listened to again since they grew;
+ * if a double click now sounds like a rattle, this is the number that
+ * decides it.
  */
-static constexpr uint8_t CLICK_MS = 20;
 static constexpr uint8_t DOUBLE_CLICK_GAP_MS = 60;
 
-uint8_t Effects::strengthOf(EffectStrength strength) {
+uint8_t Effects::lengthOf(EffectStrength strength) {
     switch (strength) {
-        case EffectStrength::LIGHT:  return LIGHT;
-        case EffectStrength::MEDIUM: return MEDIUM;
-        case EffectStrength::STRONG: return STRONG;
+        case EffectStrength::LIGHT:  return LIGHT_MS;
+        case EffectStrength::MEDIUM: return MEDIUM_MS;
+        case EffectStrength::STRONG: return STRONG_MS;
     }
-    return MEDIUM;
+    return MEDIUM_MS;
 }
 
 Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
-    uint8_t amplitude = strengthOf(strength);
+    const uint8_t full = Actuator::MAX_STRENGTH;
+    uint8_t length = lengthOf(strength);
 
     switch (effect) {
         case Effect::CLICK:
-            return {{{amplitude, CLICK_MS}}, CLICK_MS};
+            return {{{full, length}}, length};
 
         case Effect::DOUBLE_CLICK:
-            return {{{amplitude, CLICK_MS},
+            return {{{full, length},
                      {0, DOUBLE_CLICK_GAP_MS},
-                     {amplitude, CLICK_MS}},
-                    CLICK_MS + DOUBLE_CLICK_GAP_MS + CLICK_MS};
+                     {full, length}},
+                    static_cast<uint32_t>(length) + DOUBLE_CLICK_GAP_MS + length};
     }
 
     return {{}, 0};
