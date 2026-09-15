@@ -19,8 +19,6 @@
 #include <android/hardware/vibrator/1.0/IVibrator.h>
 #include <hidl/Status.h>
 
-#include <fstream>
-
 namespace android {
 namespace hardware {
 namespace vibrator {
@@ -38,8 +36,11 @@ public:
   Return<void> perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) override;
 
 private:
-  std::ofstream mEnable;
-  std::ofstream mAmplitude;
+  /* Whether the strength node answered to a write when the service started.
+   * Asked once: the answer cannot change while the board is up, and
+   * supportsAmplitudeControl() is called often enough that finding out each
+   * time would be a file opened for nothing. */
+  bool mAmplitudeControl;
 };
 
 }  // namespace implementation
