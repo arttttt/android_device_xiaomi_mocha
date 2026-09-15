@@ -53,10 +53,10 @@ static constexpr uint8_t STRONG_MS = 48;
 /*
  * The silence inside a double click.
  *
- * What makes two pulses read as one gesture rather than two taps. Chosen
- * when the pulses were 20 ms long and not listened to again since they grew;
- * if a double click now sounds like a rattle, this is the number that
- * decides it.
+ * What makes two pulses read as one gesture rather than two taps. 80 and 100
+ * were tried against it at the longest pulse: both still read as a double,
+ * and both are softer for it. 60 is the one that stays sharp, which is what
+ * a double click is for.
  */
 static constexpr uint8_t DOUBLE_CLICK_GAP_MS = 60;
 
