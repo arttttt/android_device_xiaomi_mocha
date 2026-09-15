@@ -13,21 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #ifndef ANDROID_HARDWARE_USB_GADGET_V1_0_USBGADGET_H
 #define ANDROID_HARDWARE_USB_GADGET_V1_0_USBGADGET_H
 
-#include <android-base/unique_fd.h>
 #include <android/hardware/usb/gadget/1.0/IUsbGadget.h>
-#include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
 
-#include <condition_variable>
-#include <memory>
 #include <mutex>
-#include <string>
-#include <thread>
-#include <vector>
+
+#include "FfsMonitor.h"
+#include "GadgetConfig.h"
 
 namespace android {
 namespace hardware {
@@ -37,56 +32,43 @@ namespace V1_0 {
 namespace implementation {
 
 using ::android::sp;
-using ::android::base::unique_fd;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
 
+/*
+ * What UsbDeviceManager calls when the set of USB functions changes.
+ *
+ * It is here rather than left to init because the legacy path routes every
+ * change through the "none" configuration, whose block in
+ * init.usb.configfs.rc stops adbd unconditionally -- so adb is torn down and
+ * rebuilt even when it is in both the old set and the new one. UsbHandlerHal
+ * stops adbd only when the new configuration has no ADB in it.
+ *
+ * This decides what should be composed and in what order. GadgetConfig does
+ * the composing, FfsMonitor waits for the daemons and binds.
+ */
 struct UsbGadget : public IUsbGadget {
-    UsbGadget();
-
     Return<void> setCurrentUsbFunctions(uint64_t functions,
                                         const sp<IUsbGadgetCallback>& callback,
                                         uint64_t timeoutMs) override;
 
     Return<void> getCurrentUsbFunctions(const sp<IUsbGadgetCallback>& callback) override;
 
-    /*
-     * The monitor thread is a free function so it can be started with the
-     * object as its argument, and it reaches in here. Everything it touches
-     * is public for that reason, the way the implementations this follows
-     * have it.
-     */
-    std::mutex mLock;
-    std::condition_variable mCv;
-
-    /* What was asked for, and whether the controller has taken it. */
-    uint64_t mCurrentUsbFunctions;
-    bool mCurrentUsbFunctionsApplied;
-
-    /*
-     * The endpoint files a daemon creates once it has written its
-     * descriptors. Their presence -- all of them -- is what says a
-     * FunctionFS function is ready to be bound, and their absence is what
-     * says the daemon has gone. Empty when nothing in the configuration
-     * needs a daemon.
-     */
-    std::vector<std::string> mEndpointList;
-
-    unique_fd mInotifyFd;
-    unique_fd mEventFd;
-    unique_fd mEpollFd;
-
-    std::unique_ptr<std::thread> mMonitor;
-    bool mMonitorCreated;
-
   private:
-    /* Serialises whole calls, as distinct from mLock, which the monitor also
-     * takes for short stretches. */
-    std::mutex mLockSetCurrentFunction;
+    Status tearDown();
+    Status compose(uint64_t functions, const sp<IUsbGadgetCallback>& callback,
+                   uint64_t timeoutMs);
 
-    Status tearDownGadget();
-    Status setupFunctions(uint64_t functions, const sp<IUsbGadgetCallback>& callback,
-                          uint64_t timeoutMs);
+    GadgetConfig mConfig;
+    FfsMonitor mMonitor;
+
+    /* What was last asked for, and whether the controller has taken it. */
+    uint64_t mFunctions = 0;
+    bool mApplied = false;
+
+    /* One change at a time, whole: a second call arriving between the
+     * teardown and the composition would find a gadget that is neither. */
+    std::mutex mLock;
 };
 
 }  // namespace implementation
