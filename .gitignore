@@ -3,5 +3,8 @@ __pycache__/
 .mcp.json
 .claude/
 
+# macOS leaves one of these in every directory it has been looked at
+.DS_Store
+
 # build_lineage.sh drops the last failing run here when run in-tree
 tools/error.txt
