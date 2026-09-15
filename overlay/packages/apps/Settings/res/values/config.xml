@@ -18,14 +18,14 @@
     <!--
          Offer the three strengths rather than an on and an off switch.
 
-         The platform defaults this to false, and until now that was the truth
-         here: the vibrator HAL answered every strength the same way, because
-         the mapping from LIGHT, MEDIUM and STRONG to an amplitude was
-         commented out and perform() never set one. Turning the setting up or
-         down changed nothing a finger could tell.
+         The platform defaults this to false, and until now that was the
+         truth here: the vibrator HAL answered every strength the same way,
+         because the mapping from LIGHT, MEDIUM and STRONG to an amplitude
+         was commented out and perform() never set one. Turning the setting
+         up or down changed nothing a finger could tell.
 
-         It does now -- the three come out at 38, 76 and 127 of the
-         amplifier's 127 -- so the choice is worth offering.
+         It does now. The three come out at 38, 76 and 127 of the
+         amplifier's 127, so the choice is worth offering.
     -->
     <bool name="config_vibration_supports_multiple_intensities">true</bool>
 </resources>

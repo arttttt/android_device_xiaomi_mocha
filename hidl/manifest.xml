@@ -187,7 +187,7 @@
         these lines were written. A declaration is a ceiling, not a label:
         the framework asks for the version it wants and hwservicemanager
         answers from this file, so understating it makes a working service
-        invisible. That is what kept wifi down -- the framework asked for
+        invisible. That is what kept wifi down: the framework asked for
         supplicant 1.1, found 1.0 declared, and gave up:
 
             hwservicemanager: getTransport: Cannot find entry
