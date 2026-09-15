@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "android.hardware.light@2.0-service.mocha"
+
 #include "Backlight.h"
 
 #include <SysfsNode.h>

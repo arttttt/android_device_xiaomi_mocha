@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "VibratorService"
+#define LOG_TAG "android.hardware.vibrator@1.0-service.mocha"
 
 #include "Actuator.h"
 
