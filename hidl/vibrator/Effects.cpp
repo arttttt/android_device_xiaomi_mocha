@@ -82,12 +82,14 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  *
  * In a hurry they arrive about every 23 ms at the fastest and 30 on average,
  * measured from here rather than guessed, after a guess of sixty a second
- * turned out to be twice the truth. Eight fits in that, and the fit is about
- * the driver rather than the motor: playing a pattern takes the amplifier out
- * of standby and puts it back, four to five milliseconds each way, so ten
- * occupies the motor for nearly twenty and leaves no gap at all. Six was tried
- * and is thin; eight has body and still leaves room, and room is what the
- * finger reads as a surface -- the mass sags and is caught again.
+ * turned out to be twice the truth. Twelve of that thirty is the pulse and
+ * the rest is the room the finger reads as a surface -- the mass sags and is
+ * caught again.
+ *
+ * It was eight while the driver still went to sleep between patterns, which
+ * cost four to five milliseconds each way and left a pulse of eight occupying
+ * the motor for seventeen. With that gone the same room holds a longer pulse,
+ * and a longer pulse is one the hand can actually weigh.
  *
  * Alone, a texture tick is just a soft tick, so it gets the tick's twenty.
  *
@@ -98,7 +100,7 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * standby between patterns that follow one another closely. Until it does,
  * these are sized for the driver we have.
  */
-static constexpr uint8_t TEXTURE_TICK_RAPID_MS = 8;
+static constexpr uint8_t TEXTURE_TICK_RAPID_MS = 12;
 static constexpr uint8_t TEXTURE_TICK_STEADY_MS = 14;
 static constexpr uint8_t TEXTURE_TICK_SINGLE_MS = 20;
 
