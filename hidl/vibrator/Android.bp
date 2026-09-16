@@ -15,12 +15,13 @@
 // limitations under the License.
 
 cc_binary {
-    name: "android.hardware.vibrator@1.1-service.mocha",
+    name: "android.hardware.vibrator@1.2-service.mocha",
     relative_install_path: "hw",
-    init_rc: ["android.hardware.vibrator@1.1-service.mocha.rc"],
+    init_rc: ["android.hardware.vibrator@1.2-service.mocha.rc"],
     srcs: [
         "Actuator.cpp",
         "Effects.cpp",
+        "Ringtones.cpp",
         "service.cpp",
         "Vibrator.cpp",
     ],
@@ -37,6 +38,7 @@ cc_binary {
         // 1.1 needs both to link.
         "android.hardware.vibrator@1.0",
         "android.hardware.vibrator@1.1",
+        "android.hardware.vibrator@1.2",
     ],
     proprietary: true,
 }

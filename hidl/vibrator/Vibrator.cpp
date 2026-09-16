@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.1-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.2-service.mocha"
 
 #include "Vibrator.h"
 
@@ -24,7 +24,7 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_1 {
+namespace V1_2 {
 namespace implementation {
 
 Return<Status> Vibrator::on(uint32_t timeoutMs) {
@@ -50,15 +50,20 @@ Return<Status> Vibrator::setAmplitude(uint8_t amplitude) {
 }
 
 Return<void> Vibrator::perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) {
-    return answerWith(static_cast<Effect_1_1>(effect), strength, _hidl_cb);
+    return answerWith(static_cast<V1_2::Effect>(effect), strength, _hidl_cb);
 }
 
 Return<void> Vibrator::perform_1_1(Effect_1_1 effect, EffectStrength strength,
                                    perform_1_1_cb _hidl_cb) {
+    return answerWith(static_cast<V1_2::Effect>(effect), strength, _hidl_cb);
+}
+
+Return<void> Vibrator::perform_1_2(V1_2::Effect effect, EffectStrength strength,
+                                   perform_1_2_cb _hidl_cb) {
     return answerWith(effect, strength, _hidl_cb);
 }
 
-Return<void> Vibrator::answerWith(Effect_1_1 effect, EffectStrength strength,
+Return<void> Vibrator::answerWith(V1_2::Effect effect, EffectStrength strength,
                                   const std::function<void(Status, uint32_t)>& reply) {
     Effects::Shape shape = Effects::of(effect, strength);
 
@@ -74,7 +79,7 @@ Return<void> Vibrator::answerWith(Effect_1_1 effect, EffectStrength strength,
 }
 
 }  // namespace implementation
-}  // namespace V1_1
+}  // namespace V1_2
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

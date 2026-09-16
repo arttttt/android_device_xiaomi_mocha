@@ -14,10 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef ANDROID_HARDWARE_VIBRATOR_V1_1_VIBRATOR_H
-#define ANDROID_HARDWARE_VIBRATOR_V1_1_VIBRATOR_H
+#ifndef ANDROID_HARDWARE_VIBRATOR_V1_2_VIBRATOR_H
+#define ANDROID_HARDWARE_VIBRATOR_V1_2_VIBRATOR_H
 
-#include <android/hardware/vibrator/1.1/IVibrator.h>
+#include <android/hardware/vibrator/1.2/IVibrator.h>
 #include <hidl/Status.h>
 
 #include <functional>
@@ -27,12 +27,13 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_1 {
+namespace V1_2 {
 namespace implementation {
 
 using ::android::hardware::vibrator::V1_0::Effect;
 using ::android::hardware::vibrator::V1_0::EffectStrength;
 using ::android::hardware::vibrator::V1_0::Status;
+using ::android::hardware::vibrator::V1_1::Effect_1_1;
 
 /*
  * The interface, answered over the motor.
@@ -51,6 +52,8 @@ class Vibrator : public IVibrator {
     Return<void> perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) override;
     Return<void> perform_1_1(Effect_1_1 effect, EffectStrength strength,
                              perform_1_1_cb _hidl_cb) override;
+    Return<void> perform_1_2(V1_2::Effect effect, EffectStrength strength,
+                             perform_1_2_cb _hidl_cb) override;
 
   private:
     /*
@@ -62,16 +65,16 @@ class Vibrator : public IVibrator {
      * of effects, and the versioned methods only decide how wide a name they
      * were allowed to be called with.
      */
-    Return<void> answerWith(Effect_1_1 effect, EffectStrength strength,
+    Return<void> answerWith(V1_2::Effect effect, EffectStrength strength,
                             const std::function<void(Status, uint32_t)>& reply);
 
     Actuator mMotor;
 };
 
 }  // namespace implementation
-}  // namespace V1_1
+}  // namespace V1_2
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android
 
-#endif  // ANDROID_HARDWARE_VIBRATOR_V1_1_VIBRATOR_H
+#endif  // ANDROID_HARDWARE_VIBRATOR_V1_2_VIBRATOR_H

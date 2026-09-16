@@ -23,7 +23,7 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_1 {
+namespace V1_2 {
 namespace implementation {
 
 /* One step of a pattern: how hard, and for how long. A strength of zero is a
@@ -68,7 +68,7 @@ class Actuator {
 };
 
 }  // namespace implementation
-}  // namespace V1_1
+}  // namespace V1_2
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

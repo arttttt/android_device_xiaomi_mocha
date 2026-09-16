@@ -16,7 +16,7 @@
 #ifndef MOCHA_VIBRATOR_EFFECTS_H
 #define MOCHA_VIBRATOR_EFFECTS_H
 
-#include <android/hardware/vibrator/1.1/types.h>
+#include <android/hardware/vibrator/1.2/types.h>
 
 #include <cstdint>
 #include <vector>
@@ -26,19 +26,19 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_1 {
+namespace V1_2 {
 namespace implementation {
 
 using ::android::hardware::vibrator::V1_0::EffectStrength;
-using ::android::hardware::vibrator::V1_1::Effect_1_1;
+using ::android::hardware::vibrator::V1_2::Effect;
 
 /*
  * What the named effects are made of on this board.
  *
  * Separate from the motor because these are decisions, not mechanism: how
- * long a click runs, how much silence makes two of them read as one gesture,
- * and what LIGHT, MEDIUM and STRONG come out as. The motor would play any
- * other answer just as willingly.
+ * long each effect runs, how much silence makes two pulses read as one
+ * gesture, and what LIGHT, MEDIUM and STRONG come out as. The motor would
+ * play any other answer just as willingly.
  */
 class Effects {
   public:
@@ -52,16 +52,30 @@ class Effects {
     };
 
     /* Empty steps mean this board has nothing to play for that effect. */
-    static Shape of(Effect_1_1 effect, EffectStrength strength);
+    static Shape of(Effect effect, EffectStrength strength);
 
-  private:
-    /* How long the pulse runs for a given strength. On this actuator that
-     * is what strength means -- see Effects.cpp. */
-    static uint8_t lengthOf(EffectStrength strength);
+    /*
+     * How long a pulse runs at each strength.
+     *
+     * Three numbers per effect rather than one, because on this actuator
+     * strength IS duration -- see Effects.cpp for why amplitude is not the
+     * dial it is on other boards.
+     */
+    struct Lengths {
+        uint8_t light;
+        uint8_t medium;
+        uint8_t strong;
+    };
+
+    static uint8_t pick(const Lengths& lengths, EffectStrength strength);
+
+    /* What a ringtone's pulses are built from. Exposed because the rhythms
+     * live in their own unit and scale their beats against this. */
+    static const Lengths CLICK_MS;
 };
 
 }  // namespace implementation
-}  // namespace V1_1
+}  // namespace V1_2
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

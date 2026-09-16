@@ -14,41 +14,81 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.1-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.2-service.mocha"
 
 #include "Effects.h"
+
+#include "Ringtones.h"
 
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_1 {
+namespace V1_2 {
 namespace implementation {
 
 /*
- * How long each of the three strengths runs for, at full amplitude.
+ * Why every effect here is three durations at one amplitude.
  *
- * Strength on this actuator is duration, not voltage, and that is a
- * measurement rather than a preference. Amplitude was tried first and does
- * not work as a dial: below about 70 of the amplifier's 127 a pulse stops
- * being felt at all, and above it nothing more arrives -- 70 and 127 at the
- * same length are told apart only by which of them is nearer the threshold
- * of noticing. Length, over the same range, rises evenly and audibly to the
- * hand.
+ * The motor is an eccentric rotating mass, not a linear actuator, and that
+ * decides the whole shape of this table. Both dials were measured by hand on
+ * the device, which is the only instrument there is for this:
  *
- * So all three run at the maximum and differ in how long. 27 ms is present
- * but quiet, 48 is firm; 55 was tried and was too much for a tap. Below
- * about 20 nothing useful survives, because the mass of a linear actuator
- * needs that long to reach speed and a pulse that ends first is one the
- * finger never receives.
+ *   - Duration is a strong dial. It rises evenly and audibly to the hand over
+ *     the whole useful range.
+ *   - Amplitude is a weak one. At 55 ms the steps 127/110/90/70/50 can be
+ *     told apart, but the top two read as nearly the same; at 35 ms only the
+ *     top of the scale has any body left, and the bottom is limp. 110 at
+ *     55 ms is plainly stronger than 127 at 35 -- length beats level.
  *
- * Found by hand on the device, which is the only instrument there is for
- * this: an accelerometer would say what the motor did, not what it felt
- * like. They are three numbers in one place, so a different hand can move
- * them.
+ * Other boards do the opposite: LG, nubia and Pixel fix the duration per
+ * effect and vary the amplitude for LIGHT/MEDIUM/STRONG. Their actuators are
+ * linear, where amplitude is the honest dial. Copying that convention here
+ * was tried and abandoned -- the three levels stopped being three.
+ *
+ * So: duration carries strength, amplitude stays at the maximum, and the
+ * effects are told apart by how long they run. Their ranges overlap -- a
+ * STRONG pop outlasts a LIGHT click -- and that is fine. The framework never
+ * asks which effect a buzz was; it asks for a named effect at a named
+ * strength, and gets it.
+ *
+ * Below about 20 ms nothing survives at all: the mass needs that long to
+ * reach speed, and a pulse that ends first is one the finger never receives.
+ * That floor is a property of the motor, not of how the amplifier is driven
+ * -- closing the chip's feedback loop was tried, in both orders to rule out
+ * the hand tiring, and made the short pulses weaker rather than sharper.
+ * Driving a braking pulse of reversed polarity after the main one was tried
+ * too, at 3, 5 and 10 ms: the long tails blunted the ending, and the short
+ * ones could not be told from no tail at all. Neither is used.
  */
-static constexpr uint8_t LIGHT_MS = 27;
-static constexpr uint8_t MEDIUM_MS = 35;
-static constexpr uint8_t STRONG_MS = 48;
+
+/* The tick: the shortest thing this motor can say. It sits on the floor, so
+ * its three strengths are one number -- there is no room underneath, and the
+ * same pulse quieter is nothing. */
+static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
+
+/* The pop: "a short, quick burst". A little more body than a tick and still
+ * well under a click. */
+static constexpr Effects::Lengths POP_MS = {22, 26, 30};
+
+/* The heavy click: "a sharp striking sensation, like a click but stronger".
+ * Above the click's range at every strength. */
+static constexpr Effects::Lengths HEAVY_CLICK_MS = {55, 65, 75};
+
+/*
+ * The thud: "a solid feeling bump, like the depression of a heavy mechanical
+ * button". The longest of the family, and the heaviest for it.
+ *
+ * A thud should also be duller than a click, and that part this board cannot
+ * do: dullness would come from a shaped decay, and the one tool for shaping
+ * -- driving the mass the other way -- was measured and does nothing the hand
+ * can hear. So it differs from the heavy click only in weight. If someone has
+ * ears and time, a two-step decay is the obvious next thing to try.
+ */
+static constexpr Effects::Lengths THUD_MS = {70, 85, 100};
+
+/* The click, kept as it was found by hand and unchanged since. Also what a
+ * ringtone's beats are measured against. */
+const Effects::Lengths Effects::CLICK_MS = {27, 35, 48};
 
 /*
  * The silence inside a double click.
@@ -60,55 +100,57 @@ static constexpr uint8_t STRONG_MS = 48;
  */
 static constexpr uint8_t DOUBLE_CLICK_GAP_MS = 60;
 
-/*
- * The tick.
- *
- * Shorter than the lightest click and at full strength, because at this
- * length there is no room underneath: 20 ms is the floor of what the hand
- * receives at all, and the same pulse quieter is simply nothing. That is why
- * a tick does not answer to LIGHT, MEDIUM and STRONG the way a click does --
- * there is one tick this motor can produce, and three names for it.
- *
- * Its whole job is to be told apart from a click, which means staying well
- * under the lightest of them, and to survive being fired in a stream: the
- * framework sends one per threshold crossing while a gesture is dragged.
- * Listened to at 200, 120 and 60 ms apart -- eight of them stay eight, they
- * do not smear into a rattle.
- */
-static constexpr uint8_t TICK_MS = 20;
-
-uint8_t Effects::lengthOf(EffectStrength strength) {
+uint8_t Effects::pick(const Lengths& lengths, EffectStrength strength) {
     switch (strength) {
-        case EffectStrength::LIGHT:  return LIGHT_MS;
-        case EffectStrength::MEDIUM: return MEDIUM_MS;
-        case EffectStrength::STRONG: return STRONG_MS;
+        case EffectStrength::LIGHT:  return lengths.light;
+        case EffectStrength::MEDIUM: return lengths.medium;
+        case EffectStrength::STRONG: return lengths.strong;
     }
-    return MEDIUM_MS;
+    return lengths.medium;
 }
 
-Effects::Shape Effects::of(Effect_1_1 effect, EffectStrength strength) {
+static Effects::Shape single(uint8_t lengthMs) {
+    return {{{Actuator::MAX_STRENGTH, lengthMs}}, lengthMs};
+}
+
+Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
     const uint8_t full = Actuator::MAX_STRENGTH;
-    uint8_t length = lengthOf(strength);
 
     switch (effect) {
-        case Effect_1_1::CLICK:
-            return {{{full, length}}, length};
+        case Effect::CLICK:
+            return single(pick(CLICK_MS, strength));
 
-        case Effect_1_1::DOUBLE_CLICK:
+        case Effect::DOUBLE_CLICK: {
+            const uint8_t length = pick(CLICK_MS, strength);
+
             return {{{full, length},
                      {0, DOUBLE_CLICK_GAP_MS},
                      {full, length}},
                     static_cast<uint32_t>(length) + DOUBLE_CLICK_GAP_MS + length};
+        }
 
-        case Effect_1_1::TICK:
-            return {{{full, TICK_MS}}, TICK_MS};
+        case Effect::TICK:
+            return single(pick(TICK_MS, strength));
+
+        case Effect::POP:
+            return single(pick(POP_MS, strength));
+
+        case Effect::HEAVY_CLICK:
+            return single(pick(HEAVY_CLICK_MS, strength));
+
+        case Effect::THUD:
+            return single(pick(THUD_MS, strength));
+
+        default:
+            /* The fifteen ringtone slots, which are rhythms rather than
+             * single pulses and live in their own unit. Anything that is not
+             * one comes back empty and is answered as unsupported. */
+            return Ringtones::of(effect, pick(CLICK_MS, strength));
     }
-
-    return {{}, 0};
 }
 
 }  // namespace implementation
-}  // namespace V1_1
+}  // namespace V1_2
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android
