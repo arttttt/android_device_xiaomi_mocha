@@ -267,4 +267,18 @@
          available to the system.-->
     <bool name="config_freeformWindowManagement">true</bool>
 
+    <!-- Haptics while a text selection handle is dragged. Off in the
+         platform, which suits a device whose actuator can follow the finger;
+         ours cannot. An eccentric mass needs about twenty milliseconds to be
+         felt at all and twice a pulse's length again to settle, so it has
+         perhaps a dozen distinguishable events per second against the sixty
+         a drag delivers. What arrives is therefore not a texture but a coarse
+         stutter, and the framework asks for TEXTURE_TICK here, which this
+         board answers with its shortest tick.
+
+         Turned on deliberately: a coarse stutter still tells the finger the
+         handle is moving, which is the point of the feedback, and nothing
+         else on this device offers it. -->
+    <bool name="config_enableHapticTextHandle">true</bool>
+
 </resources>
