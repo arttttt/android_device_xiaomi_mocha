@@ -1,0 +1,52 @@
+# Copyright (C) 2026 Artem Bambalov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The sensors HAL is sensors.tegra, a blob, and what it needs falls into two
+# halves that deserve to be read differently.
+
+# The first half is ordinary. The sensors are IIO devices: samples come off
+# the character devices, and everything that configures them -- rates, batch
+# sizes, which axes are enabled, the names by which they are recognised --
+# is on the first I2C bus, under one label for the whole bus.
+allow hal_sensors_default iio_device:chr_file rw_file_perms;
+
+allow hal_sensors_default sysfs_nvi2c:dir r_dir_perms;
+allow hal_sensors_default sysfs_nvi2c:file rw_file_perms;
+
+# It finds them by listing /sys/bus/iio/devices, and reads the input device's
+# name to tell one board from another.
+allow hal_sensors_default sysfs:dir r_dir_perms;
+allow hal_sensors_default sysfs:file r_file_perms;
+
+# The second half is not ordinary, and the rules below are wider than any
+# rule in this tree should be.
+#
+# The blob carries samples between its own threads through named pipes that
+# it creates in /data, and it creates and removes them by running rm and
+# mkfifo out of a shell. That is why a shell, toybox and the run of the
+# system data directory appear in the policy of a sensor driver: not because
+# a sensor driver needs them, but because this one shells out.
+#
+# Written out, this says the sensors HAL may make and delete files anywhere
+# in /data and may execute arbitrary programs while it does. The fix is not a
+# narrower rule -- it is a directory of its own, created by init and entered
+# through a type transition, so that the blob reaches its pipes and nothing
+# else. That is worth doing by whoever replaces this blob, and until then
+# this comment is the honest account of what is being granted.
+allow hal_sensors_default shell_exec:file rx_file_perms;
+allow hal_sensors_default toolbox_exec:file rx_file_perms;
+
+allow hal_sensors_default system_data_file:dir { create open getattr search read write add_name remove_name rmdir };
+allow hal_sensors_default system_data_file:fifo_file { create open getattr read write unlink };
+allow hal_sensors_default system_data_file:file r_file_perms;
