@@ -1,0 +1,32 @@
+# Copyright (C) 2026 Artem Bambalov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Android 10 introduced IUsbGadget but shipped no implementation of it, so
+# unlike light, power and the others there is no domain here waiting to be
+# given rules: the platform declares the attributes and stops. Our service
+# needs a domain of its own before its binary can be labelled at all.
+type hal_usb_gadget_default, domain;
+hal_server_domain(hal_usb_gadget_default, hal_usb_gadget)
+
+type hal_usb_gadget_default_exec, exec_type, vendor_file_type, file_type;
+init_daemon_domain(hal_usb_gadget_default)
+
+# Composing the gadget is writing configfs, and knowing when a function is
+# ready is watching the adb directory under functionfs. Both of those come
+# with the attribute above, which is the whole reason the platform bothered
+# to declare it without an implementation.
+#
+# What does not come with it is which controller to bind the gadget to. That
+# is not ours to know -- the kernel names it and init publishes it.
+get_prop(hal_usb_gadget_default, exported2_system_prop)

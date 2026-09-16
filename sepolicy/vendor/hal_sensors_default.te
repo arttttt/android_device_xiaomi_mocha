@@ -29,24 +29,27 @@ allow hal_sensors_default sysfs_nvi2c:file rw_file_perms;
 allow hal_sensors_default sysfs:dir r_dir_perms;
 allow hal_sensors_default sysfs:file r_file_perms;
 
-# The second half is not ordinary, and the rules below are wider than any
-# rule in this tree should be.
-#
-# The blob carries samples between its own threads through named pipes that
-# it creates in /data, and it creates and removes them by running rm and
-# mkfifo out of a shell. That is why a shell, toybox and the run of the
-# system data directory appear in the policy of a sensor driver: not because
-# a sensor driver needs them, but because this one shells out.
-#
-# Written out, this says the sensors HAL may make and delete files anywhere
-# in /data and may execute arbitrary programs while it does. The fix is not a
-# narrower rule -- it is a directory of its own, created by init and entered
-# through a type transition, so that the blob reaches its pipes and nothing
-# else. That is worth doing by whoever replaces this blob, and until then
-# this comment is the honest account of what is being granted.
-allow hal_sensors_default shell_exec:file rx_file_perms;
-allow hal_sensors_default toolbox_exec:file rx_file_perms;
-
+# The second half is that the blob carries samples between its own threads
+# through named pipes it makes in /data. Opening and reading those is
+# granted here; it is wider than a sensor driver should need, because the
+# pipes sit in the system data directory rather than in one of their own.
 allow hal_sensors_default system_data_file:dir { create open getattr search read write add_name remove_name rmdir };
 allow hal_sensors_default system_data_file:fifo_file { create open getattr read write unlink };
 allow hal_sensors_default system_data_file:file r_file_perms;
+
+# What is deliberately not granted is how the blob makes and removes them: it
+# shells out to rm and mkfifo, and the boot log is full of it being denied a
+# shell and toybox.
+#
+# That is not an oversight. The platform forbids it outright -- no HAL may
+# execute a program without changing domain, with exactly two exemptions
+# named in hal_neverallows.te, and neither is a sensor driver. Writing the
+# rule does not produce a wider policy, it produces a policy that does not
+# build.
+#
+# The legitimate form is a helper domain: a transition on the shell, so that
+# whatever the blob runs lands somewhere that may touch the pipes and nothing
+# else. That is a domain to design rather than a rule to add, and it is worth
+# doing when this blob is replaced or when this board goes enforcing. Until
+# then the shell-outs simply fail, which on a permissive device costs
+# nothing.
