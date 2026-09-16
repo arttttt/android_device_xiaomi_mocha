@@ -101,3 +101,4 @@ frost.oqa                        u:object_r:frost_oqa_prop:s0
 # accessory sku informatio
 factory.accessory.bundleinfo     u:object_r:system_prop:s0
 
+sys.perf.profile                 u:object_r:perf_profile_prop:s0

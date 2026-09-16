@@ -56,3 +56,6 @@ type frost_oqa_prop, property_type;
 
 # For properties related to gamestreaming
 type gamestreaming_prop, property_type;
+
+# For sys.perf.profile
+type perf_profile_prop, property_type;
