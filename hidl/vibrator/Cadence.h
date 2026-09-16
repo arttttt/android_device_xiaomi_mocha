@@ -78,6 +78,16 @@ class Cadence {
      * settling really is about twice the pulse. Down here the pulse is a
      * fraction of that and the mass takes proportionally longer to give up,
      * so the same ratio does not carry.
+     *
+     * Which is the warning to leave. A constant ratio is a model with one
+     * free number, and it has been fitted to one measurement: eight
+     * milliseconds at intervals of 23 to 30. That the same number had to
+     * change between one range of pulse lengths and another is itself
+     * evidence the model is wrong -- a mass almost certainly takes some fixed
+     * time to give up plus something proportional, which no single ratio can
+     * express. It holds where it was measured, and where it was not the
+     * effects' own lengths are the shorter limit anyway. Anyone extending
+     * this to intervals we never saw should measure rather than trust it.
      */
     static constexpr int64_t PERIOD_PER_PULSE = 4;
 
