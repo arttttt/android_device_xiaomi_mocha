@@ -82,13 +82,13 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * average -- measured from the HAL rather than guessed, after a guess of
  * sixty a second proved to be twice the truth.
  *
- * Six rather than ten, and the difference is not the pulse but what the
+ * Eight rather than ten, and the difference is not the pulse but what the
  * driver wraps around it. Playing a pattern takes the amplifier out of
  * standby and puts it back, and each of those costs four to five
  * milliseconds, so a ten-millisecond pulse occupies the motor for nearly
- * twenty and leaves almost nothing of the gap. Six fits, and the room either
- * side of it is what the finger reads as a surface: the mass sags and is
- * caught again.
+ * twenty and leaves almost nothing of the gap. Eight fits with room to
+ * spare, and that room is what the finger reads as a surface: the mass sags
+ * and is caught again. Six was tried first and is a little thin.
  *
  * The honest fix is in the driver, which need not visit standby between
  * patterns that follow each other closely. Until it does, this is sized for
@@ -99,7 +99,7 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * should be. The two cases do not compete for one number, because the caller
  * tells them apart by when it asks.
  */
-static constexpr Effects::Lengths TEXTURE_TICK_REPEATED_MS = {6, 6, 6};
+static constexpr Effects::Lengths TEXTURE_TICK_REPEATED_MS = {8, 8, 8};
 static constexpr Effects::Lengths TEXTURE_TICK_SINGLE_MS = {20, 20, 20};
 
 /* The pop: "a short, quick burst". A little more body than a tick and still
