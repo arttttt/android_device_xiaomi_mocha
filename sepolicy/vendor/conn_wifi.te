@@ -17,8 +17,15 @@ init_daemon_domain(conn_wifi)
 allow conn_wifi bkb_block_device:blk_file r_file_perms;
 
 # When the factory wrote nothing there, the address is derived from the
-# serial number instead.
-get_prop(conn_wifi, serialno_prop)
+# serial number instead -- and that half cannot be granted. The platform
+# keeps the serial readable by a fixed list of domains and nothing else
+# (public/domain.te), for privacy rather than for safety, and a device tree
+# cannot add itself to that list any more than it can to dac_override.
+#
+# The legitimate form is to stop reading it here: init may read the serial
+# and expands properties in a service's arguments, so init.t124.rc can hand
+# it to conn_init on the command line. conn_init is ours, so that is a small
+# change -- it is left out of a policy commit deliberately.
 
 # Either way the result is written out for the Wi-Fi HAL to read back, and
 # the Bluetooth half is published as a property.
