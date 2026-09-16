@@ -92,9 +92,14 @@ class Vibrator : public IVibrator {
 
     Actuator mMotor;
 
-    /* How closely one request follows another. Only the texture tick reads
-     * it, but every effect marks it, so a texture that begins right after a
-     * click is not mistaken for a stream. */
+    /* How closely one request follows another.
+     *
+     * Only the texture tick reads it, but every effect marks it, and the
+     * reading is about the motor rather than about the caller's intent: what
+     * decides whether a short pulse is enough is whether the mass is still
+     * turning, and it does not matter which effect set it turning. A texture
+     * tick arriving just after a click is therefore treated as following
+     * something, because it is. */
     Cadence mCadence;
 };
 
