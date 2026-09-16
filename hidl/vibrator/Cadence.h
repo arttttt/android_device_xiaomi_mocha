@@ -65,8 +65,21 @@ class Cadence {
     static constexpr uint8_t NO_LIMIT = 255;
 
   private:
-    /* A pulse, and twice its length again for the mass to settle. */
-    static constexpr int64_t PERIOD_PER_PULSE = 3;
+    /*
+     * A pulse, and the settling after it, as a multiple of the pulse.
+     *
+     * The rhythms use twice the pulse for settling, making a period of three,
+     * and that was tried here first. It gave 8 to 13 across the intervals a
+     * drag produces and the hand called the result heavier than the flat 8 it
+     * replaced. Four puts it back: 23 ms and 30 both land on the floor below,
+     * and only intervals past about 32 ms buy anything longer.
+     *
+     * The rhythms are not wrong -- their beats are 27 to 48 ms, where
+     * settling really is about twice the pulse. Down here the pulse is a
+     * fraction of that and the mass takes proportionally longer to give up,
+     * so the same ratio does not carry.
+     */
+    static constexpr int64_t PERIOD_PER_PULSE = 4;
 
     /*
      * Never shorten below this.
