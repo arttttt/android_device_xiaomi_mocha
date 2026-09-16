@@ -29,3 +29,16 @@ allow hal_graphics_composer_server graphics_device:chr_file rw_file_perms;
 # to the flip. The composer never allocates, but the memory it scans out is
 # nvmap memory and the descriptors carry that label.
 allow hal_graphics_composer_server gpu_device:chr_file rw_file_perms;
+
+# The panel's power state is read back from the backlight device rather than
+# from the controller. That device sits on the first I2C bus, which carries
+# one label for everything on it, and finding it means listing
+# /sys/class/backlight first.
+allow hal_graphics_composer_server sysfs:dir r_dir_perms;
+allow hal_graphics_composer_server sysfs_nvi2c:dir search;
+allow hal_graphics_composer_server sysfs_nvi2c:file r_file_perms;
+
+# The composer links libbinder, and in a vendor process libbinder's default
+# node is /dev/vndbinder. The platform gives a composer hwbinder and nothing
+# else, because a composer is not expected to want the other one.
+vndbinder_use(hal_graphics_composer_server)
