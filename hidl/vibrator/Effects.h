@@ -16,7 +16,7 @@
 #ifndef MOCHA_VIBRATOR_EFFECTS_H
 #define MOCHA_VIBRATOR_EFFECTS_H
 
-#include <android/hardware/vibrator/1.2/types.h>
+#include <android/hardware/vibrator/1.3/types.h>
 
 #include <cstdint>
 #include <vector>
@@ -26,11 +26,11 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_2 {
+namespace V1_3 {
 namespace implementation {
 
 using ::android::hardware::vibrator::V1_0::EffectStrength;
-using ::android::hardware::vibrator::V1_2::Effect;
+using ::android::hardware::vibrator::V1_3::Effect;
 
 /*
  * What the named effects are made of on this board.
@@ -75,7 +75,7 @@ class Effects {
 };
 
 }  // namespace implementation
-}  // namespace V1_2
+}  // namespace V1_3
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

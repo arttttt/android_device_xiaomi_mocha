@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.2-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.3-service.mocha"
 
 #include "Ringtones.h"
 
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_2 {
+namespace V1_3 {
 namespace implementation {
 
 /*
@@ -215,7 +215,7 @@ Effects::Shape Ringtones::of(Effect effect, uint8_t pulseMs) {
 }
 
 }  // namespace implementation
-}  // namespace V1_2
+}  // namespace V1_3
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

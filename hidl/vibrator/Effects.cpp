@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.2-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.3-service.mocha"
 
 #include "Effects.h"
 
@@ -23,7 +23,7 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_2 {
+namespace V1_3 {
 namespace implementation {
 
 /*
@@ -65,6 +65,24 @@ namespace implementation {
  * its three strengths are one number -- there is no room underneath, and the
  * same pulse quieter is nothing. */
 static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
+
+/*
+ * The texture tick: "a soft tick effect meant to be played as a texture",
+ * expected to arrive "multiple times in quick succession" so a finger reads a
+ * surface under it.
+ *
+ * On this board it is the tick, and cannot be anything else. A texture asks
+ * the actuator to keep up with the finger, and touches arrive around sixty
+ * times a second; a rotating mass needs about twenty milliseconds before a
+ * pulse is felt and roughly twice a pulse again before the next one reads as
+ * separate, which leaves something like a dozen distinguishable events in
+ * that second. So the effect is answered with the shortest pulse there is and
+ * nothing is claimed about texture: the finger gets a coarse stutter, which
+ * is what this motor has to offer and is still more than silence.
+ *
+ * It is also asked to be soft, and there is no room for that either -- the
+ * tick already sits on the floor at full strength.
+ */
 
 /* The pop: "a short, quick burst". A little more body than a tick and still
  * well under a click. */
@@ -130,6 +148,7 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
         }
 
         case Effect::TICK:
+        case Effect::TEXTURE_TICK:
             return single(pick(TICK_MS, strength));
 
         case Effect::POP:
@@ -150,7 +169,7 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
 }
 
 }  // namespace implementation
-}  // namespace V1_2
+}  // namespace V1_3
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

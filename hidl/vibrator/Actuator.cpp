@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.2-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.3-service.mocha"
 
 #include "Actuator.h"
 
@@ -26,7 +26,7 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_2 {
+namespace V1_3 {
 namespace implementation {
 
 static const std::string ENABLE = "/sys/class/timed_output/vibrator/enable";
@@ -84,7 +84,7 @@ bool Actuator::play(const std::vector<Step>& steps) const {
 }
 
 }  // namespace implementation
-}  // namespace V1_2
+}  // namespace V1_3
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

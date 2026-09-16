@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.vibrator@1.2-service.mocha"
+#define LOG_TAG "android.hardware.vibrator@1.3-service.mocha"
 
 #include "Vibrator.h"
 
@@ -24,7 +24,7 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_2 {
+namespace V1_3 {
 namespace implementation {
 
 Return<Status> Vibrator::on(uint32_t timeoutMs) {
@@ -59,9 +59,25 @@ Return<void> Vibrator::perform_1_1(Effect_1_1 effect, EffectStrength strength,
     return answerWith(static_cast<Effect>(effect), strength, _hidl_cb);
 }
 
-Return<void> Vibrator::perform_1_2(Effect effect, EffectStrength strength,
+Return<void> Vibrator::perform_1_2(V1_2::Effect effect, EffectStrength strength,
                                    perform_1_2_cb _hidl_cb) {
+    return answerWith(static_cast<Effect>(effect), strength, _hidl_cb);
+}
+
+Return<void> Vibrator::perform_1_3(Effect effect, EffectStrength strength,
+                                   perform_1_3_cb _hidl_cb) {
     return answerWith(effect, strength, _hidl_cb);
+}
+
+Return<bool> Vibrator::supportsExternalControl() {
+    return false;
+}
+
+Return<Status> Vibrator::setExternalControl(bool /* enabled */) {
+    /* Never reached while the answer above is no, and answered properly
+     * regardless: the interface names this the reply for a device that
+     * cannot hand its motor to the audio system. */
+    return Status::UNSUPPORTED_OPERATION;
 }
 
 Return<void> Vibrator::answerWith(Effect effect, EffectStrength strength,
@@ -80,7 +96,7 @@ Return<void> Vibrator::answerWith(Effect effect, EffectStrength strength,
 }
 
 }  // namespace implementation
-}  // namespace V1_2
+}  // namespace V1_3
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android

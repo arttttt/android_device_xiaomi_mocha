@@ -14,10 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef ANDROID_HARDWARE_VIBRATOR_V1_2_VIBRATOR_H
-#define ANDROID_HARDWARE_VIBRATOR_V1_2_VIBRATOR_H
+#ifndef ANDROID_HARDWARE_VIBRATOR_V1_3_VIBRATOR_H
+#define ANDROID_HARDWARE_VIBRATOR_V1_3_VIBRATOR_H
 
-#include <android/hardware/vibrator/1.2/IVibrator.h>
+#include <android/hardware/vibrator/1.3/IVibrator.h>
 #include <hidl/Status.h>
 
 #include <functional>
@@ -27,7 +27,7 @@
 namespace android {
 namespace hardware {
 namespace vibrator {
-namespace V1_2 {
+namespace V1_3 {
 namespace implementation {
 
 using ::android::hardware::vibrator::V1_0::EffectStrength;
@@ -52,12 +52,33 @@ class Vibrator : public IVibrator {
                          perform_cb _hidl_cb) override;
     Return<void> perform_1_1(Effect_1_1 effect, EffectStrength strength,
                              perform_1_1_cb _hidl_cb) override;
-    Return<void> perform_1_2(Effect effect, EffectStrength strength,
+    Return<void> perform_1_2(V1_2::Effect effect, EffectStrength strength,
                              perform_1_2_cb _hidl_cb) override;
+    Return<void> perform_1_3(Effect effect, EffectStrength strength,
+                             perform_1_3_cb _hidl_cb) override;
+
+    /*
+     * Handing the motor to the audio system.
+     *
+     * The answer is no, and it is the answer the interface asks for when a
+     * device cannot do this: control is meant to pass to audio, which drives
+     * the amplifier from a haptic channel of a stream, and the DRV2604 has no
+     * input for that. Its family does -- the 2605 carries an audio-to-vibe
+     * mode -- but this is the 2604, whose datasheet does not contain the word
+     * and whose mode table has no such entry. The driver writes that mode's
+     * configuration registers anyway, out of a file shared across the family,
+     * and on this silicon those addresses do not exist.
+     *
+     * Said plainly, the framework mutes the haptic channels it would have
+     * sent, which is right. Said falsely, it would hand them to a HAL with
+     * nowhere to put them.
+     */
+    Return<bool> supportsExternalControl() override;
+    Return<Status> setExternalControl(bool enabled) override;
 
   private:
     /*
-     * All three entry points end here.
+     * All four entry points end here.
      *
      * A minor version adds effects without changing what the older ones
      * mean, so its enumeration is the older one widened and every value of
@@ -72,9 +93,9 @@ class Vibrator : public IVibrator {
 };
 
 }  // namespace implementation
-}  // namespace V1_2
+}  // namespace V1_3
 }  // namespace vibrator
 }  // namespace hardware
 }  // namespace android
 
-#endif  // ANDROID_HARDWARE_VIBRATOR_V1_2_VIBRATOR_H
+#endif  // ANDROID_HARDWARE_VIBRATOR_V1_3_VIBRATOR_H
