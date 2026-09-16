@@ -51,9 +51,13 @@ namespace implementation {
  * asks which effect a buzz was; it asks for a named effect at a named
  * strength, and gets it.
  *
- * Below about 20 ms nothing survives at all: the mass needs that long to
- * reach speed, and a pulse that ends first is one the finger never receives.
- * That floor is a property of the motor, not of how the amplifier is driven
+ * Around 20 ms a pulse stops being definite and starts being faint. It does
+ * not vanish -- twelve is still there, just weak -- but the mass needs about
+ * that long to reach speed, so anything shorter is a fraction of a pulse and
+ * feels like one. Where an effect has to be noticed, 20 is where to stop
+ * shortening it; where it only has to be present, less will do.
+ *
+ * That behaviour belongs to the motor and not to how the amplifier is driven
  * -- closing the chip's feedback loop was tried, in both orders to rule out
  * the hand tiring, and made the short pulses weaker rather than sharper.
  * Driving a braking pulse of reversed polarity after the main one was tried
@@ -61,9 +65,9 @@ namespace implementation {
  * ones could not be told from no tail at all. Neither is used.
  */
 
-/* The tick: the shortest thing this motor can say. It sits on the floor, so
- * its three strengths are one number -- there is no room underneath, and the
- * same pulse quieter is nothing. */
+/* The tick: the shortest pulse that still arrives as a definite event rather
+ * than a hint. Its three strengths are one number because shortening it makes
+ * it vague rather than lighter, and quieting it does the same. */
 static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
 
 /*
@@ -71,25 +75,20 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * expected to arrive "multiple times in quick succession" so a finger reads a
  * surface under it.
  *
- * Shorter than the tick, and that is the whole point. The floor of twenty
- * milliseconds is the floor for a pulse that starts from rest; a texture
- * never does. Its pulses arrive about sixty times a second, closer together
- * than one of them lasts, so each new one cancels the last and the mass is
- * never allowed to stop. At twenty the result is not a texture at all but an
- * unbroken drive -- listened to beside the alternatives on the device, it is
- * simply a hum.
+ * Shorter than the tick, and faintness is the point rather than the price.
+ * These pulses arrive about sixty times a second, closer together than a tick
+ * lasts, so each new one cancels the last and the mass is never allowed to
+ * stop. At the tick's length that is not a texture at all but an unbroken
+ * drive; heard beside the alternatives on the device it is simply a hum.
  *
- * At ten there is room left between one pulse and the next, and the gap is
- * felt: the mass sags and is picked up again, which is what a surface under
- * a finger feels like. Six works too and is lighter still; ten is the one
- * with body.
+ * At ten there is room left between one pulse and the next, and the room is
+ * what the finger reads: the mass sags and is caught again, which is what a
+ * surface under a finger feels like. Six does it too and is lighter still;
+ * ten is the one with body.
  *
- * The cost is stated rather than hidden. No length can be both felt on its
- * own and leave a gap at sixty a second, because the first wants twenty and
- * the second allows sixteen. This chooses the repeated case, since that is
- * what the effect is for, and a slow drag will therefore feel little. The
- * other choice trades that for a hum whenever the finger moves quickly, and
- * a hum is worse than a quiet moment.
+ * A single one of these is faint, and that is correct. A texture is not meant
+ * to announce itself the way a click is; it is meant to be there while the
+ * finger moves, and to be more there the faster it moves.
  */
 static constexpr Effects::Lengths TEXTURE_TICK_MS = {10, 10, 10};
 
