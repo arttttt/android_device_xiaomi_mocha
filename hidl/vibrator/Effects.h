@@ -54,11 +54,12 @@ class Effects {
 
     /* Empty steps mean this board has nothing to play for that effect. */
     /*
-     * The pace matters to exactly one effect, the texture tick, because it is
-     * the only one the interface defines in terms of being repeated. The rest
-     * ignore it.
+     * longestMs is how long a single pulse may be without running into the
+     * one before it -- see Cadence. Effects made of several steps carry their
+     * own spacing and are left alone; the limit applies to the ones that are
+     * a single pulse, which are the ones that arrive in streams.
      */
-    static Shape of(Effect effect, EffectStrength strength, Pace pace);
+    static Shape of(Effect effect, EffectStrength strength, uint8_t longestMs);
 
     /*
      * How long a pulse runs at each strength.

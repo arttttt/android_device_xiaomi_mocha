@@ -92,14 +92,13 @@ class Vibrator : public IVibrator {
 
     Actuator mMotor;
 
-    /* How closely one request follows another.
+    /* How long a pulse may be without running into the one before it.
      *
-     * Only the texture tick reads it, but every effect marks it, and the
-     * reading is about the motor rather than about the caller's intent: what
-     * decides whether a short pulse is enough is whether the mass is still
-     * turning, and it does not matter which effect set it turning. A texture
-     * tick arriving just after a click is therefore treated as following
-     * something, because it is. */
+     * Every effect asks and every effect answers to it, because the limit is
+     * about the motor rather than about the caller's intent: what decides
+     * whether a pulse will be heard as its own is whether the mass has
+     * finished leaving, and the mass does not know which effect set it
+     * going. */
     Cadence mCadence;
 };
 

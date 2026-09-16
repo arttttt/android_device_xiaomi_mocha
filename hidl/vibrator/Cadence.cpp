@@ -26,7 +26,7 @@ namespace vibrator {
 namespace V1_3 {
 namespace implementation {
 
-Pace Cadence::mark() {
+uint8_t Cadence::mark() {
     const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
                                 std::chrono::steady_clock::now().time_since_epoch())
                                 .count();
@@ -35,16 +35,15 @@ Pace Cadence::mark() {
      * measured against the same predecessor. */
     const int64_t previous = mLastNs.exchange(now);
 
-    /* The first arrival of all has nothing behind it, and a gesture that
-     * begins is a single event however it continues. */
-    if (previous == 0) return Pace::SINGLE;
+    /* The first arrival of all has nothing to run together with. */
+    if (previous == 0) return NO_LIMIT;
 
-    const int64_t since = now - previous;
+    const int64_t allowedMs = ((now - previous) / 1000000) / PERIOD_PER_PULSE;
 
-    if (since < RAPID_WITHIN_NS) return Pace::RAPID;
-    if (since < STEADY_WITHIN_NS) return Pace::STEADY;
+    if (allowedMs >= NO_LIMIT) return NO_LIMIT;
+    if (allowedMs <= SHORTEST_MS) return SHORTEST_MS;
 
-    return Pace::SINGLE;
+    return static_cast<uint8_t>(allowedMs);
 }
 
 }  // namespace implementation

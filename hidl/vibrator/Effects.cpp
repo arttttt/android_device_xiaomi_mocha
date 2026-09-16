@@ -75,48 +75,16 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * expected to arrive "multiple times in quick succession" so a finger reads a
  * surface under it.
  *
- * Three lengths, one per band of arrival rate, because the same request means
- * different things depending on how fast the finger is moving. This is the one
- * effect that answers to pace, and the one that ignores strength: what it
- * should feel like is decided entirely by how often it is asked for.
+ * One length, the tick's, and the succession looks after the rest. Asked for
+ * alone it is a soft tick, which is what the interface calls it. Asked for
+ * while a finger drags -- every 23 to 30 ms, measured rather than guessed --
+ * the limit that comes with the request cuts it to a third of that interval,
+ * which is the eight the hand had settled on.
  *
- * In a hurry they arrive about every 23 ms at the fastest and 30 on average,
- * measured from here rather than guessed, after a guess of sixty a second
- * turned out to be twice the truth.
- *
- * Eight is not a number that was hunted for. A pulse needs about twice its
- * own length of quiet before the next one reads as separate -- the rule the
- * rhythms already use -- so it may take up a third of the period and no more.
- * A third of the fastest interval seen is 7.7. Twelve was tried on the
- * strength of the room the driver had just given back, and the hand put it
- * right on the edge of running together, which is what a pulse of twelve in a
- * period of twenty-three has to be.
- *
- * So the room the driver gave back is not for a longer pulse. It went on
- * making the eight an honest eight, which it had not been while playing a
- * pattern cost nine milliseconds of waking up.
- *
- * Alone, a texture tick is just a soft tick, so it gets the tick's twenty.
- *
- * Between those is a deliberate drag. Fourteen is the middle of the two
- * numbers that were found by hand, rather than a third one that was.
- *
- * The honest fix at the hurried end is in the driver, which need not visit
- * standby between patterns that follow one another closely. Until it does,
- * these are sized for the driver we have.
+ * It used to carry three hand-found lengths and a set of bands to choose
+ * between them. The rule reproduces all three, so the bands are gone.
  */
-static constexpr uint8_t TEXTURE_TICK_RAPID_MS = 8;
-static constexpr uint8_t TEXTURE_TICK_STEADY_MS = 14;
-static constexpr uint8_t TEXTURE_TICK_SINGLE_MS = 20;
-
-static uint8_t textureTick(Pace pace) {
-    switch (pace) {
-        case Pace::RAPID:  return TEXTURE_TICK_RAPID_MS;
-        case Pace::STEADY: return TEXTURE_TICK_STEADY_MS;
-        case Pace::SINGLE: return TEXTURE_TICK_SINGLE_MS;
-    }
-    return TEXTURE_TICK_SINGLE_MS;
-}
+static constexpr Effects::Lengths TEXTURE_TICK_MS = {20, 20, 20};
 
 /* The pop: "a short, quick burst". A little more body than a tick and still
  * well under a click. */
@@ -161,16 +129,20 @@ uint8_t Effects::pick(const Lengths& lengths, EffectStrength strength) {
     return lengths.medium;
 }
 
-static Effects::Shape single(uint8_t lengthMs) {
+/* A single pulse, shortened when what came before it has not finished
+ * leaving. */
+static Effects::Shape single(uint8_t lengthMs, uint8_t longestMs) {
+    if (lengthMs > longestMs) lengthMs = longestMs;
+
     return {{{Actuator::MAX_STRENGTH, lengthMs}}, lengthMs};
 }
 
-Effects::Shape Effects::of(Effect effect, EffectStrength strength, Pace pace) {
+Effects::Shape Effects::of(Effect effect, EffectStrength strength, uint8_t longestMs) {
     const uint8_t full = Actuator::MAX_STRENGTH;
 
     switch (effect) {
         case Effect::CLICK:
-            return single(pick(CLICK_MS, strength));
+            return single(pick(CLICK_MS, strength), longestMs);
 
         case Effect::DOUBLE_CLICK: {
             const uint8_t length = pick(CLICK_MS, strength);
@@ -182,19 +154,19 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength, Pace pace) {
         }
 
         case Effect::TICK:
-            return single(pick(TICK_MS, strength));
+            return single(pick(TICK_MS, strength), longestMs);
 
         case Effect::TEXTURE_TICK:
-            return single(textureTick(pace));
+            return single(pick(TEXTURE_TICK_MS, strength), longestMs);
 
         case Effect::POP:
-            return single(pick(POP_MS, strength));
+            return single(pick(POP_MS, strength), longestMs);
 
         case Effect::HEAVY_CLICK:
-            return single(pick(HEAVY_CLICK_MS, strength));
+            return single(pick(HEAVY_CLICK_MS, strength), longestMs);
 
         case Effect::THUD:
-            return single(pick(THUD_MS, strength));
+            return single(pick(THUD_MS, strength), longestMs);
 
         default:
             /* The fifteen ringtone slots, which are rhythms rather than
