@@ -71,18 +71,27 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * expected to arrive "multiple times in quick succession" so a finger reads a
  * surface under it.
  *
- * On this board it is the tick, and cannot be anything else. A texture asks
- * the actuator to keep up with the finger, and touches arrive around sixty
- * times a second; a rotating mass needs about twenty milliseconds before a
- * pulse is felt and roughly twice a pulse again before the next one reads as
- * separate, which leaves something like a dozen distinguishable events in
- * that second. So the effect is answered with the shortest pulse there is and
- * nothing is claimed about texture: the finger gets a coarse stutter, which
- * is what this motor has to offer and is still more than silence.
+ * Shorter than the tick, and that is the whole point. The floor of twenty
+ * milliseconds is the floor for a pulse that starts from rest; a texture
+ * never does. Its pulses arrive about sixty times a second, closer together
+ * than one of them lasts, so each new one cancels the last and the mass is
+ * never allowed to stop. At twenty the result is not a texture at all but an
+ * unbroken drive -- listened to beside the alternatives on the device, it is
+ * simply a hum.
  *
- * It is also asked to be soft, and there is no room for that either -- the
- * tick already sits on the floor at full strength.
+ * At ten there is room left between one pulse and the next, and the gap is
+ * felt: the mass sags and is picked up again, which is what a surface under
+ * a finger feels like. Six works too and is lighter still; ten is the one
+ * with body.
+ *
+ * The cost is stated rather than hidden. No length can be both felt on its
+ * own and leave a gap at sixty a second, because the first wants twenty and
+ * the second allows sixteen. This chooses the repeated case, since that is
+ * what the effect is for, and a slow drag will therefore feel little. The
+ * other choice trades that for a hum whenever the finger moves quickly, and
+ * a hum is worse than a quiet moment.
  */
+static constexpr Effects::Lengths TEXTURE_TICK_MS = {10, 10, 10};
 
 /* The pop: "a short, quick burst". A little more body than a tick and still
  * well under a click. */
@@ -148,8 +157,10 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
         }
 
         case Effect::TICK:
-        case Effect::TEXTURE_TICK:
             return single(pick(TICK_MS, strength));
+
+        case Effect::TEXTURE_TICK:
+            return single(pick(TEXTURE_TICK_MS, strength));
 
         case Effect::POP:
             return single(pick(POP_MS, strength));
