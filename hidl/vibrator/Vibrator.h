@@ -30,7 +30,6 @@ namespace vibrator {
 namespace V1_2 {
 namespace implementation {
 
-using ::android::hardware::vibrator::V1_0::Effect;
 using ::android::hardware::vibrator::V1_0::EffectStrength;
 using ::android::hardware::vibrator::V1_0::Status;
 using ::android::hardware::vibrator::V1_1::Effect_1_1;
@@ -49,15 +48,16 @@ class Vibrator : public IVibrator {
     Return<Status> off() override;
     Return<bool> supportsAmplitudeControl() override;
     Return<Status> setAmplitude(uint8_t amplitude) override;
-    Return<void> perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) override;
+    Return<void> perform(V1_0::Effect effect, EffectStrength strength,
+                         perform_cb _hidl_cb) override;
     Return<void> perform_1_1(Effect_1_1 effect, EffectStrength strength,
                              perform_1_1_cb _hidl_cb) override;
-    Return<void> perform_1_2(V1_2::Effect effect, EffectStrength strength,
+    Return<void> perform_1_2(Effect effect, EffectStrength strength,
                              perform_1_2_cb _hidl_cb) override;
 
   private:
     /*
-     * Both entry points end here.
+     * All three entry points end here.
      *
      * A minor version adds effects without changing what the older ones
      * mean, so its enumeration is the older one widened and every value of
@@ -65,7 +65,7 @@ class Vibrator : public IVibrator {
      * of effects, and the versioned methods only decide how wide a name they
      * were allowed to be called with.
      */
-    Return<void> answerWith(V1_2::Effect effect, EffectStrength strength,
+    Return<void> answerWith(Effect effect, EffectStrength strength,
                             const std::function<void(Status, uint32_t)>& reply);
 
     Actuator mMotor;

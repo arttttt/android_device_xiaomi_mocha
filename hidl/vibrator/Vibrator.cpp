@@ -49,21 +49,22 @@ Return<Status> Vibrator::setAmplitude(uint8_t amplitude) {
     return mMotor.setStrength(amplitude) ? Status::OK : Status::UNKNOWN_ERROR;
 }
 
-Return<void> Vibrator::perform(Effect effect, EffectStrength strength, perform_cb _hidl_cb) {
-    return answerWith(static_cast<V1_2::Effect>(effect), strength, _hidl_cb);
+Return<void> Vibrator::perform(V1_0::Effect effect, EffectStrength strength,
+                               perform_cb _hidl_cb) {
+    return answerWith(static_cast<Effect>(effect), strength, _hidl_cb);
 }
 
 Return<void> Vibrator::perform_1_1(Effect_1_1 effect, EffectStrength strength,
                                    perform_1_1_cb _hidl_cb) {
-    return answerWith(static_cast<V1_2::Effect>(effect), strength, _hidl_cb);
+    return answerWith(static_cast<Effect>(effect), strength, _hidl_cb);
 }
 
-Return<void> Vibrator::perform_1_2(V1_2::Effect effect, EffectStrength strength,
+Return<void> Vibrator::perform_1_2(Effect effect, EffectStrength strength,
                                    perform_1_2_cb _hidl_cb) {
     return answerWith(effect, strength, _hidl_cb);
 }
 
-Return<void> Vibrator::answerWith(V1_2::Effect effect, EffectStrength strength,
+Return<void> Vibrator::answerWith(Effect effect, EffectStrength strength,
                                   const std::function<void(Status, uint32_t)>& reply) {
     Effects::Shape shape = Effects::of(effect, strength);
 
