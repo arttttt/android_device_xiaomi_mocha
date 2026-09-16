@@ -56,10 +56,11 @@ namespace implementation {
  * One beat of a rhythm.
  *
  * A pulse is measured as a percentage of the effect's pulse length, so a
- * whole rhythm scales with LIGHT, MEDIUM and STRONG while keeping its shape:
- * the beats grow, the silences between them do not, and the figure stays
- * recognisable at every strength. A beat with no pulse is a silence of a
- * fixed number of milliseconds.
+ * whole rhythm scales with LIGHT, MEDIUM and STRONG while keeping its shape.
+ * A beat with no pulse is a silence, written as the milliseconds the rhythm
+ * wants there -- which is a floor away from what it finally gets, because a
+ * silence following a long beat is widened to clear that beat's coast. See
+ * restAfter() below.
  */
 struct Beat {
     uint8_t pulsePct;   /* 0 means this beat is a silence */
@@ -122,6 +123,36 @@ static constexpr Beat RINGTONE_14[] = {pulse(80), rest(60), pulse(80), rest(60),
 /* Off the beat: one, a long gap, then two together. */
 static constexpr Beat RINGTONE_15[] = {pulse(100), rest(200), pulse(100), rest(70), pulse(100)};
 
+/*
+ * The silence a beat has to be given before the next one can be heard.
+ *
+ * An eccentric mass does not stop when the drive does -- it coasts, and the
+ * longer it was driven the longer it coasts. A pulse that arrives during that
+ * coast is not heard as its own beat; it lands in the tail of the one before
+ * and the pair smears into a single blur. Written by hand, the rests in these
+ * rhythms ignored that, and the figures with a long beat followed by short
+ * ones -- long-then-short, long-and-two-short, heavy-then-two-light -- all
+ * ran together at the seam.
+ *
+ * So the rhythms give the spacing they want and this gives the floor under
+ * it: a beat longer than the effect's own pulse is followed by at least twice
+ * its length of silence. The rule is in one place because it is a property of
+ * the motor rather than of any rhythm, and it scales with strength because it
+ * is written against the beat rather than against a number of milliseconds.
+ *
+ * Beats at or below the base length coast little enough not to need it, which
+ * is what keeps the quick figures quick.
+ */
+static uint8_t restAfter(uint8_t pulsePct, uint8_t pulseLengthMs, uint8_t askedMs) {
+    if (pulsePct <= 100) return askedMs;
+
+    const uint32_t floorMs = static_cast<uint32_t>(pulseLengthMs) * 2;
+
+    if (floorMs >= 255) return 255;
+
+    return askedMs > floorMs ? askedMs : static_cast<uint8_t>(floorMs);
+}
+
 struct Rhythm {
     const Beat* beats;
     size_t count;
@@ -152,12 +183,20 @@ Effects::Shape Ringtones::of(Effect effect, uint8_t pulseMs) {
     Effects::Shape shape = {{}, 0};
     shape.steps.reserve(rhythm.count);
 
+    /* What the beat before this one was, so a silence can be widened to clear
+     * its coast. Zero until the first pulse. */
+    uint8_t lastPct = 0;
+    uint8_t lastMs = 0;
+
     for (size_t i = 0; i < rhythm.count; i++) {
         const Beat& beat = rhythm.beats[i];
 
         if (beat.pulsePct == 0) {
-            shape.steps.push_back({0, beat.silenceMs});
-            shape.lengthMs += beat.silenceMs;
+            const uint8_t silence = restAfter(lastPct, lastMs, beat.silenceMs);
+
+            shape.steps.push_back({0, silence});
+            shape.lengthMs += silence;
+            lastPct = 0;
             continue;
         }
 
@@ -168,6 +207,8 @@ Effects::Shape Ringtones::of(Effect effect, uint8_t pulseMs) {
 
         shape.steps.push_back({Actuator::MAX_STRENGTH, length});
         shape.lengthMs += length;
+        lastPct = beat.pulsePct;
+        lastMs = length;
     }
 
     return shape;
