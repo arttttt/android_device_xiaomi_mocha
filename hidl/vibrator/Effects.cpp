@@ -82,14 +82,19 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  *
  * In a hurry they arrive about every 23 ms at the fastest and 30 on average,
  * measured from here rather than guessed, after a guess of sixty a second
- * turned out to be twice the truth. Twelve of that thirty is the pulse and
- * the rest is the room the finger reads as a surface -- the mass sags and is
- * caught again.
+ * turned out to be twice the truth.
  *
- * It was eight while the driver still went to sleep between patterns, which
- * cost four to five milliseconds each way and left a pulse of eight occupying
- * the motor for seventeen. With that gone the same room holds a longer pulse,
- * and a longer pulse is one the hand can actually weigh.
+ * Eight is not a number that was hunted for. A pulse needs about twice its
+ * own length of quiet before the next one reads as separate -- the rule the
+ * rhythms already use -- so it may take up a third of the period and no more.
+ * A third of the fastest interval seen is 7.7. Twelve was tried on the
+ * strength of the room the driver had just given back, and the hand put it
+ * right on the edge of running together, which is what a pulse of twelve in a
+ * period of twenty-three has to be.
+ *
+ * So the room the driver gave back is not for a longer pulse. It went on
+ * making the eight an honest eight, which it had not been while playing a
+ * pattern cost nine milliseconds of waking up.
  *
  * Alone, a texture tick is just a soft tick, so it gets the tick's twenty.
  *
@@ -100,7 +105,7 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * standby between patterns that follow one another closely. Until it does,
  * these are sized for the driver we have.
  */
-static constexpr uint8_t TEXTURE_TICK_RAPID_MS = 12;
+static constexpr uint8_t TEXTURE_TICK_RAPID_MS = 8;
 static constexpr uint8_t TEXTURE_TICK_STEADY_MS = 14;
 static constexpr uint8_t TEXTURE_TICK_SINGLE_MS = 20;
 
