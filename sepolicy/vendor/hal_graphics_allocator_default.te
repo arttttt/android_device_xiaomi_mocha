@@ -12,9 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Android 10 stopped letting most processes open /dev/ashmem themselves and
-# put a service in front of it that hands out a file descriptor instead.
-# libcutils asks that service first and falls back to the device when it
-# cannot find it, which is why this shows up as a denial rather than as a
-# failure -- the allocator has been taking the fallback all along.
-allow hal_graphics_allocator_default ashmem_device_service:service_manager find;
+# Nothing to grant here, and the reason is worth keeping.
+#
+# Android 10 stopped letting most processes open /dev/ashmem and put a
+# service in front of it that hands out a descriptor instead. libcutils asks
+# for that service first, so the allocator asks too, and is denied finding
+# it -- seventy times over a boot.
+#
+# The rule for it cannot be written: ashmem_device_service is a framework
+# type and vendor policy cannot name it. That is the treble split doing its
+# job rather than an omission. A vendor process is not meant to reach the
+# framework's servicemanager at all, and libcutils knows it -- when the
+# lookup fails it opens the device, which the allocator is allowed to do.
+#
+# So the denials are the fallback working as designed, and the file exists
+# so that the next person counting them does not write the rule and find out
+# the hard way.
