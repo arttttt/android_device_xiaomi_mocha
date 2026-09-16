@@ -54,10 +54,11 @@ class Effects {
 
     /* Empty steps mean this board has nothing to play for that effect. */
     /*
-     * longestMs is how long a single pulse may be without running into the
-     * one before it -- see Cadence. Effects made of several steps carry their
-     * own spacing and are left alone; the limit applies to the ones that are
-     * a single pulse, which are the ones that arrive in streams.
+     * longestMs is how long a pulse may be without running into the one
+     * before it -- see Cadence. Only the texture tick answers to it: it is
+     * the only effect the interface defines as arriving repeatedly, and the
+     * only one for which an uneven length reads as texture rather than as a
+     * fault.
      */
     static Shape of(Effect effect, EffectStrength strength, uint8_t longestMs);
 

@@ -83,6 +83,16 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  *
  * It used to carry three hand-found lengths and a set of bands to choose
  * between them. The rule reproduces all three, so the bands are gone.
+ *
+ * And it is the only effect the limit touches, though it was tried on all of
+ * them. Applied to a click or a thud it makes identical requests feel
+ * different, because the limit follows the interval and the intervals jitter:
+ * six heavy clicks fired as fast as the shell can manage came out as a wave
+ * rolling back and forth rather than as six clicks. A texture is the one
+ * thing that wants that variation, since variation is what a surface is.
+ * Everything else is better off running together, which at least is even,
+ * and is the honest answer to being asked for more than the motor can
+ * separate.
  */
 static constexpr Effects::Lengths TEXTURE_TICK_MS = {20, 20, 20};
 
@@ -129,11 +139,7 @@ uint8_t Effects::pick(const Lengths& lengths, EffectStrength strength) {
     return lengths.medium;
 }
 
-/* A single pulse, shortened when what came before it has not finished
- * leaving. */
-static Effects::Shape single(uint8_t lengthMs, uint8_t longestMs) {
-    if (lengthMs > longestMs) lengthMs = longestMs;
-
+static Effects::Shape single(uint8_t lengthMs) {
     return {{{Actuator::MAX_STRENGTH, lengthMs}}, lengthMs};
 }
 
@@ -142,7 +148,7 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength, uint8_t longe
 
     switch (effect) {
         case Effect::CLICK:
-            return single(pick(CLICK_MS, strength), longestMs);
+            return single(pick(CLICK_MS, strength));
 
         case Effect::DOUBLE_CLICK: {
             const uint8_t length = pick(CLICK_MS, strength);
@@ -154,19 +160,23 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength, uint8_t longe
         }
 
         case Effect::TICK:
-            return single(pick(TICK_MS, strength), longestMs);
+            return single(pick(TICK_MS, strength));
 
-        case Effect::TEXTURE_TICK:
-            return single(pick(TEXTURE_TICK_MS, strength), longestMs);
+        case Effect::TEXTURE_TICK: {
+            /* The one effect the limit applies to. See below. */
+            uint8_t length = pick(TEXTURE_TICK_MS, strength);
+
+            return single(length > longestMs ? longestMs : length);
+        }
 
         case Effect::POP:
-            return single(pick(POP_MS, strength), longestMs);
+            return single(pick(POP_MS, strength));
 
         case Effect::HEAVY_CLICK:
-            return single(pick(HEAVY_CLICK_MS, strength), longestMs);
+            return single(pick(HEAVY_CLICK_MS, strength));
 
         case Effect::THUD:
-            return single(pick(THUD_MS, strength), longestMs);
+            return single(pick(THUD_MS, strength));
 
         default:
             /* The fifteen ringtone slots, which are rhythms rather than
