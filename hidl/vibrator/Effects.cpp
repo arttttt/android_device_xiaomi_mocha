@@ -78,20 +78,28 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * Two lengths, because the same request means two different things depending
  * on how fast it arrives.
  *
- * Dragged quickly, these come about sixty times a second -- closer together
- * than a tick lasts, so each cancels the last and the mass is never allowed
- * to stop. A tick's length under that treatment is not a texture at all but
- * an unbroken drive; heard beside the alternatives on the device it is simply
- * a hum. Ten leaves room between one pulse and the next, and the room is what
- * the finger reads: the mass sags and is caught again, which is what a
- * surface under a finger feels like.
+ * Dragged quickly they arrive about every 23 ms at the fastest and 30 on
+ * average -- measured from the HAL rather than guessed, after a guess of
+ * sixty a second proved to be twice the truth.
+ *
+ * Six rather than ten, and the difference is not the pulse but what the
+ * driver wraps around it. Playing a pattern takes the amplifier out of
+ * standby and puts it back, and each of those costs four to five
+ * milliseconds, so a ten-millisecond pulse occupies the motor for nearly
+ * twenty and leaves almost nothing of the gap. Six fits, and the room either
+ * side of it is what the finger reads as a surface: the mass sags and is
+ * caught again.
+ *
+ * The honest fix is in the driver, which need not visit standby between
+ * patterns that follow each other closely. Until it does, this is sized for
+ * the driver we have.
  *
  * Dragged slowly, each arrives alone, and ten on its own is barely there. So
  * a lone one is given the tick's length, which is what a lone soft tick
  * should be. The two cases do not compete for one number, because the caller
  * tells them apart by when it asks.
  */
-static constexpr Effects::Lengths TEXTURE_TICK_REPEATED_MS = {10, 10, 10};
+static constexpr Effects::Lengths TEXTURE_TICK_REPEATED_MS = {6, 6, 6};
 static constexpr Effects::Lengths TEXTURE_TICK_SINGLE_MS = {20, 20, 20};
 
 /* The pop: "a short, quick burst". A little more body than a tick and still
