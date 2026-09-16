@@ -65,3 +65,9 @@ type gps_device, dev_type;
 
 # /dev/brcm_bt_drv
 type brcm_bt_device, dev_type;
+
+# /dev/tegra_avpchannel
+type avpchannel_device, dev_type;
+
+# by-name/BKB -- the factory's copy of the Wi-Fi and Bluetooth addresses
+type bkb_block_device, dev_type;

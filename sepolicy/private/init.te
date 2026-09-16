@@ -65,3 +65,19 @@ allow init proc_wmem_max_writable:file rw_file_perms;
 
 # Shims
 allow init audioserver:process noatsecure;
+
+# The thermal zones, read while init decides which profile to start in.
+allow init sysfs_thermal:dir search;
+allow init sysfs_thermal:lnk_file read;
+allow init sysfs_thermal:file r_file_perms;
+
+# The radio kill switch, which init takes out of reset at boot.
+allow init sysfs_bluetooth_writable:file rw_file_perms;
+
+# The shared line discipline's install flag: Bluetooth, FM and ANT+ all sit
+# behind one UART and one firmware, and this is how the load is triggered.
+allow init sysfs_bcm_ldisc:file rw_file_perms;
+
+# /mnt/tmp, mounted in "on init" to host the Wi-Fi nvram and the shared
+# memory the performance daemon uses.
+allow init tmpfs:dir { create add_name };

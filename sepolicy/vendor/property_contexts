@@ -62,8 +62,6 @@ ro.hardware.gps                     u:object_r:gpsd_prop:s0
 xlan.driver.status               u:object_r:system_prop:s0
 
 # hwui properties
-hwui.                           u:object_r:hwui_prop:s0
-ro.hwui.                           u:object_r:hwui_prop:s0
 
 # locality properties
 user.language			u:object_r:locality_prop:s0

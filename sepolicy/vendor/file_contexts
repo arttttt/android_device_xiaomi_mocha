@@ -18,6 +18,10 @@
 # Bluetooth
 /dev/brcm_bt_drv			u:object_r:brcm_bt_device:s0
 
+# The AVP is a second processor with a decoder on it, reached through this
+# node by whatever is decoding.
+/dev/tegra_avpchannel			u:object_r:avpchannel_device:s0
+
 # GPU
 /dev/nvhost-as-gpu			u:object_r:gpu_device:s0
 /dev/nvhost-ctrl			u:object_r:gpu_device:s0
@@ -83,6 +87,7 @@
 /dev/block/platform/sdhci-tegra(.*)/by-name/CAC		u:object_r:cache_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/UCB		u:object_r:usercalib_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/FCT		u:object_r:factorycalib_block_device:s0
+/dev/block/platform/sdhci-tegra(.*)/by-name/BKB		u:object_r:bkb_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/RP3		u:object_r:rpx_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/LNX		u:object_r:boot_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/SOS		u:object_r:recovery_block_device:s0
@@ -284,10 +289,14 @@
 /sys/kernel/pmic			u:object_r:sysfs_pmic:s0
 # wifi sysfs
 /sys/module/bcmdhd/parameters/firmware_path	u:object_r:sysfs_wifi:s0
+/sys/module/bcmdhd/parameters/nvram_path	u:object_r:sysfs_wifi:s0
 # Bluetooth rfkill interface for Platform data driver
 /sys/devices/platform/bluedroid_pm(.*)/rfkill/rfkill0/state	u:object_r:sysfs_bluetooth_writable:s0
 # Bluetooth rfkill interface for DT enabled driver
 /sys/devices/platform/bluedroid_pm/rfkill/rfkill0/state		u:object_r:sysfs_bluetooth_writable:s0
+
+# The shared line discipline's install flag
+/sys/devices/platform/bcm_ldisc/install			u:object_r:sysfs_bcm_ldisc:s0
 # Tegra i2c devices sysfs
 /sys/devices/platform/tegra.*i2c\.[0-9]+(/.*)?	u:object_r:sysfs_nvi2c:s0
 /sys/devices/platform/[0-9a-f]+\.i2c(/.*)?	u:object_r:sysfs_nvi2c:s0
@@ -389,6 +398,7 @@
 /sys/devices/platform/pwmleds\.43/leds/button-backlight/brightness	u:object_r:sysfs_pwm_backlight:s0
 /sys/devices/platform/pwmleds\.43/leds/button-backlight/max_brightness	u:object_r:sysfs_pwm_backlight:s0
 
+/(vendor|system/vendor)/bin/conn_init                                               u:object_r:conn_wifi_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.light@2\.0-service\.mocha         u:object_r:hal_light_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.power@1\.3-service\.mocha         u:object_r:hal_power_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.usb\.gadget@1\.0-service\.mocha   u:object_r:hal_usb_gadget_default_exec:s0

@@ -22,3 +22,8 @@ allow mediacodec power_service:service_manager find;
 allow mediacodec ussrd_service:service_manager find;
 allow mediacodec nvhost_msenc_device:chr_file rw_file_perms;
 allow_use_phs(mediacodec)
+
+# Decoding on this board can land on the AVP, a second processor with its own
+# decoder, and the codec service talks to it through a node of its own. It was
+# reaching the service as a generic device.
+allow mediacodec avpchannel_device:chr_file rw_file_perms;

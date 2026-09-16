@@ -5,3 +5,25 @@ allow conn_wifi kernel:system module_request;
 allow conn_wifi property_socket:sock_file write;
 allow conn_wifi sysfs:file { open read write };
 
+
+# The service is entered by seclabel from init.t124.rc, which still needs the
+# binary to be an entrypoint into this domain -- and it was not even labelled,
+# so the transition failed at the first step.
+type conn_wifi_exec, exec_type, vendor_file_type, file_type;
+init_daemon_domain(conn_wifi)
+
+# The factory's copy of the addresses, read raw: it is a bare partition
+# rather than a filesystem.
+allow conn_wifi bkb_block_device:blk_file r_file_perms;
+
+# When the factory wrote nothing there, the address is derived from the
+# serial number instead.
+get_prop(conn_wifi, serialno_prop)
+
+# Either way the result is written out for the Wi-Fi HAL to read back, and
+# the Bluetooth half is published as a property.
+allow conn_wifi vendor_data_file:file { create_file_perms setattr };
+set_prop(conn_wifi, bluetooth_prop)
+
+# Where the firmware and the calibration are loaded from.
+allow conn_wifi sysfs_wifi:file rw_file_perms;

@@ -273,3 +273,6 @@ type gps_socket, file_type;
 
 # /sys/kernel/debug/nvmap/handles_by_pid
 type debugfs_nvmap, fs_type, debugfs_type, mlstrustedobject;
+
+# /sys/devices/platform/bcm_ldisc/install
+type sysfs_bcm_ldisc, fs_type, sysfs_type;
