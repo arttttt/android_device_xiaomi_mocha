@@ -17,3 +17,7 @@ genfscon proc /sys/net/core/wmem_max		u:object_r:proc_wmem_max_writable:s0
 genfscon proc /bluetooth/sleep/lpm		u:object_r:proc_bluetooth_writable:s0
 genfscon proc "/device-tree/chosen/nvidia,bluetooth-mac"		u:object_r:proc_bluetooth_mac:s0
 genfscon cifs /					u:object_r:fuse:s0
+
+# Who is holding graphics memory, one file per process. Labelled here rather
+# than in file_contexts because debugfs is mounted after init has relabelled.
+genfscon debugfs /nvmap/handles_by_pid		u:object_r:debugfs_nvmap:s0

@@ -270,3 +270,6 @@ type sysfs_pwm_backlight, fs_type, sysfs_type;
 # /data/gps
 type gps_data_file, file_type, data_file_type, core_data_file_type;
 type gps_socket, file_type;
+
+# /sys/kernel/debug/nvmap/handles_by_pid
+type debugfs_nvmap, fs_type, debugfs_type, mlstrustedobject;

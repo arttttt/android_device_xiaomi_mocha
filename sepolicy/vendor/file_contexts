@@ -15,6 +15,9 @@
 ##########################
 # Devices
 
+# Bluetooth
+/dev/brcm_bt_drv			u:object_r:brcm_bt_device:s0
+
 # GPU
 /dev/nvhost-as-gpu			u:object_r:gpu_device:s0
 /dev/nvhost-ctrl			u:object_r:gpu_device:s0
@@ -246,8 +249,7 @@
 /sys/devices/platform/host1x/tegradc\.[0-1]/cmu_enable		u:object_r:sysfs_cmu:s0
 /sys/devices/platform/host1x/tegradc.0/graphics/fb0/modes			u:object_r:sysfs_graphics:s0
 /sys/devices/platform/gpu.0/devfreq/gpu.0/available_frequencies		u:object_r:sysfs_devfreq:s0
-/sys/devices/platform/psy_extcon.*/power_supply/usb/online		u:object_r:sysfs_power_supply:s0
-/sys/devices/platform/psy_extcon.*/power_supply/ac/online		u:object_r:sysfs_power_supply:s0
+/sys/devices/platform/psy_extcon\..*/power_supply(/.*)?			u:object_r:sysfs_power_supply:s0
 
 # pwm-fan sysfs nodes
 /sys/devices/platform/pwm-fan(.*)/pwm_cap   		u:object_r:sysfs_pwm_fan:s0
@@ -377,6 +379,17 @@
 
 /sys/vibrator/pwmvalue           u:object_r:sysfs_vibrator:s0
 
+# The GPU's frequency floor, which the power HAL raises while the compositor
+# says it is working hard. There is a type for knobs of exactly this kind and
+# the node was landing in the generic sysfs label instead.
+/sys/kernel/tegra_gpu/gpu_floor_rate	u:object_r:sysfs_gpu_power_knobs:s0
+
+# The capacitive keys under the panel are a second backlight, driven the same
+# way as the screen's and by the same service.
+/sys/devices/platform/pwmleds\.43/leds/button-backlight/brightness	u:object_r:sysfs_pwm_backlight:s0
+/sys/devices/platform/pwmleds\.43/leds/button-backlight/max_brightness	u:object_r:sysfs_pwm_backlight:s0
+
 /(vendor|system/vendor)/bin/hw/android\.hardware\.light@2\.0-service\.mocha         u:object_r:hal_light_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.power@1\.3-service\.mocha         u:object_r:hal_power_default_exec:s0
+/(vendor|system/vendor)/bin/hw/android\.hardware\.usb\.gadget@1\.0-service\.mocha   u:object_r:hal_usb_gadget_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.vibrator@1\.3-service\.mocha      u:object_r:hal_vibrator_default_exec:s0

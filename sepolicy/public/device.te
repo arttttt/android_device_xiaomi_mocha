@@ -62,3 +62,6 @@ type cy8c_device, dev_type;
 # camera_device, and the encoder is reached by the codec HAL instead.
 type nvhost_msenc_device, dev_type;
 type gps_device, dev_type;
+
+# /dev/brcm_bt_drv
+type brcm_bt_device, dev_type;
