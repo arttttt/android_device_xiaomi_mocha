@@ -23,6 +23,7 @@
 #include <functional>
 
 #include "Actuator.h"
+#include "Cadence.h"
 
 namespace android {
 namespace hardware {
@@ -90,6 +91,11 @@ class Vibrator : public IVibrator {
                             const std::function<void(Status, uint32_t)>& reply);
 
     Actuator mMotor;
+
+    /* How closely one request follows another. Only the texture tick reads
+     * it, but every effect marks it, so a texture that begins right after a
+     * click is not mistaken for a stream. */
+    Cadence mCadence;
 };
 
 }  // namespace implementation

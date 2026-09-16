@@ -82,7 +82,7 @@ Return<Status> Vibrator::setExternalControl(bool /* enabled */) {
 
 Return<void> Vibrator::answerWith(Effect effect, EffectStrength strength,
                                   const std::function<void(Status, uint32_t)>& reply) {
-    Effects::Shape shape = Effects::of(effect, strength);
+    Effects::Shape shape = Effects::of(effect, strength, mCadence.mark());
 
     if (shape.steps.empty()) {
         reply(Status::UNSUPPORTED_OPERATION, 0);

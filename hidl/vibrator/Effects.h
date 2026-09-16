@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "Actuator.h"
+#include "Cadence.h"
 
 namespace android {
 namespace hardware {
@@ -52,7 +53,12 @@ class Effects {
     };
 
     /* Empty steps mean this board has nothing to play for that effect. */
-    static Shape of(Effect effect, EffectStrength strength);
+    /*
+     * The pace matters to exactly one effect, the texture tick, because it is
+     * the only one the interface defines in terms of being repeated. The rest
+     * ignore it.
+     */
+    static Shape of(Effect effect, EffectStrength strength, Pace pace);
 
     /*
      * How long a pulse runs at each strength.

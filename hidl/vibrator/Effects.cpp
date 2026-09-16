@@ -75,22 +75,24 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * expected to arrive "multiple times in quick succession" so a finger reads a
  * surface under it.
  *
- * Shorter than the tick, and faintness is the point rather than the price.
- * These pulses arrive about sixty times a second, closer together than a tick
- * lasts, so each new one cancels the last and the mass is never allowed to
- * stop. At the tick's length that is not a texture at all but an unbroken
- * drive; heard beside the alternatives on the device it is simply a hum.
+ * Two lengths, because the same request means two different things depending
+ * on how fast it arrives.
  *
- * At ten there is room left between one pulse and the next, and the room is
- * what the finger reads: the mass sags and is caught again, which is what a
- * surface under a finger feels like. Six does it too and is lighter still;
- * ten is the one with body.
+ * Dragged quickly, these come about sixty times a second -- closer together
+ * than a tick lasts, so each cancels the last and the mass is never allowed
+ * to stop. A tick's length under that treatment is not a texture at all but
+ * an unbroken drive; heard beside the alternatives on the device it is simply
+ * a hum. Ten leaves room between one pulse and the next, and the room is what
+ * the finger reads: the mass sags and is caught again, which is what a
+ * surface under a finger feels like.
  *
- * A single one of these is faint, and that is correct. A texture is not meant
- * to announce itself the way a click is; it is meant to be there while the
- * finger moves, and to be more there the faster it moves.
+ * Dragged slowly, each arrives alone, and ten on its own is barely there. So
+ * a lone one is given the tick's length, which is what a lone soft tick
+ * should be. The two cases do not compete for one number, because the caller
+ * tells them apart by when it asks.
  */
-static constexpr Effects::Lengths TEXTURE_TICK_MS = {10, 10, 10};
+static constexpr Effects::Lengths TEXTURE_TICK_REPEATED_MS = {10, 10, 10};
+static constexpr Effects::Lengths TEXTURE_TICK_SINGLE_MS = {20, 20, 20};
 
 /* The pop: "a short, quick burst". A little more body than a tick and still
  * well under a click. */
@@ -139,7 +141,7 @@ static Effects::Shape single(uint8_t lengthMs) {
     return {{{Actuator::MAX_STRENGTH, lengthMs}}, lengthMs};
 }
 
-Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
+Effects::Shape Effects::of(Effect effect, EffectStrength strength, Pace pace) {
     const uint8_t full = Actuator::MAX_STRENGTH;
 
     switch (effect) {
@@ -159,7 +161,9 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength) {
             return single(pick(TICK_MS, strength));
 
         case Effect::TEXTURE_TICK:
-            return single(pick(TEXTURE_TICK_MS, strength));
+            return single(pick(pace == Pace::REPEATED ? TEXTURE_TICK_REPEATED_MS
+                                                     : TEXTURE_TICK_SINGLE_MS,
+                               strength));
 
         case Effect::POP:
             return single(pick(POP_MS, strength));
