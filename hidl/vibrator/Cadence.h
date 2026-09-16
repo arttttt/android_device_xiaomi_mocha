@@ -25,10 +25,11 @@ namespace vibrator {
 namespace V1_3 {
 namespace implementation {
 
-/* Whether an effect arrived on its own or in the middle of a stream. */
+/* How closely an effect follows the one before it. */
 enum class Pace {
-    SINGLE,
-    REPEATED,
+    RAPID,   /* one of a stream, arriving faster than a pulse can settle */
+    STEADY,  /* following something, but with room between them */
+    SINGLE,  /* on its own */
 };
 
 /*
@@ -51,21 +52,19 @@ class Cadence {
 
   private:
     /*
-     * Below this, treat the arrival as part of a stream.
+     * Where one band ends and the next begins.
      *
-     * Arithmetic put it at fifty: a pulse that has to read as its own event
-     * needs roughly its own length again before the mass has settled, which is
-     * the rule the rhythms use, and the longest thing that answers to a pace
-     * here is twenty. The hand disagreed -- at fifty the change came only when
-     * the finger was already moving fast, and the firmer pulse had been
-     * overstaying well before that. Ten arrivals a second is plainly a finger
-     * in motion, so that is where it switches now.
+     * Two bands were tried first and are too blunt for a finger, which does
+     * not move at two speeds. Under fifty milliseconds is a hurry and the
+     * pulses have to be small enough to leave gaps; over a hundred the
+     * requests are far enough apart to be events in their own right; between
+     * them is a deliberate drag, which wants something of both.
      *
-     * The arithmetic was not wrong about when two pulses merge. It was
-     * answering a different question from the one that matters here, which is
-     * when a stream starts feeling like one.
+     * The outer two were found by hand on the device. The middle is where a
+     * band had to begin rather than a measurement of its own.
      */
-    static constexpr int64_t REPEATED_WITHIN_NS = 100 * 1000 * 1000;
+    static constexpr int64_t RAPID_WITHIN_NS = 50 * 1000 * 1000;
+    static constexpr int64_t STEADY_WITHIN_NS = 100 * 1000 * 1000;
 
     /* Atomic rather than guarded, because the answer has to be right whatever
      * the size of the thread pool, and a pool of one is a fact about today. */

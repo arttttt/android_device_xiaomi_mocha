@@ -75,32 +75,41 @@ static constexpr Effects::Lengths TICK_MS = {20, 20, 20};
  * expected to arrive "multiple times in quick succession" so a finger reads a
  * surface under it.
  *
- * Two lengths, because the same request means two different things depending
- * on how fast it arrives.
+ * Three lengths, one per band of arrival rate, because the same request means
+ * different things depending on how fast the finger is moving. This is the one
+ * effect that answers to pace, and the one that ignores strength: what it
+ * should feel like is decided entirely by how often it is asked for.
  *
- * Dragged quickly they arrive about every 23 ms at the fastest and 30 on
- * average -- measured from the HAL rather than guessed, after a guess of
- * sixty a second proved to be twice the truth.
+ * In a hurry they arrive about every 23 ms at the fastest and 30 on average,
+ * measured from here rather than guessed, after a guess of sixty a second
+ * turned out to be twice the truth. Eight fits in that, and the fit is about
+ * the driver rather than the motor: playing a pattern takes the amplifier out
+ * of standby and puts it back, four to five milliseconds each way, so ten
+ * occupies the motor for nearly twenty and leaves no gap at all. Six was tried
+ * and is thin; eight has body and still leaves room, and room is what the
+ * finger reads as a surface -- the mass sags and is caught again.
  *
- * Eight rather than ten, and the difference is not the pulse but what the
- * driver wraps around it. Playing a pattern takes the amplifier out of
- * standby and puts it back, and each of those costs four to five
- * milliseconds, so a ten-millisecond pulse occupies the motor for nearly
- * twenty and leaves almost nothing of the gap. Eight fits with room to
- * spare, and that room is what the finger reads as a surface: the mass sags
- * and is caught again. Six was tried first and is a little thin.
+ * Alone, a texture tick is just a soft tick, so it gets the tick's twenty.
  *
- * The honest fix is in the driver, which need not visit standby between
- * patterns that follow each other closely. Until it does, this is sized for
- * the driver we have.
+ * Between those is a deliberate drag. Fourteen is the middle of the two
+ * numbers that were found by hand, rather than a third one that was.
  *
- * Dragged slowly, each arrives alone, and ten on its own is barely there. So
- * a lone one is given the tick's length, which is what a lone soft tick
- * should be. The two cases do not compete for one number, because the caller
- * tells them apart by when it asks.
+ * The honest fix at the hurried end is in the driver, which need not visit
+ * standby between patterns that follow one another closely. Until it does,
+ * these are sized for the driver we have.
  */
-static constexpr Effects::Lengths TEXTURE_TICK_REPEATED_MS = {8, 8, 8};
-static constexpr Effects::Lengths TEXTURE_TICK_SINGLE_MS = {20, 20, 20};
+static constexpr uint8_t TEXTURE_TICK_RAPID_MS = 8;
+static constexpr uint8_t TEXTURE_TICK_STEADY_MS = 14;
+static constexpr uint8_t TEXTURE_TICK_SINGLE_MS = 20;
+
+static uint8_t textureTick(Pace pace) {
+    switch (pace) {
+        case Pace::RAPID:  return TEXTURE_TICK_RAPID_MS;
+        case Pace::STEADY: return TEXTURE_TICK_STEADY_MS;
+        case Pace::SINGLE: return TEXTURE_TICK_SINGLE_MS;
+    }
+    return TEXTURE_TICK_SINGLE_MS;
+}
 
 /* The pop: "a short, quick burst". A little more body than a tick and still
  * well under a click. */
@@ -169,9 +178,7 @@ Effects::Shape Effects::of(Effect effect, EffectStrength strength, Pace pace) {
             return single(pick(TICK_MS, strength));
 
         case Effect::TEXTURE_TICK:
-            return single(pick(pace == Pace::REPEATED ? TEXTURE_TICK_REPEATED_MS
-                                                     : TEXTURE_TICK_SINGLE_MS,
-                               strength));
+            return single(textureTick(pace));
 
         case Effect::POP:
             return single(pick(POP_MS, strength));

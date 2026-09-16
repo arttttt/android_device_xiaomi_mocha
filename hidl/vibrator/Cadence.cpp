@@ -39,7 +39,12 @@ Pace Cadence::mark() {
      * begins is a single event however it continues. */
     if (previous == 0) return Pace::SINGLE;
 
-    return (now - previous) < REPEATED_WITHIN_NS ? Pace::REPEATED : Pace::SINGLE;
+    const int64_t since = now - previous;
+
+    if (since < RAPID_WITHIN_NS) return Pace::RAPID;
+    if (since < STEADY_WITHIN_NS) return Pace::STEADY;
+
+    return Pace::SINGLE;
 }
 
 }  // namespace implementation
