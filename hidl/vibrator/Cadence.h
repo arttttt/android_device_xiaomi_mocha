@@ -51,15 +51,21 @@ class Cadence {
 
   private:
     /*
-     * Below this, the previous pulse has not finished leaving.
+     * Below this, treat the arrival as part of a stream.
      *
-     * A pulse that has to read as its own event needs roughly its own length
-     * again before the mass has settled -- the same rule the rhythms use. The
-     * longest thing that answers to a pace is 20 ms, so under about fifty the
-     * two would run together and a shorter pulse is the right answer. A first
-     * value, chosen from that arithmetic rather than by ear.
+     * Arithmetic put it at fifty: a pulse that has to read as its own event
+     * needs roughly its own length again before the mass has settled, which is
+     * the rule the rhythms use, and the longest thing that answers to a pace
+     * here is twenty. The hand disagreed -- at fifty the change came only when
+     * the finger was already moving fast, and the firmer pulse had been
+     * overstaying well before that. Ten arrivals a second is plainly a finger
+     * in motion, so that is where it switches now.
+     *
+     * The arithmetic was not wrong about when two pulses merge. It was
+     * answering a different question from the one that matters here, which is
+     * when a stream starts feeling like one.
      */
-    static constexpr int64_t REPEATED_WITHIN_NS = 50 * 1000 * 1000;
+    static constexpr int64_t REPEATED_WITHIN_NS = 100 * 1000 * 1000;
 
     /* Atomic rather than guarded, because the answer has to be right whatever
      * the size of the thread pool, and a pool of one is a fact about today. */
