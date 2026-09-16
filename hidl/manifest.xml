@@ -39,15 +39,25 @@
         <name>android.hardware.drm</name>
         <transport>hwbinder</transport>
         <version>1.0</version>
+        <!--
+            One instance, because one is served. What runs here is the legacy
+            adapter, which registers itself as "default" and then loads every
+            plugin it finds in /vendor/lib/mediadrm: both the clear key one
+            and Widevine. Widevine is therefore reached by asking "default"
+            whether it supports that scheme, and it answers yes.
+
+            A "widevine" instance was declared beside it and nothing ever
+            registered one: lshal shows the adapter holding "default" alone.
+            Anything that took the declaration at its word and asked for it by
+            name got nothing back.
+        -->
         <interface>
             <name>ICryptoFactory</name>
             <instance>default</instance>
-            <instance>widevine</instance>
         </interface>
         <interface>
             <name>IDrmFactory</name>
             <instance>default</instance>
-            <instance>widevine</instance>
         </interface>
     </hal>
     <hal format="hidl">
