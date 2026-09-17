@@ -75,6 +75,16 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/bluetooth/bt_vendor.conf:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth/bt_vendor.conf
 
+# The secure world's image, carried so that installing the ROM installs it.
+#
+# The destination is relative to the product output directory, and that exact
+# path is what makes it into the package: the build copies $(PRODUCT_OUT)/install
+# into the target files as INSTALL/, and the package builder keeps INSTALL/*,
+# where it becomes install/ inside the zip. That is the path releasetools.py
+# hands to package_extract_file.
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilt/firmware/tos.img:install/firmware-update/tos.img
+
 # Camera
 PRODUCT_PACKAGES += \
     camera.tegra \

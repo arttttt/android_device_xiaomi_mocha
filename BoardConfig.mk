@@ -211,6 +211,11 @@ BOARD_PERSISTIMAGE_PARTITION_SIZE := 16777216
 BOARD_RECOVERYIMAGE_PARTITION_SIZE := 20971520
 BOARD_FLASH_BLOCK_SIZE := 131072
 
+# Hooks the package builder calls while assembling the ROM zip. Ours writes
+# the secure world's image to TOS at the start of an install; the reasoning,
+# and why only that one partition, is in the file itself.
+TARGET_RELEASETOOLS_EXTENSIONS := device/xiaomi/mocha/releasetools
+
 # The zygote's path whitelist, widened for this board.
 #
 # shims/zygote_whitelist.cpp adds what ZYGOTE_WHITELIST_PATH_EXTRA names --
