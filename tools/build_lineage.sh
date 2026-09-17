@@ -565,12 +565,33 @@ do_vintf() {
 # directories go, out/soong and the object files stay, so the rebuild is
 # minutes rather than the hours clobber costs. Reach for it whenever a module
 # leaves PRODUCT_PACKAGES.
+#
+# It has one gap, and it is ours to close. The list of what installclean
+# removes lives in the build system and names the staging directories it
+# knows about -- system, vendor, ramdisk, the images, and so on. It does not
+# name out/target/product/<device>/install, the directory whose contents the
+# package builder carries into the zip as install/. So a file that stops
+# being copied there stays, and ships.
+#
+# That is not hypothetical: renaming the secure world's image from tos.img to
+# tos-psci-0.1.img left both in the package through two rebuilds, one of them
+# an installclean, and the whole point of the rename was that nobody should
+# have to wonder which TOS they are looking at. Removing the directory is
+# safe -- every file in it is put there by PRODUCT_COPY_FILES on the next
+# build.
 do_installclean() {
     echo "==> make installclean ($VER)"
     cd "$BUILD_DIR"
     source build/envsetup.sh
     lunch "lineage_${DEVICE}-userdebug"
     make installclean
+
+    local staged="$BUILD_DIR/out/target/product/$DEVICE/install"
+    if [ -d "$staged" ]; then
+        echo "  also dropping $staged, which installclean does not"
+        rm -rf "$staged"
+    fi
+
     echo "==> installclean OK"
 }
 
