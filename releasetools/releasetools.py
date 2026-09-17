@@ -45,25 +45,30 @@ hash of the partition says nothing portable, and edify cannot hash a slice.
 
 TOS_IMAGE = "install/firmware-update/tos-psci-0.1.img"
 
-# Where TOS can be reached, best first.
+# Where TOS can be reached, best first. Every entry was read off a device
+# sitting in the recovery this runs in -- TWRP 3.2.1, omni_mocha 7.1.2 base
+# -- rather than guessed.
 #
 # The by-name links are the ones to want: they are addressed by the label in
-# the partition table, so they stay right whatever the numbering turns out
-# to be. What is not fixed is the directory they sit in -- it is named after
-# the platform device that owns the eMMC, and that name comes from the
-# kernel. A board-file kernel like ours calls it sdhci-tegra.3; a
-# device-tree one calls it after the register address instead, and the same
-# partition is then one directory over.
+# the partition table, so the numbering can move and they stay right. What
+# is not fixed is the directory holding them, which is named after the
+# platform device that owns the eMMC, and that name is the kernel's. A
+# board-file kernel like ours calls it sdhci-tegra.3; a device-tree one
+# calls it after the register address. That recovery has both, the second a
+# symlink to the first, and both resolve to mmcblk0p6 -- so either spelling
+# works there and the pair covers a kernel that only has one of them.
 #
-# The raw node is last and is a different kind of answer: it is a number,
-# true for the partition table this board ships and for nothing else. It is
-# here because boards do turn up with no by-name directory at all, and an
-# install that stops is worse than a write to a node we have read back and
-# verified. Anyone changing the partition table has to revisit this line.
+# A flat /dev/block/by-name was in this list and came out: that recovery has
+# no such directory, and a path nobody has seen does not belong beside three
+# that have been.
+#
+# The raw node is last and is a different kind of answer: a number, true for
+# this board's partition table and nothing else. It is here because an
+# install that stops is worse than a write to the node the two links above
+# both resolved to. Anyone changing the partition table revisits this line.
 TOS_PARTITIONS = [
     "/dev/block/platform/sdhci-tegra.3/by-name/TOS",
     "/dev/block/platform/700b0600.sdhci/by-name/TOS",
-    "/dev/block/by-name/TOS",
     "/dev/block/mmcblk0p6",
 ]
 
