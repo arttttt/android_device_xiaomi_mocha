@@ -58,18 +58,20 @@ TOS_IMAGE = "install/firmware-update/tos-psci-0.1.img"
 # symlink to the first, and both resolve to mmcblk0p6 -- so either spelling
 # works there and the pair covers a kernel that only has one of them.
 #
-# A flat /dev/block/by-name was in this list and came out: that recovery has
-# no such directory, and a path nobody has seen does not belong beside three
-# that have been.
+# Two entries and no third. A flat /dev/block/by-name was in this list and
+# came out because that recovery has no such directory. The raw node the two
+# links resolve to was in it as well, and came out for a better reason: a
+# partition number is not a name. It is true for the table this board ships
+# today and says nothing about the table in front of the script -- and being
+# wrong there does not fail, it writes 1.42 MB over whatever partition six
+# happens to be. That is the failure by-name exists to make impossible, and
+# there is no point reaching for it as a fallback.
 #
-# The raw node is last and is a different kind of answer: a number, true for
-# this board's partition table and nothing else. It is here because an
-# install that stops is worse than a write to the node the two links above
-# both resolved to. Anyone changing the partition table revisits this line.
+# So if neither name resolves, the install stops. A board with no by-name
+# directory needs a human, not a guess.
 TOS_PARTITIONS = [
     "/dev/block/platform/sdhci-tegra.3/by-name/TOS",
     "/dev/block/platform/700b0600.sdhci/by-name/TOS",
-    "/dev/block/mmcblk0p6",
 ]
 
 
