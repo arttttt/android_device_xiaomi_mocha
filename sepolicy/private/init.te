@@ -77,7 +77,3 @@ allow init sysfs_bluetooth_writable:file rw_file_perms;
 # The shared line discipline's install flag: Bluetooth, FM and ANT+ all sit
 # behind one UART and one firmware, and this is how the load is triggered.
 allow init sysfs_bcm_ldisc:file rw_file_perms;
-
-# /mnt/tmp, mounted in "on init" to host the Wi-Fi nvram and the shared
-# memory the performance daemon uses.
-allow init tmpfs:dir { create add_name };
