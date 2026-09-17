@@ -83,7 +83,7 @@ PRODUCT_COPY_FILES += \
 # where it becomes install/ inside the zip. That is the path releasetools.py
 # hands to package_extract_file.
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/prebuilt/firmware/tos.img:install/firmware-update/tos.img
+    $(LOCAL_PATH)/prebuilt/firmware/tos-psci-0.1.img:install/firmware-update/tos-psci-0.1.img
 
 # Camera
 PRODUCT_PACKAGES += \
