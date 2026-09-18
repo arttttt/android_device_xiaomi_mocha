@@ -79,9 +79,14 @@
         </interface>
     </hal>
     <hal format="hidl">
+        <!-- A declaration is a ceiling, and minor versions are inclusive, so
+             2.3 covers 2.1 through 2.3. The framework asks for the newest it
+             knows and hwservicemanager answers from this file: understate it
+             and a service that serves 2.3 is invisible above 2.2, which is
+             the shape of the wifi outage this manifest already remembers. -->
         <name>android.hardware.graphics.composer</name>
         <transport>hwbinder</transport>
-        <version>2.2</version>
+        <version>2.3</version>
         <interface>
             <name>IComposer</name>
             <instance>default</instance>

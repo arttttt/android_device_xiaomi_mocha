@@ -49,11 +49,24 @@ PRODUCT_PACKAGES += \
 # loads hwcomposer.tegra through libhardware and the service exposes it over
 # HIDL, which is the only way SurfaceFlinger reaches a composer here. The
 # module itself is declared with the other hardware modules in device.mk.
+#
+# 2.3 is the last version Q carries -- 2.4 arrives in R -- and the module
+# behind this service already answers at that level, so the version here is
+# the whole of what was holding it back. Nothing in the module changes: every
+# call 2.3 adds is registered through initOptionalDispatch, so the ones it
+# does not export are answered by the service with UNSUPPORTED rather than
+# refused at start-up.
+#
+# What the change buys, in the order it matters: the per-display capability
+# list reaches SurfaceFlinger at all, and with it the claim that this display
+# applies the colour transform itself -- which a 2.2 client could only infer
+# from the device-wide capability -- and brightness, which the framework will
+# only route through a composer that says BRIGHTNESS in that list.
 PRODUCT_PACKAGES += \
     android.hardware.graphics.allocator@2.0-impl \
     android.hardware.graphics.allocator@2.0-service \
     android.hardware.graphics.mapper@2.0-impl-2.1 \
-    android.hardware.graphics.composer@2.2-service
+    android.hardware.graphics.composer@2.3-service
 
 # Health HAL
 # The generic service, not our own: it reads the battery through
