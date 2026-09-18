@@ -250,15 +250,19 @@
          in hardware. -->
     <bool name="config_setColorTransformAccelerated">true</bool>
 
-    <!-- Colour modes offered in Settings -> Display -> Colours: natural,
-         boosted, saturated. Their matrices ride the standard colour
-         transform, which the composer now applies in the display
-         controller's own colour pipeline. -->
-    <integer-array name="config_availableColorModes">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-    </integer-array>
+    <!-- The AOSP colour menu is left empty, as the platform leaves it, so
+         that Settings does not offer it at all.
+
+         Its three entries had nothing to switch between on this glass.
+         Natural and boosted differ by a tenth of saturation, which is at
+         the edge of visible; saturated only turns colour management off,
+         and an sRGB panel shown unmanaged is an sRGB panel. Two of the
+         three were the same picture and the third nearly so.
+
+         The profiles that do change the picture live in LiveDisplay now,
+         served over HIDL from hidl/livedisplay: Standard, Cinema, Dynamic,
+         at 1.0, 1.35 and 1.5. That is the menu to offer, and offering two
+         of them invites the question of which one is the real one. -->
 
     <!-- The device supports freeform window management. Windows have title bars and can be moved
          and resized. If you set this to true, you also need to add

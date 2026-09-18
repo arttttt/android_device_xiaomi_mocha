@@ -58,12 +58,17 @@ TARGET_SCREEN_WIDTH := 1536
 # about while this is unset.
 TARGET_HAS_WIDE_COLOR_DISPLAY := true
 
-# The other half of the same lock, one process over: without this the
-# composer@2.2 service is COMPILED to answer every render-intent query
-# with colorimetric and to clamp setColorMode_2_2 to it -- the HAL is
-# never even asked. The flag only defines USES_DISPLAY_RENDER_INTENTS
-# for the service; the composer behind it already speaks intents.
-TARGET_USES_DISPLAY_RENDER_INTENTS := true
+# TARGET_USES_DISPLAY_RENDER_INTENTS stood here, with a note saying the
+# service would otherwise answer every render-intent query with
+# colorimetric. That was true of the tree it was written against and is
+# not true of this one: the define it sets, USES_DISPLAY_RENDER_INTENTS,
+# has no reader anywhere. Three mentions in the whole composer tree, and
+# all three are either the makefile that sets it or dispatch that happens
+# regardless of it. The same grep over hardware/ and frameworks/ finds
+# only other boards setting the variable.
+#
+# Removed rather than corrected: a flag nobody reads is worse than no
+# flag, because the next reader spends the same hour proving it again.
 TARGET_BOOTANIMATION_HALF_RES := true
 
 # FM radio (Broadcom V4L2 over BT shared transport ldisc)
