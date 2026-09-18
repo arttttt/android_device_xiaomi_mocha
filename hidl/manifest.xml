@@ -250,4 +250,34 @@
             <instance>default</instance>
         </interface>
     </hal>
+    <!--
+        LiveDisplay serves one of its nine interfaces here. The rest want
+        blocks this panel does not have; colour calibration and reading mode
+        the framework already does itself, through the same colour matrix a
+        profile rides on.
+    -->
+    <hal format="hidl">
+        <name>vendor.lineage.livedisplay</name>
+        <transport>hwbinder</transport>
+        <version>2.0</version>
+        <interface>
+            <name>IDisplayModes</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
+    <!--
+        One of the touch package's four. Glove and stylus modes want a
+        controller that can be told to expect either; the gesture interface
+        wants a panel that wakes on shapes, and this one knows a single
+        shape which the framework asks for through its own setting.
+    -->
+    <hal format="hidl">
+        <name>vendor.lineage.touch</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IKeyDisabler</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
 </manifest>

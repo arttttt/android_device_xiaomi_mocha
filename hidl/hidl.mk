@@ -165,6 +165,23 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.vibrator@1.3-service.mocha
 
+# LineageOS interfaces
+#
+# Both of these were Java classes overlaid into system_server through
+# BOARD's JAVA_SOURCE_OVERLAYS, which Q no longer has: there is no consumer
+# for that variable and no org.lineageos.hardware package left to overlay,
+# so the classes compiled nowhere and the features they backed simply did
+# not appear. LineageOS moved the whole abstraction to HIDL, and these are
+# the two interfaces this board can answer.
+#
+# Display profiles are a saturation the composer turns into a matrix for the
+# controller's colour pipeline -- the panel has no mode block of its own, so
+# there is nothing to write a mode number into. The key disabler has a node,
+# and only needed carrying across.
+PRODUCT_PACKAGES += \
+    vendor.lineage.livedisplay@2.0-service.mocha \
+    vendor.lineage.touch@1.0-service.mocha
+
 # WiFi
 PRODUCT_PACKAGES += \
     android.hardware.wifi@1.0-service \

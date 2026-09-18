@@ -403,3 +403,9 @@
 /(vendor|system/vendor)/bin/hw/android\.hardware\.power@1\.3-service\.mocha         u:object_r:hal_power_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.usb\.gadget@1\.0-service\.mocha   u:object_r:hal_usb_gadget_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.vibrator@1\.3-service\.mocha      u:object_r:hal_vibrator_default_exec:s0
+
+# The two LineageOS interfaces this board answers for itself. Both replace a
+# Java class that used to be overlaid into system_server, which Android 10 no
+# longer has a mechanism for.
+/(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service\.mocha     u:object_r:hal_lineage_livedisplay_default_exec:s0
+/(vendor|system/vendor)/bin/hw/vendor\.lineage\.touch@1\.0-service\.mocha           u:object_r:hal_lineage_touch_default_exec:s0

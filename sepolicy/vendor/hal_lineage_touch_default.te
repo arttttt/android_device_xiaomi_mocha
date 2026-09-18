@@ -1,0 +1,12 @@
+# The key-disabler service. LineageOS defines the domain and its exec type;
+# what it cannot know is where this board keeps the switch.
+#
+# /proc/touchpanel/capacitive_keys_enable is a symlink the touch driver puts
+# up, and what it points at is enable_keys on the controller's own i2c node --
+# which lands in the label the whole of that bus carries.
+allow hal_lineage_touch_default sysfs_nvi2c:dir search;
+allow hal_lineage_touch_default sysfs_nvi2c:file rw_file_perms;
+
+# And the symlink itself, which has to be read before it can be followed.
+allow hal_lineage_touch_default proc:dir search;
+allow hal_lineage_touch_default proc:lnk_file read;

@@ -240,9 +240,6 @@ TARGET_LD_SHIM_LIBS := /system/bin/app_process32|libshim_zw.so
 # match nothing.
 TARGET_LD_SHIM_LIBS += /system/vendor/lib/libnvRSDriver.so|libshim_rs.so
 
-# LINEAGEHW
-JAVA_SOURCE_OVERLAYS := org.lineageos.hardware|device/xiaomi/mocha/lineagehw|**/*.java
-
 # Offmode Charging
 BOARD_CHARGER_DISABLE_INIT_BLANK := true
 BACKLIGHT_PATH := "/sys/class/backlight/lcd-backlight/brightness"
