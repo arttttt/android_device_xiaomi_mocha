@@ -159,10 +159,13 @@ void FfsMonitor::run(const GadgetConfig& config) {
     bool stopping = false;
     int retryMs = kBindRetryMinMs;
 
-    /* The descriptors may already be written by the time this starts. */
+    /* The descriptors may already be written by the time this starts. Said out
+     * loud like every other bind, so that a gadget on the bus can always be
+     * traced to the attempt that put it there. */
     if (endpointsPresent() && config.bind()) {
         wantBind = false;
         announceBound();
+        ALOGI("gadget bound");
     }
 
     while (!stopping) {

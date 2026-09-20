@@ -24,6 +24,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -189,9 +190,24 @@ bool GadgetConfig::bind() const {
 }
 
 void GadgetConfig::unbind() const {
-    /* An already unbound gadget answers ENODEV, which is the state that was
-     * wanted anyway -- so this is not worth a failure. */
-    mocha::sysfs::write(StringPrintf("%s/UDC", kGadget), "none");
+    /*
+     * An already unbound gadget answers ENODEV, which is the state that was
+     * wanted anyway -- so this is not worth a failure, and not worth a line in
+     * the log either.
+     *
+     * It used to go through the shared helper, which reports what it could not
+     * write. Every first call unbinds a gadget that was never bound, so every
+     * boot carried an error that read exactly like a controller refusing to
+     * take a configuration -- close enough to the real fault to be mistaken
+     * for it. Written out here so that "cannot write .../UDC" means the one
+     * thing it ought to mean.
+     */
+    int fd = open(StringPrintf("%s/UDC", kGadget).c_str(), O_WRONLY | O_CLOEXEC);
+
+    if (fd < 0) return;
+
+    ::write(fd, "none", sizeof("none") - 1);
+    close(fd);
 }
 
 void GadgetConfig::resetDeviceClass() const {
