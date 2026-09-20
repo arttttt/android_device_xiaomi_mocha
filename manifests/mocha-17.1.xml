@@ -103,4 +103,25 @@
        17.1 as its base and adds the three fixes; if they land upstream this
        goes back to LineageOS. -->
   <project name="arttttt/android_hardware_nvidia_thermal" path="hardware/nvidia/thermal" remote="github" revision="lineage-17.1" />
+
+  <!-- CUDA, and the only entry here that no build needs.
+
+       NVIDIA decodes HEVC on this board with the GPU, because the chip has no
+       HEVC block and they wrote the decoder against CUDA instead. Their binary
+       says it plainly, "H265 CPU+GPU DECODE" beside "H265 CPU ONLY DECODE
+       (non-T124)", and T124 is this chip. So a worked example of GPU compute
+       on this hardware exists, by the people who built it, and this holds what
+       would be needed to produce another one: nvcc able to emit sm_32, the
+       driver API headers, and the L4T packs kept against the day they stop
+       being downloadable.
+
+       Not in any group that syncs by default. It is a repository of archives
+       and no part of an image, so it must not be a tax on every sync. Fetched
+       when it is wanted:
+
+           repo sync prebuilts/cuda
+
+       One branch, because CUDA has nothing to do with which Android release
+       is being built. -->
+  <project name="arttttt/android_prebuilts_cuda" path="prebuilts/cuda" remote="github" revision="main" groups="notdefault,cuda" />
 </manifest>
