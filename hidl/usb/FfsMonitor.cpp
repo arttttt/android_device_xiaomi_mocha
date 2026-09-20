@@ -43,6 +43,18 @@ static constexpr int kBufferSize = 512;
  * do; this one is recognisable in a trace. */
 static constexpr uint64_t kStop = 100;
 
+/* How long to wait before offering the controller a configuration it has
+ * already refused. A controller that is not registered yet answers ENODEV,
+ * which is the ordinary answer at boot: this service is up around twenty
+ * seconds in, well before the UDC. Nothing knocks a second time -- the daemon
+ * has its endpoints open by then, and the directory it lives in stays still --
+ * so an owed bind left to the watch alone waits on an event that never comes,
+ * and the gadget is never put on the bus at all. The wait backs off, so a
+ * controller that truly never arrives costs almost nothing to keep waiting
+ * for. */
+static constexpr int kBindRetryMinMs = 100;
+static constexpr int kBindRetryMaxMs = 2000;
+
 static bool addToEpoll(const unique_fd& epollFd, const unique_fd& fd) {
     struct epoll_event event = {};
 
@@ -145,6 +157,7 @@ void FfsMonitor::run(const GadgetConfig& config) {
     struct epoll_event events[kEpollEvents];
     bool wantBind = true;
     bool stopping = false;
+    int retryMs = kBindRetryMinMs;
 
     /* The descriptors may already be written by the time this starts. */
     if (endpointsPresent() && config.bind()) {
@@ -153,8 +166,27 @@ void FfsMonitor::run(const GadgetConfig& config) {
     }
 
     while (!stopping) {
-        int n = epoll_wait(mEpollFd.get(), events, kEpollEvents, -1);
-        if (n <= 0) continue;
+        /* Waiting for the watch alone is right only while there is nothing
+         * owed. With a bind outstanding on endpoints that are already there,
+         * the wait is on the controller instead, and that is a matter of time
+         * rather than of anything happening in the directory. */
+        int timeout = wantBind && endpointsPresent() ? retryMs : -1;
+
+        int n = epoll_wait(mEpollFd.get(), events, kEpollEvents, timeout);
+        if (n < 0) continue;
+
+        if (n == 0) {
+            if (config.bind()) {
+                wantBind = false;
+                retryMs = kBindRetryMinMs;
+                announceBound();
+                ALOGI("gadget bound");
+            } else if (retryMs < kBindRetryMaxMs) {
+                retryMs *= 2;
+                if (retryMs > kBindRetryMaxMs) retryMs = kBindRetryMaxMs;
+            }
+            continue;
+        }
 
         for (int i = 0; i < n && !stopping; i++) {
             if (events[i].data.fd != mInotifyFd.get()) {
@@ -178,6 +210,7 @@ void FfsMonitor::run(const GadgetConfig& config) {
                     wantBind = true;
                 } else if (present && wantBind && config.bind()) {
                     wantBind = false;
+                    retryMs = kBindRetryMinMs;
                     announceBound();
                     ALOGI("gadget bound");
                 }
