@@ -139,6 +139,10 @@ static int (*gVendorOpen)(const hw_module_t *, const char *, hw_device_t **);
 static int (*gVendorLockYCbCr)(const gralloc_module_t *, buffer_handle_t, int,
                                int, int, int, int, struct android_ycbcr *) = NULL;
 
+static int (*gVendorLockAsyncYCbCr)(const gralloc_module_t *, buffer_handle_t,
+                                    int, int, int, int, int,
+                                    struct android_ycbcr *, int) = NULL;
+
 /*
  * The allocator as the vendor wrote it, kept before its pointer is replaced.
  * Reading it back out of the device would read the replacement, and the first
@@ -199,20 +203,44 @@ static int tegra_alloc(alloc_device_t *dev, int w, int h, int format, int usage,
  * the writer used the other gets a picture that slides a little further wrong
  * with every row, so both are worth seeing side by side.
  */
+static void trace_lock(const char *what, int w, int h, int usage,
+                       const struct android_ycbcr *ycbcr, int result) {
+    if (!tracing()) {
+        return;
+    }
+
+    if (result != 0 || ycbcr == NULL || ycbcr->y == NULL) {
+        ALOGI("%s %dx%d usage %#x -> %d", what, w, h, usage, result);
+        return;
+    }
+
+    const char *y = static_cast<const char *>(ycbcr->y);
+
+    ALOGI("%s %dx%d usage %#x -> ystride %zu cstride %zu step %zu "
+          "cb%+ld cr%+ld", what, w, h, usage, ycbcr->ystride, ycbcr->cstride,
+          ycbcr->chroma_step,
+          (long)(static_cast<const char *>(ycbcr->cb) - y),
+          (long)(static_cast<const char *>(ycbcr->cr) - y));
+}
+
 static int tegra_lock_ycbcr(const gralloc_module_t *module,
                             buffer_handle_t handle, int usage, int l, int t,
                             int w, int h, struct android_ycbcr *ycbcr) {
     int result = gVendorLockYCbCr(module, handle, usage, l, t, w, h, ycbcr);
 
-    if (tracing()) {
-        if (result == 0 && ycbcr != NULL) {
-            ALOGI("lock_ycbcr %dx%d usage %#x -> y %zu, c %zu, chroma step %zu",
-                  w, h, usage, ycbcr->ystride, ycbcr->cstride,
-                  ycbcr->chroma_step);
-        } else {
-            ALOGI("lock_ycbcr %dx%d usage %#x -> %d", w, h, usage, result);
-        }
-    }
+    trace_lock("lock_ycbcr", w, h, usage, ycbcr, result);
+
+    return result;
+}
+
+static int tegra_lock_async_ycbcr(const gralloc_module_t *module,
+                                  buffer_handle_t handle, int usage, int l,
+                                  int t, int w, int h,
+                                  struct android_ycbcr *ycbcr, int fence) {
+    int result = gVendorLockAsyncYCbCr(module, handle, usage, l, t, w, h, ycbcr,
+                                       fence);
+
+    trace_lock("lockAsync_ycbcr", w, h, usage, ycbcr, result);
 
     return result;
 }
@@ -298,5 +326,14 @@ __attribute__((constructor)) static void tegra_take_vendor_module() {
     if (HAL_MODULE_INFO_SYM.base.lock_ycbcr != NULL) {
         gVendorLockYCbCr = HAL_MODULE_INFO_SYM.base.lock_ycbcr;
         HAL_MODULE_INFO_SYM.base.lock_ycbcr = tegra_lock_ycbcr;
+    }
+
+    /*
+     * The passthrough mapper reaches for the asynchronous form first, so the
+     * plain one is never called and tracing it alone says nothing.
+     */
+    if (HAL_MODULE_INFO_SYM.base.lockAsync_ycbcr != NULL) {
+        gVendorLockAsyncYCbCr = HAL_MODULE_INFO_SYM.base.lockAsync_ycbcr;
+        HAL_MODULE_INFO_SYM.base.lockAsync_ycbcr = tegra_lock_async_ycbcr;
     }
 }
