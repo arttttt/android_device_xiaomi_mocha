@@ -91,7 +91,8 @@ PRODUCT_COPY_FILES += \
 # beside it. The blob is installed as gralloc.nvidia so that the name it used
 # to own is free for the wrapper to take.
 PRODUCT_PACKAGES += \
-    gralloc.tegra
+    gralloc.tegra \
+    gralloc-yuv-probe
 
 # Camera
 PRODUCT_PACKAGES += \

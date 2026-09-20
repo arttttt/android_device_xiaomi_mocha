@@ -40,3 +40,22 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_CFLAGS := -Wall -Wextra -Werror
 
 include $(BUILD_SHARED_LIBRARY)
+
+# A hand probe for the rule the wrapper answers. It is a system binary because
+# libandroid is not something a vendor module may link, and it wants the same
+# road an application takes rather than a private one to the blob.
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := gralloc-yuv-probe
+LOCAL_MODULE_TAGS := optional
+
+LOCAL_SRC_FILES := gralloc_probe.cpp
+
+LOCAL_SHARED_LIBRARIES := \
+    libandroid \
+    liblog
+
+LOCAL_CFLAGS := -Wall -Wextra -Werror
+
+include $(BUILD_EXECUTABLE)
