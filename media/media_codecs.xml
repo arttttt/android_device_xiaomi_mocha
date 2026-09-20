@@ -126,12 +126,38 @@ Only the three quirks included above are recognized at this point:
             <Limit name="bitrate" range="1-10000000" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
-        <MediaCodec name="OMX.Nvidia.mpeg2v.decode" type="video/mpeg2" >
-            <Limit name="size" min="32x32" max="3840x2176" />
+        <!-- MPEG-2 has no component behind it on this board, and the software
+             one AOSP ships is kept for televisions, so neither path was
+             reachable: playing an MPEG-2 file answered "Failed to create
+             video/mpeg2 decoder" and every boot logged "node
+             [OMX.Nvidia.mpeg2v.decode] not found in IOmx".
+
+             The vendor entry that used to stand here was a promise nothing
+             could keep. libnvomx.so carries the name in its string pool but
+             nothing in the file points at it. That was checked by resolving
+             the string's address and counting four-byte references, which
+             comes to none, against five for h264.decode and one apiece for
+             mp4, h263, vp8 and h265. So OMX_ComponentNameEnum never returns
+             it and no node is ever made. The reason is a floor below that: the decoding
+             library this build uses, libnvmmlite_video.so, has not one mention
+             of MPEG-2 in any spelling, while HEVC has twenty-two and H264
+             twenty-nine. NVIDIA's older sources have the component in the full
+             NVMM tree, so the name is what is left of a shared source pool
+             after the cut-down library was built.
+
+             What replaces it is the decoder that does exist. AOSP builds
+             c2.android.mpeg2.decoder into the software codec APEX and then
+             declares it domain="tv", which a tablet's parser drops. Declared
+             here without that, the same component is simply offered, and the
+             limits are AOSP's own. -->
+        <MediaCodec name="c2.android.mpeg2.decoder" type="video/mpeg2">
+            <Alias name="OMX.google.mpeg2.decoder" />
+            <!-- profiles and levels:  ProfileMain : LevelHL -->
+            <Limit name="size" min="16x16" max="1920x1088" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
-            <Limit name="blocks-per-second" min="1" max="783360" />
-            <Limit name="bitrate" range="1-62500000" />
+            <Limit name="blocks-per-second" range="1-244800" />
+            <Limit name="bitrate" range="1-20000000" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
 
