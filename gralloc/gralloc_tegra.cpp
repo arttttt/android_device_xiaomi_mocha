@@ -124,6 +124,15 @@ static int tegra_open(const hw_module_t *module __unused, const char *name,
 
     alloc_device_t *allocator = reinterpret_cast<alloc_device_t *>(*device);
 
+    /*
+     * A second open may hand back the same device, already replaced. Reading
+     * the pointer then would save our own function as the vendor's and the
+     * next allocation would call itself, so the replacement is made once.
+     */
+    if (allocator->alloc == tegra_alloc) {
+        return 0;
+    }
+
     gVendorAlloc = allocator->alloc;
     allocator->alloc = tegra_alloc;
 
