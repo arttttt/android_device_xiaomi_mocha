@@ -146,19 +146,26 @@ Only the three quirks included above are recognized at this point:
              after the cut-down library was built.
 
              What replaces it is the decoder that does exist. AOSP builds
-             c2.android.mpeg2.decoder into the software codec APEX and then
-             declares it domain="tv", which a tablet's parser drops. Declared
-             here without that, the same component is simply offered, and the
-             limits are AOSP's own. -->
-        <MediaCodec name="c2.android.mpeg2.decoder" type="video/mpeg2">
-            <Alias name="OMX.google.mpeg2.decoder" />
-            <!-- profiles and levels:  ProfileMain : LevelHL -->
-            <Limit name="size" min="16x16" max="1920x1088" />
-            <Limit name="alignment" value="2x2" />
-            <Limit name="block-size" value="16x16" />
-            <Limit name="blocks-per-second" range="1-244800" />
-            <Limit name="bitrate" range="1-20000000" />
-            <Feature name="adaptive-playback" />
+             c2.android.mpeg2.decoder into the software codec APEX and declares
+             it there with domain="tv", which a tablet drops.
+
+             Declaring it again here does not undo that, which is why the entry
+             that used to stand here changed nothing and no MPEG-2 file ever
+             reached a decoder. Codec2InfoBuilder reads the APEX file first and
+             the vendor file after it, and a second plain MediaCodec element
+             for a name that already exists is refused outright, with "cannot
+             add existing codec", so the whole block was thrown away and the
+             APEX's own entry stood, televisions only. A name carrying a domain
+             is also disabled by default, so it was turned off twice over.
+
+             The way to reach an entry someone else has already made is to
+             update it. Domains accumulate, and a domain written with a leading
+             "!" is struck off the set instead of added, so "!tv" takes the
+             television marking back off; enabled="true" clears the disabling
+             that came with it. Everything else stays AOSP's own: the limits,
+             the alias and the component itself are left alone. -->
+        <MediaCodec name="c2.android.mpeg2.decoder" type="video/mpeg2"
+                    update="true" domain="!tv" enabled="true">
         </MediaCodec>
 
         <MediaCodec name="OMX.Nvidia.mp3.decoder" type="audio/mpeg-L2" >
