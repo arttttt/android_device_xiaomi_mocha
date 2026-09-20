@@ -33,7 +33,7 @@ is what it is now compared against. Its pitch is its own business.
 diff --git a/media/codec2/components/mpeg2/C2SoftMpeg2Dec.cpp b/media/codec2/components/mpeg2/C2SoftMpeg2Dec.cpp
 --- a/media/codec2/components/mpeg2/C2SoftMpeg2Dec.cpp
 +++ b/media/codec2/components/mpeg2/C2SoftMpeg2Dec.cpp
-@@ -582,10 +582,20 @@
+@@ -582,10 +582,30 @@
                                     size_t inSize,
                                     uint32_t tsMarker) {
      uint32_t displayStride = mStride;
@@ -46,7 +46,17 @@ diff --git a/media/codec2/components/mpeg2/C2SoftMpeg2Dec.cpp b/media/codec2/com
      size_t lumaSize = displayStride * displayHeight;
      size_t chromaSize = lumaSize >> 2;
  
-+    if (mStride != displayStride) {
++    /*
++     * Only when the pitch can hold a row of the picture. ihevcd checks
++     * exactly that and turns down anything narrower with
++     * IHEVCD_INVALID_DISP_STRD, and a refused pitch leaves the decoder
++     * writing rows the width it last agreed to while the buffer is laid
++     * out for another -- which arrives as a sheared frame with the tail
++     * of the plane never written, showing through green. A block too
++     * narrow for the picture is caught below and the frame is dropped
++     * rather than decoded into the wrong shape.
++     */
++    if (displayStride >= mWidth && mStride != displayStride) {
 +        mStride = displayStride;
 +        if (OK != setParams(mStride)) return false;
 +    }
@@ -54,7 +64,7 @@ diff --git a/media/codec2/components/mpeg2/C2SoftMpeg2Dec.cpp b/media/codec2/com
      ps_decode_ip->u4_size = sizeof(ivd_video_decode_ip_t);
      ps_decode_ip->e_cmd = IVD_CMD_VIDEO_DECODE;
      if (inBuffer) {
-@@ -601,7 +611,7 @@
+@@ -601,7 +621,7 @@
      ps_decode_ip->s_out_buffer.u4_min_out_buf_size[1] = chromaSize;
      ps_decode_ip->s_out_buffer.u4_min_out_buf_size[2] = chromaSize;
      if (outBuffer) {
@@ -63,7 +73,7 @@ diff --git a/media/codec2/components/mpeg2/C2SoftMpeg2Dec.cpp b/media/codec2/com
              ALOGE("Output buffer too small: provided (%dx%d) required (%ux%u)",
                    outBuffer->width(), outBuffer->height(), displayStride, displayHeight);
              return false;
-@@ -826,24 +836,21 @@
+@@ -826,24 +846,21 @@
          ALOGE("not supposed to be here, invalid decoder context");
          return C2_CORRUPTED;
      }
