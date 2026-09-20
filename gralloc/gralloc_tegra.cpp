@@ -106,8 +106,10 @@
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include <cutils/properties.h>
 #include <hardware/gralloc.h>
 #include <hardware/hardware.h>
 #include <log/log.h>
@@ -142,9 +144,31 @@ static int (*gVendorOpen)(const hw_module_t *, const char *, hw_device_t **);
 static int (*gVendorAlloc)(alloc_device_t *, int, int, int, int,
                            buffer_handle_t *, int *) = NULL;
 
+/*
+ * Every allocation, when persist.mocha.gralloc.trace is set. Off by default
+ * and read once: what a decoder asks for is otherwise invisible from this
+ * side, and guessing at it has already cost a day.
+ */
+static bool tracing() {
+    static int state = -1;
+
+    if (state < 0) {
+        char value[PROPERTY_VALUE_MAX];
+        property_get("persist.mocha.gralloc.trace", value, "0");
+        state = (atoi(value) != 0) ? 1 : 0;
+    }
+
+    return state == 1;
+}
+
 static int tegra_alloc(alloc_device_t *dev, int w, int h, int format, int usage,
                        buffer_handle_t *handle, int *stride) {
     int result = gVendorAlloc(dev, w, h, format, usage, handle, stride);
+
+    if (tracing()) {
+        ALOGI("alloc %dx%d format %#x usage %#x -> %d, stride %d", w, h, format,
+              usage, result, (result == 0 && stride != NULL) ? *stride : -1);
+    }
 
     if (result != -EINVAL || format != HAL_PIXEL_FORMAT_YCbCr_420_888) {
         return result;

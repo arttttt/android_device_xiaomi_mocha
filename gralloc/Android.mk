@@ -33,6 +33,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := gralloc_tegra.cpp
 
 LOCAL_SHARED_LIBRARIES := \
+    libcutils \
     libdl \
     libhardware \
     liblog
