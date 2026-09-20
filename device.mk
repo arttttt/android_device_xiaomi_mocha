@@ -92,7 +92,8 @@ PRODUCT_COPY_FILES += \
 # to own is free for the wrapper to take.
 PRODUCT_PACKAGES += \
     gralloc.tegra \
-    gralloc-yuv-probe
+    gralloc-yuv-probe \
+    decode-probe
 
 # Camera
 PRODUCT_PACKAGES += \

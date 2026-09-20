@@ -59,3 +59,22 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_CFLAGS := -Wall -Wextra -Werror
 
 include $(BUILD_EXECUTABLE)
+
+# Asks a named decoder for one frame, the way a thumbnail is taken. The gallery
+# caches and decides for itself when a tile is worth drawing, so it cannot
+# answer "does this decoder work on this file"; this can.
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := decode-probe
+LOCAL_MODULE_TAGS := optional
+
+LOCAL_SRC_FILES := decode_probe.cpp
+
+LOCAL_SHARED_LIBRARIES := \
+    libmediandk \
+    liblog
+
+LOCAL_CFLAGS := -Wall -Wextra -Werror
+
+include $(BUILD_EXECUTABLE)
