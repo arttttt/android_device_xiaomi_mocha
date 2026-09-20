@@ -27,9 +27,18 @@
  * Twenty instructions further on it refuses the implementation-defined format
  * when software access *is* asked for. Between the two rules NVIDIA decided
  * which format belongs to which consumer and left none at all for a YUV buffer
- * that is only ever sampled -- which is exactly what Chromium's ImageReader
- * wants, 640x480 in format 35 with GRALLOC_USAGE_HW_TEXTURE and nothing else.
- * The framework draws no such line.
+ * that is only ever sampled. The framework draws no such line, and asks for
+ * exactly that buffer as a matter of course: every time a Codec2 component is
+ * handed a surface, configureProducer() calls getGenerationNumber(), which
+ * dequeues one buffer purely to read the generation off it --
+ *
+ *     Input{640, 480, HAL_PIXEL_FORMAT_YCBCR_420_888, 0}
+ *         frameworks/av/media/codec2/vndk/platform/C2BqBuffer.cpp:280
+ *
+ * -- with no usage of its own, so the queue contributes the consumer's
+ * GRALLOC_USAGE_HW_TEXTURE and nothing else. The 640x480 is that constant and
+ * not the size of anything being played, which is why the refusal always
+ * arrives at that size whatever the video is.
  *
  * So the request is made a second time with the cheapest software read bit
  * set. That bit is a key to the gate and not a property of the memory: the
