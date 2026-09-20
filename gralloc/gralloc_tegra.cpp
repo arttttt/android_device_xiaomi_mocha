@@ -168,8 +168,48 @@ static bool tracing() {
     return state == 1;
 }
 
+/*
+ * Whether to ask for cacheable memory for buffers a decoder writes with the
+ * processor and something else then reads with it.
+ *
+ * The allocator gives write combining unless the usage mentions the video
+ * encoder, and write combining is not ordered against an ordinary read: what
+ * the decoder has written can still be sitting in a buffer when the frame is
+ * taken, which shows up as a picture that is right at the top and falls apart
+ * further down, and differently on every run. Video thumbnails in the gallery
+ * do exactly that -- the same file is clean once and torn the next time.
+ *
+ * Off by default while it is being measured. The bit itself is the encoder's,
+ * which is a blunt way to ask, and the allocator reads it for more than the
+ * cache attribute.
+ */
+static bool wants_cacheable() {
+    static int state = -1;
+
+    if (state < 0) {
+        char value[PROPERTY_VALUE_MAX];
+        property_get("persist.mocha.gralloc.cacheable", value, "0");
+        state = (atoi(value) != 0) ? 1 : 0;
+    }
+
+    return state == 1;
+}
+
 static int tegra_alloc(alloc_device_t *dev, int w, int h, int format, int usage,
                        buffer_handle_t *handle, int *stride) {
+    if (wants_cacheable() && format == HAL_PIXEL_FORMAT_YV12 &&
+        (usage & (GRALLOC_USAGE_SW_READ_MASK | GRALLOC_USAGE_SW_WRITE_MASK)) &&
+        (usage & GRALLOC_USAGE_HW_VIDEO_ENCODER) == 0) {
+        int asked = usage | GRALLOC_USAGE_HW_VIDEO_ENCODER;
+
+        if (tracing()) {
+            ALOGI("asking for cacheable: %dx%d usage %#x -> %#x", w, h, usage,
+                  asked);
+        }
+
+        usage = asked;
+    }
+
     int result = gVendorAlloc(dev, w, h, format, usage, handle, stride);
 
     if (tracing()) {
