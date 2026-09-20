@@ -60,6 +60,16 @@ gallery is made of.
 A block is big enough when it is at least as wide as the picture, so that
 is what it is now compared against. Its pitch is its own business.
 
+And the block is asked for at the width of the picture, not rounded up.
+The rounding was there to make the buffer wide enough for a pitch the
+decoder chose on its own; now that it is told the buffer's own pitch it
+serves no purpose, and it does harm. A 176 wide video was given a 256
+wide block, and 256 is the width that reached the other end: the picture
+arrives laid out 256 to the row while only 176 of them were written, so
+it runs out of content 99 rows down a 144 row frame and the rest shows
+through as the green of an untouched plane. Every other clip on hand is
+a multiple of 128 wide, which is why exactly one thumbnail was wrong.
+
 ---
 diff --git a/media/codec2/components/avc/C2SoftAvcDec.cpp b/media/codec2/components/avc/C2SoftAvcDec.cpp
 --- a/media/codec2/components/avc/C2SoftAvcDec.cpp
@@ -114,7 +124,7 @@ diff --git a/media/codec2/components/avc/C2SoftAvcDec.cpp b/media/codec2/compone
 -    }
      if (mOutBlock &&
 -            (mOutBlock->width() != mStride || mOutBlock->height() != mHeight)) {
-+            (mOutBlock->width() != ALIGN128(mWidth) || mOutBlock->height() != mHeight)) {
++            (mOutBlock->width() != (int32_t)mWidth || mOutBlock->height() != mHeight)) {
          mOutBlock.reset();
      }
      if (!mOutBlock) {
@@ -122,14 +132,14 @@ diff --git a/media/codec2/components/avc/C2SoftAvcDec.cpp b/media/codec2/compone
          C2MemoryUsage usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
 -        c2_status_t err = pool->fetchGraphicBlock(mStride, mHeight, format, usage, &mOutBlock);
 +        c2_status_t err =
-+            pool->fetchGraphicBlock(ALIGN128(mWidth), mHeight, format, usage, &mOutBlock);
++            pool->fetchGraphicBlock(mWidth, mHeight, format, usage, &mOutBlock);
          if (err != C2_OK) {
              ALOGE("fetchGraphicBlock for Output failed with status %d", err);
              return err;
          }
          ALOGV("provided (%dx%d) required (%dx%d)",
 -              mOutBlock->width(), mOutBlock->height(), mStride, mHeight);
-+              mOutBlock->width(), mOutBlock->height(), ALIGN128(mWidth), mHeight);
++              mOutBlock->width(), mOutBlock->height(), mWidth, mHeight);
      }
  
      return C2_OK;
