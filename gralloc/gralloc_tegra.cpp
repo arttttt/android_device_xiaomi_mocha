@@ -136,6 +136,9 @@ struct NvGrModule HAL_MODULE_INFO_SYM;
 
 static int (*gVendorOpen)(const hw_module_t *, const char *, hw_device_t **);
 
+static int (*gVendorLockYCbCr)(const gralloc_module_t *, buffer_handle_t, int,
+                               int, int, int, int, struct android_ycbcr *) = NULL;
+
 /*
  * The allocator as the vendor wrote it, kept before its pointer is replaced.
  * Reading it back out of the device would read the replacement, and the first
@@ -184,6 +187,32 @@ static int tegra_alloc(alloc_device_t *dev, int w, int h, int format, int usage,
 
     ALOGI("YCbCr_420_888 %dx%d refused for usage %#x, asked again with a "
           "software read: %d", w, h, usage, result);
+
+    return result;
+}
+
+/*
+ * What a lock hands back, when the trace is on. The pitch named here is not
+ * the one the allocation reported: this vendor keeps a second, pitch linear
+ * copy for software access and locks give that one's stride, while alloc
+ * gives the block linear original's. A reader that believes one number while
+ * the writer used the other gets a picture that slides a little further wrong
+ * with every row, so both are worth seeing side by side.
+ */
+static int tegra_lock_ycbcr(const gralloc_module_t *module,
+                            buffer_handle_t handle, int usage, int l, int t,
+                            int w, int h, struct android_ycbcr *ycbcr) {
+    int result = gVendorLockYCbCr(module, handle, usage, l, t, w, h, ycbcr);
+
+    if (tracing()) {
+        if (result == 0 && ycbcr != NULL) {
+            ALOGI("lock_ycbcr %dx%d usage %#x -> y %zu, c %zu, chroma step %zu",
+                  w, h, usage, ycbcr->ystride, ycbcr->cstride,
+                  ycbcr->chroma_step);
+        } else {
+            ALOGI("lock_ycbcr %dx%d usage %#x -> %d", w, h, usage, result);
+        }
+    }
 
     return result;
 }
@@ -261,4 +290,13 @@ __attribute__((constructor)) static void tegra_take_vendor_module() {
 
     gVendorOpen = HAL_MODULE_INFO_SYM.base.common.methods->open;
     HAL_MODULE_INFO_SYM.base.common.methods = &tegra_module_methods;
+
+    /*
+     * The lock is taken over only to say what it returned, and only when the
+     * vendor has one to call. A null stays null: a caller checks for it.
+     */
+    if (HAL_MODULE_INFO_SYM.base.lock_ycbcr != NULL) {
+        gVendorLockYCbCr = HAL_MODULE_INFO_SYM.base.lock_ycbcr;
+        HAL_MODULE_INFO_SYM.base.lock_ycbcr = tegra_lock_ycbcr;
+    }
 }
