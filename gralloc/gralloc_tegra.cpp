@@ -48,6 +48,42 @@
  * it. The vendor blob is installed as gralloc.nvidia.so and opened by full
  * path; ours answers to gralloc.tegra, which ro.board.platform selects.
  *
+ *
+ * Why the whole module is copied rather than a module of our own filled in
+ * -----------------------------------------------------------------------
+ *
+ * What the blob exports as HMI is not a gralloc_module_t. It is NVIDIA's
+ * NvGrModule: the gralloc module, and then a table of its own that the rest of
+ * the Tegra stack reaches by casting whatever hw_get_module() handed back --
+ *
+ *     +176 NvGrModuleRef          +216 NvGrSetCompressed
+ *     +180 NvGrModuleUnref        +220 NvGrGetCompressed
+ *     +184 NvGrAllocInternal      +224 NvGrDecompressBuffer
+ *     +188 NvGrFreeInternal       +228 NvGrDecompressPrepare
+ *     +192 NvGrAddFence           +232 NvGrDecompressCommit
+ *     +196 NvGrGetFenceFd         +236 NvGrSetHint
+ *     +200 NvGrAddFenceFd         +240 NvGrClearHint
+ *     +204 NvGrDumpBuffer         +244 NvGrGetHints
+ *     +208 NvGrScratchOpen        +248 NvGrOverrideProperty
+ *     +212 NvGrScratchClose
+ *
+ * -- followed by state the blob keeps there, out to 368 bytes, which is the
+ * whole of its .data (0xe000, size 0x178, with HMI at 0xe008). A module of our
+ * own would be 176 bytes, and the first caller after a fence would read past
+ * the end of it.
+ *
+ * So the object below is 368 bytes and the vendor's is copied into it whole.
+ * That is sound here because the blob never takes the address of its own HMI
+ * -- no relocation and no literal in .text points into it -- so every one of
+ * its functions works through the module pointer it is handed, which is this
+ * copy and never the original. The two cannot drift apart because only one of
+ * them is ever used.
+ *
+ * The layouts line up as well: this tree's gralloc_module_t is 176 bytes and
+ * ends with getTransportSize, validateBufferSize and reserved_proc[1], where
+ * the blob's older header had reserved_proc[3] and left all three null. Copying
+ * leaves those null, which is what a caller checks for.
+ *
  * To take the wrapper out of the way without rebuilding anything, set
  *
  *     ro.hardware.gralloc=nvidia
@@ -69,7 +105,25 @@
 
 static const char kVendorPath[] = "/vendor/lib/hw/gralloc.nvidia.so";
 
-static gralloc_module_t *gVendorModule = NULL;
+/* sizeof(NvGrModule), read off the blob's .data. See the note above. */
+static const size_t kVendorModuleSize = 368;
+
+struct NvGrModule {
+    gralloc_module_t base;
+    unsigned char nvidia[kVendorModuleSize - sizeof(gralloc_module_t)];
+};
+
+static_assert(sizeof(gralloc_module_t) <= kVendorModuleSize,
+              "the framework's gralloc module no longer fits inside NvGrModule");
+
+/*
+ * Zero until the constructor fills it in. A module left zero has no
+ * HARDWARE_MODULE_TAG, so hw_get_module turns the caller away rather than
+ * handing out something half built.
+ */
+struct NvGrModule HAL_MODULE_INFO_SYM;
+
+static int (*gVendorOpen)(const hw_module_t *, const char *, hw_device_t **);
 
 /*
  * The allocator as the vendor wrote it, kept before its pointer is replaced.
@@ -101,15 +155,18 @@ static int tegra_alloc(alloc_device_t *dev, int w, int h, int format, int usage,
     return result;
 }
 
-static int tegra_open(const hw_module_t *module __unused, const char *name,
+static int tegra_open(const hw_module_t *module, const char *name,
                       hw_device_t **device) {
-    if (gVendorModule == NULL) {
+    if (gVendorOpen == NULL) {
         ALOGE("no vendor module to open");
         return -ENODEV;
     }
 
-    int rc = gVendorModule->common.methods->open(&gVendorModule->common, name,
-                                                 device);
+    /*
+     * The module handed on is ours, which is the copy every caller has, so the
+     * blob keeps its state in the one object that is in use.
+     */
+    int rc = gVendorOpen(module, name, device);
     if (rc != 0) {
         return rc;
     }
@@ -143,24 +200,6 @@ static struct hw_module_methods_t tegra_module_methods = {
     .open = tegra_open,
 };
 
-gralloc_module_t HAL_MODULE_INFO_SYM = {
-    .common = {
-        .tag = HARDWARE_MODULE_TAG,
-        .module_api_version = GRALLOC_MODULE_API_VERSION_0_3,
-        .hal_api_version = HARDWARE_HAL_API_VERSION,
-        .id = GRALLOC_HARDWARE_MODULE_ID,
-        .name = "Graphics Memory Allocator for Tegra",
-        .author = "Artem Bambalov",
-        .methods = &tegra_module_methods,
-    },
-};
-
-/*
- * Everything the module answers other than open is the vendor's, taken as
- * written rather than wrapped in thunks of our own: a pointer this blob leaves
- * null has to stay null, and a thunk over a null pointer is a crash rather
- * than the "not supported" the caller is checking for.
- */
 __attribute__((constructor)) static void tegra_take_vendor_module() {
     void *handle = dlopen(kVendorPath, RTLD_NOW | RTLD_LOCAL);
 
@@ -169,28 +208,24 @@ __attribute__((constructor)) static void tegra_take_vendor_module() {
         return;
     }
 
-    gVendorModule = reinterpret_cast<gralloc_module_t *>(
+    const struct NvGrModule *vendor = reinterpret_cast<const struct NvGrModule *>(
             dlsym(handle, HAL_MODULE_INFO_SYM_AS_STR));
 
-    if (gVendorModule == NULL) {
+    if (vendor == NULL) {
         ALOGE("%s carries no " HAL_MODULE_INFO_SYM_AS_STR, kVendorPath);
         return;
     }
 
-    gralloc_module_t *self = &HAL_MODULE_INFO_SYM;
+    if (vendor->base.common.tag != HARDWARE_MODULE_TAG ||
+        vendor->base.common.methods == NULL ||
+        vendor->base.common.methods->open == NULL) {
+        ALOGE("%s is not a hardware module we can stand in front of",
+              kVendorPath);
+        return;
+    }
 
-    self->registerBuffer = gVendorModule->registerBuffer;
-    self->unregisterBuffer = gVendorModule->unregisterBuffer;
-    self->lock = gVendorModule->lock;
-    self->unlock = gVendorModule->unlock;
-    self->perform = gVendorModule->perform;
-    self->lock_ycbcr = gVendorModule->lock_ycbcr;
-    self->lockAsync = gVendorModule->lockAsync;
-    self->unlockAsync = gVendorModule->unlockAsync;
-    self->lockAsync_ycbcr = gVendorModule->lockAsync_ycbcr;
-    self->getTransportSize = gVendorModule->getTransportSize;
-    self->validateBufferSize = gVendorModule->validateBufferSize;
+    memcpy(&HAL_MODULE_INFO_SYM, vendor, kVendorModuleSize);
 
-    /* Answer for the version the blob actually implements, not for ours. */
-    self->common.module_api_version = gVendorModule->common.module_api_version;
+    gVendorOpen = HAL_MODULE_INFO_SYM.base.common.methods->open;
+    HAL_MODULE_INFO_SYM.base.common.methods = &tegra_module_methods;
 }
