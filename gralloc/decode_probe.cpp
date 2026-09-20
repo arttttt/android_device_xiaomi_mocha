@@ -22,11 +22,17 @@
  * back. This asks the question directly -- a named component, no surface, the
  * same byte-buffer mode a thumbnail is taken in -- and prints the answer.
  *
- *     decode-probe <file> [component]
+ *     decode-probe <file> [component] [out.pgm]
  *
  * Without a component the framework picks one. With a component the choice is
  * ours, which is what makes it possible to ask "does the software decoder work
  * on this file" rather than "did something somewhere produce a picture".
+ *
+ * With a third argument the luma plane is written out as a grey PGM, taking
+ * the row pitch from the buffer's own layout. That is the difference between
+ * "a frame came back" and "the frame is right": a thumbnail that arrives
+ * sheared or half written looks like a success from every counter there is,
+ * and only looking at it settles which.
  */
 
 #include <media/NdkMediaCodec.h>
@@ -35,6 +41,7 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -48,12 +55,13 @@ const int kMaxRounds = 400;
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s <file> [component]\n", argv[0]);
+        fprintf(stderr, "usage: %s <file> [component] [out.pgm]\n", argv[0]);
         return 2;
     }
 
     const char *path = argv[1];
-    const char *want = (argc > 2) ? argv[2] : NULL;
+    const char *want = (argc > 2 && argv[2][0] != '\0') ? argv[2] : NULL;
+    const char *dump = (argc > 3) ? argv[3] : NULL;
 
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
@@ -163,8 +171,39 @@ int main(int argc, char **argv) {
         ssize_t out = AMediaCodec_dequeueOutputBuffer(codec, &info, kTimeoutUs);
 
         if (out >= 0) {
-            printf("%-28s %4dx%-4d  %-24s  DECODED, %d bytes after %d rounds\n",
-                   path, w, h, want ? want : mime, info.size, rounds);
+            int32_t stride = 0, slice = 0, fmt = 0;
+            AMediaFormat *outfmt = AMediaCodec_getOutputFormat(codec);
+            if (outfmt != NULL) {
+                AMediaFormat_getInt32(outfmt, "stride", &stride);
+                AMediaFormat_getInt32(outfmt, "slice-height", &slice);
+                AMediaFormat_getInt32(outfmt, AMEDIAFORMAT_KEY_COLOR_FORMAT, &fmt);
+            }
+
+            printf("%-28s %4dx%-4d  %-24s  DECODED %d bytes, stride %d, slice %d,"
+                   " colour %#x, %d rounds\n", path, w, h, want ? want : mime,
+                   info.size, stride, slice, fmt, rounds);
+
+            if (dump != NULL) {
+                size_t cap = 0;
+                uint8_t *pix = AMediaCodec_getOutputBuffer(codec, (size_t)out, &cap);
+                int32_t pitch = (stride > 0) ? stride : w;
+                FILE *f = fopen(dump, "wb");
+                if (f != NULL && pix != NULL) {
+                    fprintf(f, "P5\n%d %d\n255\n", w, h);
+                    for (int32_t y = 0; y < h; y++) {
+                        size_t off = (size_t)y * (size_t)pitch + (size_t)info.offset;
+                        if (off + (size_t)w > cap) break;
+                        fwrite(pix + off, 1, (size_t)w, f);
+                    }
+                    fclose(f);
+                    printf("    luma written to %s using pitch %d\n", dump, pitch);
+                } else {
+                    if (f != NULL) fclose(f);
+                    printf("    could not write %s\n", dump);
+                }
+            }
+
+            if (outfmt != NULL) AMediaFormat_delete(outfmt);
             AMediaCodec_releaseOutputBuffer(codec, (size_t)out, false);
             AMediaCodec_stop(codec);
             AMediaCodec_delete(codec);
