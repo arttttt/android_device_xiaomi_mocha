@@ -171,17 +171,17 @@ int main(int argc, char **argv) {
         ssize_t out = AMediaCodec_dequeueOutputBuffer(codec, &info, kTimeoutUs);
 
         if (out >= 0) {
-            int32_t stride = 0, slice = 0, fmt = 0;
+            int32_t stride = 0, slice = 0, colour = 0;
             AMediaFormat *outfmt = AMediaCodec_getOutputFormat(codec);
             if (outfmt != NULL) {
                 AMediaFormat_getInt32(outfmt, "stride", &stride);
                 AMediaFormat_getInt32(outfmt, "slice-height", &slice);
-                AMediaFormat_getInt32(outfmt, AMEDIAFORMAT_KEY_COLOR_FORMAT, &fmt);
+                AMediaFormat_getInt32(outfmt, AMEDIAFORMAT_KEY_COLOR_FORMAT, &colour);
             }
 
             printf("%-28s %4dx%-4d  %-24s  DECODED %d bytes, stride %d, slice %d,"
                    " colour %#x, %d rounds\n", path, w, h, want ? want : mime,
-                   info.size, stride, slice, fmt, rounds);
+                   info.size, stride, slice, colour, rounds);
 
             if (dump != NULL) {
                 size_t cap = 0;
