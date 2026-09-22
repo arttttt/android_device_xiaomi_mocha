@@ -10,6 +10,10 @@ PRODUCT_PROPERTY_OVERRIDES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.lineage.nofool=true
 
+# Media
+PRODUCT_PROPERTY_OVERRIDES += \
+    media.stagefright.thumbnail.prefer_hw_codecs=true
+
 # OMX
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.media.treble_omx=false
