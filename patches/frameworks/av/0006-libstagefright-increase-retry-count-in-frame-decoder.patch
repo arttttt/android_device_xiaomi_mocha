@@ -1,0 +1,43 @@
+From: Harish Mahendrakar <harish.mahendrakar@ittiam.com>
+Date: Fri, 4 Dec 2020 15:44:31 -0800
+Subject: [PATCH] libstagefright: Increase retry count in Frame Decoder
+
+Bug: 167162080
+Test: Gallery decodes files in the bug
+Test: atest android.media.cts.HeifWriterTest
+
+Change-Id: Ic0579ed7e2418ee9a8ac8d16cf14c9bca45c272b
+(cherry picked from commit 737fedb982745ced89534bdecc661aee0499b739)
+
+On this board the hardware HEVC decoder runs on the CPU and the GPU
+through CUDA, and its first frame needs longer than the half second the
+old count allows: 465-580 ms at 1920x1080 and 660-665 ms at 2560x1440,
+the same within 30 ms over three gallery runs. At 1080p that is right at
+the old limit, so the thumbnail came from the hardware decoder on one run
+and from the software one on the next; at 1440p it never came from the
+hardware one. With the second this commit allows, every HEVC clip was
+decoded by the hardware decoder on every run.
+
+The hunk context is this tree's rather than upstream's; the change is the
+same line.
+
+Signed-off-by: Artem Bambalov <artembambalov1993@gmail.com>
+---
+ media/libstagefright/FrameDecoder.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/media/libstagefright/FrameDecoder.cpp b/media/libstagefright/FrameDecoder.cpp
+index 18a6bd851..273ae9d73 100644
+--- a/media/libstagefright/FrameDecoder.cpp
++++ b/media/libstagefright/FrameDecoder.cpp
+@@ -40,7 +40,7 @@
+ namespace android {
+
+ static const int64_t kBufferTimeOutUs = 10000LL; // 10 msec
+-static const size_t kRetryCount = 50; // must be >0
++static const size_t kRetryCount = 100; // must be >0
+
+ sp<IMemory> allocVideoFrame(const sp<MetaData>& trackMeta,
+         int32_t width, int32_t height, int32_t tileWidth, int32_t tileHeight,
+--
+2.39.0
