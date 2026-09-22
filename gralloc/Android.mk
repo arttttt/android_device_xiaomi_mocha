@@ -36,7 +36,8 @@ LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libdl \
     libhardware \
-    liblog
+    liblog \
+    libsync
 
 LOCAL_CFLAGS := -Wall -Wextra -Werror
 

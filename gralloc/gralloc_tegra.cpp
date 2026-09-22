@@ -15,7 +15,8 @@
  */
 
 /*
- * The vendor allocator, with one answer of its corrected.
+ * The vendor allocator, with two of its answers corrected: an allocation it
+ * refuses, below, and an unlock nobody waited for, at tegra_unlock_async.
  *
  * gralloc.tegra.so turns down HAL_PIXEL_FORMAT_YCbCr_420_888 when the usage
  * asks for no software access at all:
@@ -108,11 +109,14 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #include <cutils/properties.h>
 #include <hardware/gralloc.h>
 #include <hardware/hardware.h>
 #include <log/log.h>
+#include <sync/sync.h>
 
 static const char kVendorPath[] = "/vendor/lib/hw/gralloc.nvidia.so";
 
@@ -142,6 +146,9 @@ static int (*gVendorLockYCbCr)(const gralloc_module_t *, buffer_handle_t, int,
 static int (*gVendorLockAsyncYCbCr)(const gralloc_module_t *, buffer_handle_t,
                                     int, int, int, int, int,
                                     struct android_ycbcr *, int) = NULL;
+
+static int (*gVendorUnlockAsync)(const gralloc_module_t *, buffer_handle_t,
+                                 int *) = NULL;
 
 /*
  * The allocator as the vendor wrote it, kept before its pointer is replaced.
@@ -173,15 +180,15 @@ static bool tracing() {
  * processor and something else then reads with it.
  *
  * The allocator gives write combining unless the usage mentions the video
- * encoder, and write combining is not ordered against an ordinary read: what
- * the decoder has written can still be sitting in a buffer when the frame is
- * taken, which shows up as a picture that is right at the top and falls apart
- * further down, and differently on every run. Video thumbnails in the gallery
- * do exactly that -- the same file is clean once and torn the next time.
+ * encoder, and write combining is not ordered against an ordinary read, which
+ * made it the first suspect for video thumbnails that came out torn -- the
+ * same file clean once and torn the next time.
  *
- * Off by default while it is being measured. The bit itself is the encoder's,
- * which is a blunt way to ask, and the allocator reads it for more than the
- * cache attribute.
+ * Measured, it is not that: with this on, the thumbnails tore exactly as
+ * before. What tore them was an unlock whose fence nobody waited for; see
+ * tegra_unlock_async. The switch stays, off by default. The bit itself is the
+ * encoder's, which is a blunt way to ask, and the allocator reads it for more
+ * than the cache attribute.
  */
 static bool wants_cacheable() {
     static int state = -1;
@@ -285,6 +292,75 @@ static int tegra_lock_async_ycbcr(const gralloc_module_t *module,
     return result;
 }
 
+/*
+ * An unlock that is finished when it returns.
+ *
+ * The blob's unlockAsync does not complete the work an unlock owes a buffer the
+ * processor has written. It starts it -- a cache sync for the device, and when
+ * the buffer has a pitch linear shadow for software access, a 2D blit from the
+ * shadow into the real surface -- and hands back a fence that signals when that
+ * is done. The passthrough mapper takes this form whenever the module offers
+ * it, which this one does (module_api_version 0x0003), and passes the fence up
+ * to IMapper::unlock.
+ *
+ * Whether anything then waits is up to the caller. libui does:
+ * GraphicBufferMapper::unlock sync_waits on it before returning. Codec2 does
+ * not: C2AllocationGralloc::unmap drops the fence where AOSP left a TODO, and
+ * nothing further down waits either. So a software decoder's frame could reach
+ * a reader in another process before the unlock behind it had landed, and on
+ * this board that is what video thumbnails were made of -- a 2560x1440 clip
+ * with about a quarter of the picture showing whatever the block had held
+ * before, a different quarter on every run, and never a clip of 1280x720 or
+ * less. Waiting for the fence made every frame whole, run after run.
+ *
+ * Waiting here instead of in Codec2 makes the unlock complete for every
+ * caller, including ones that have not been found yet, and leaves AOSP as it
+ * is. The price falls on callers that meant to pass the fence on rather than
+ * wait -- a software-rendered Surface hands it to queueBuffer -- which now wait
+ * on the processor instead; the fence has almost always signalled by then.
+ *
+ * A fence that does not signal in time is handed on as it is, not reported as
+ * done: better a caller that waits on it than one told the buffer is ready.
+ */
+static const int kUnlockWaitMs = 1000;
+
+static int64_t now_us() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+}
+
+static int tegra_unlock_async(const gralloc_module_t *module,
+                              buffer_handle_t handle, int *fenceFd) {
+    int fence = -1;
+    int result = gVendorUnlockAsync(module, handle, &fence);
+
+    if (fence >= 0) {
+        int64_t start = tracing() ? now_us() : 0;
+
+        if (sync_wait(fence, kUnlockWaitMs) == 0) {
+            close(fence);
+            fence = -1;
+
+            if (tracing()) {
+                ALOGI("unlock fence signalled after %lld us",
+                      (long long)(now_us() - start));
+            }
+        } else {
+            ALOGW("unlock fence not signalled in %d ms, handing it on",
+                  kUnlockWaitMs);
+        }
+    }
+
+    if (fenceFd != NULL) {
+        *fenceFd = fence;
+    } else if (fence >= 0) {
+        close(fence);
+    }
+
+    return result;
+}
+
 static int tegra_open(const hw_module_t *module, const char *name,
                       hw_device_t **device) {
     if (gVendorOpen == NULL) {
@@ -375,5 +451,14 @@ __attribute__((constructor)) static void tegra_take_vendor_module() {
     if (HAL_MODULE_INFO_SYM.base.lockAsync_ycbcr != NULL) {
         gVendorLockAsyncYCbCr = HAL_MODULE_INFO_SYM.base.lockAsync_ycbcr;
         HAL_MODULE_INFO_SYM.base.lockAsync_ycbcr = tegra_lock_async_ycbcr;
+    }
+
+    /*
+     * Only the asynchronous unlock is taken over: it is the one the mapper
+     * calls, and the plain one does not hand a fence out to be lost.
+     */
+    if (HAL_MODULE_INFO_SYM.base.unlockAsync != NULL) {
+        gVendorUnlockAsync = HAL_MODULE_INFO_SYM.base.unlockAsync;
+        HAL_MODULE_INFO_SYM.base.unlockAsync = tegra_unlock_async;
     }
 }
