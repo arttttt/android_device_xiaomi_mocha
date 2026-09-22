@@ -1,0 +1,73 @@
+From: Aayush Gupta <aayushgupta219@gmail.com>
+Date: Tue, 11 May 2021 14:38:54 +0530
+Subject: [PATCH] Jelly: MainActivity: Replace applyThemeColor with setUiMode
+
+This ensures that mWebView has been initialized before accessing it.
+Also, setUiMode calls applyThemeColor
+
+Observed crash in logs without this patch:
+
+05-10 20:43:53.341 12698 12698 D AndroidRuntime: Shutting down VM
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: FATAL EXCEPTION: main
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: Process: org.lineageos.jelly, PID: 12698
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: java.lang.RuntimeException: Unable to start activity ComponentInfo{org.lineageos.jelly/org.lineageos.jelly.MainActivity}: kotlin.UninitializedPropertyAccessException: lateinit property mWebView has not been initialized
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3431)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3595)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.ActivityThread.handleRelaunchActivityInner(ActivityThread.java:5451)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.ActivityThread.handleRelaunchActivity(ActivityThread.java:5357)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.servertransaction.ActivityRelaunchItem.execute(ActivityRelaunchItem.java:69)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:135)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:95)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2066)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:106)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:223)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:7660)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:592)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:947)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: Caused by: kotlin.UninitializedPropertyAccessException: lateinit property mWebView has not been initialized
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at org.lineageos.jelly.MainActivity.applyThemeColor(MainActivity.kt:595)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at org.lineageos.jelly.MainActivity.changeUiMode(MainActivity.kt:756)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at org.lineageos.jelly.MainActivity.setUiMode(MainActivity.kt:719)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at org.lineageos.jelly.MainActivity.onCreate(MainActivity.kt:179)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.Activity.performCreate(Activity.java:8000)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.Activity.performCreate(Activity.java:7984)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1309)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3404)
+05-10 20:43:53.342 12698 12698 E AndroidRuntime: 	... 13 more
+05-10 20:43:53.346  1436 15067 I DropBoxManagerService: add tag=system_app_crash isTagEnabled=true flags=0x2
+05-10 20:43:53.347  1436  2480 W ActivityTaskManager:   Force finishing activity org.lineageos.jelly/.MainActivity
+
+Signed-off-by: Aayush Gupta <aayushgupta219@gmail.com>
+Change-Id: I4d18e6123759f70a14b00156f8794ef604b9981b
+(cherry picked from commit 01ec94e3ce890df7a2d5300929e7e5ead99f8bbe)
+
+lineage-17.1 never got this; it landed in lineage-18.1 and every branch
+since. The hunk context is this tree's rather than upstream's, which has
+no semicolon after registerOnSharedPreferenceChangeListener(this); the
+change is the same two lines.
+
+Signed-off-by: Artem Bambalov <artembambalov1993@gmail.com>
+---
+ app/src/main/java/org/lineageos/jelly/MainActivity.kt | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+--- a/app/src/main/java/org/lineageos/jelly/MainActivity.kt
++++ b/app/src/main/java/org/lineageos/jelly/MainActivity.kt
+@@ -169,7 +169,6 @@
+         val preferenceManager = PreferenceManager.getDefaultSharedPreferences(this)
+         preferenceManager.registerOnSharedPreferenceChangeListener(this);
+ 
+-        setUiMode()
+         val incognitoIcon = findViewById<ImageView>(R.id.incognito)
+         incognitoIcon.visibility = if (mIncognito) View.VISIBLE else View.GONE
+         setupMenu()
+@@ -186,7 +185,7 @@
+                 findViewById(R.id.search_menu_next),
+                 findViewById(R.id.search_menu_cancel),
+                 this)
+-        applyThemeColor(mThemeColor)
++        setUiMode()
+         try {
+             val httpCacheDir = File(cacheDir, "suggestion_responses")
+             val httpCacheSize = 1024 * 1024.toLong() // 1 MiB
