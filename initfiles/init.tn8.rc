@@ -43,6 +43,20 @@ on init
     write /dev/cpuset/system-background/cpus 0-1
     write /dev/cpuset/restricted/cpus 0-1
 
+    # One group the platform does not create at all. cameraserver.rc and the
+    # camera provider's .rc both put their process into camera-daemon, and the
+    # CameraServiceCapacity task profile names it too, but system/core leaves
+    # making it to the device -- without it init says it "couldn't write" the
+    # pid on every boot and both processes stay in the root set. The camera
+    # here is heavy, with the ISP and the demosaic on the GPU, so it gets
+    # every core, like the app it serves. mems has to be written as well:
+    # a cpuset with no memory nodes refuses every task.
+    mkdir /dev/cpuset/camera-daemon 0750 cameraserver cameraserver
+    write /dev/cpuset/camera-daemon/cpus 0-3
+    write /dev/cpuset/camera-daemon/mems 0
+    chown cameraserver cameraserver /dev/cpuset/camera-daemon/tasks
+    chmod 0660 /dev/cpuset/camera-daemon/tasks
+
     # Mount a tmpfs into /mnt/tmp for hosting nvram, phs shared memory
     mkdir /mnt/tmp 0770 system system
     mount tmpfs tmpfs /mnt/tmp mode=0775,gid=1003
