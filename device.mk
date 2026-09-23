@@ -63,8 +63,12 @@ PRODUCT_COPY_FILES += \
 
 # aptXHD
 # The Bluetooth stack dlopen()s these by bare name from inside the
-# Bluetooth app, whose linker namespace sees /system/lib and not
-# /vendor/lib, so they go where Google's own devices put them.
+# Bluetooth app. On this board the linker runs the legacy configuration
+# (ro.vndk.lite, not treble-enforced), whose default namespace is not
+# isolated and searches /vendor/lib as well, so either partition loads --
+# tried both. They go to the framework side anyway, where Google's own
+# devices put them, because that is the only place that keeps working if
+# the board ever moves to an isolated, treble-enforced linker config.
 # TARGET_OUT_VENDOR_SHARED_LIBRARIES, which this used before, is a build
 # variable and empty while product makefiles are read: the copies landed
 # in the root of the product out directory and never reached an image.
