@@ -62,9 +62,15 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/media/audio.mocha.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio.mocha.xml
 
 # aptXHD
+# The Bluetooth stack dlopen()s these by bare name from inside the
+# Bluetooth app, whose linker namespace sees /system/lib and not
+# /vendor/lib, so they go where Google's own devices put them.
+# TARGET_OUT_VENDOR_SHARED_LIBRARIES, which this used before, is a build
+# variable and empty while product makefiles are read: the copies landed
+# in the root of the product out directory and never reached an image.
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/aptXHD/libaptX_encoder.so:$(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/libaptX_encoder.so \
-    $(LOCAL_PATH)/aptXHD/libaptXHD_encoder.so:$(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/libaptXHD_encoder.so
+    $(LOCAL_PATH)/aptXHD/libaptX_encoder.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libaptX_encoder.so \
+    $(LOCAL_PATH)/aptXHD/libaptXHD_encoder.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libaptXHD_encoder.so
 
 # Bluetooth
 # Stays in vendor/etc, where a vendor config belongs since Android 8, even
