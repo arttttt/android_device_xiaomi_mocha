@@ -30,6 +30,16 @@
 on boot
   chown system system /sys/kernel/tegra_gpu/gpu_floor_rate
   chmod 0664 /sys/kernel/tegra_gpu/gpu_floor_rate
+  # VIC scales by its activity monitor's watermarks (kernel: wmark_active).
+  # The governor's own default aims at seventy per cent busy, which is a
+  # throughput target: a merge that fills seventy per cent of a frame at
+  # the bottom clock is exactly what it settles for, and the flip waits on
+  # it for up to 27 ms. Thirty per cent is what the pod governor aimed at
+  # before, measured 26.09.2026 to halve that wait (14 ms worst case);
+  # ten per cent bought nothing more. The number is per mille of busy time.
+  # One value for every profile, so it is set once here rather than in
+  # each of them; it lives in debugfs and would otherwise be lost at boot.
+  write /sys/kernel/debug/vic03.0_scaling/load_target 300
 
 # power save
 on property:sys.perf.profile=0
