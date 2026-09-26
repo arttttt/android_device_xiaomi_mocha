@@ -132,9 +132,12 @@ PRODUCT_PACKAGES += \
 
 # Hardware composer, ours, from hardware/nvidia/hwcomposer. The HIDL pair
 # that carries it to SurfaceFlinger is declared with the other interfaces in
-# hidl/hidl.mk.
+# hidl/hidl.mk. The governor beside it is the policy library the composer
+# loads by name to raise the engine's clock ahead of a merge; the composer
+# runs without it, so shipping it is this line's decision.
 PRODUCT_PACKAGES += \
-    hwcomposer.tegra
+    hwcomposer.tegra \
+    hwcgovernor.tegra
 
 # The loader configuration for the software codec APEX.
 #
