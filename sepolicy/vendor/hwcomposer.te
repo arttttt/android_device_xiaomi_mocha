@@ -37,6 +37,11 @@ allow hal_graphics_composer_server gpu_device:chr_file rw_file_perms;
 # covers.
 allow hal_graphics_composer_server pmqos_device:chr_file rw_file_perms;
 
+# In the power-saving profile the governor only wakes the engine and raises
+# nothing. The profile is what the power service publishes, and reading it
+# is the only thing the composer wants of that property.
+get_prop(hal_graphics_composer_server, perf_profile_prop)
+
 # The panel's power state is read back from the backlight device rather than
 # from the controller. That device sits on the first I2C bus, which carries
 # one label for everything on it, and finding it means listing
