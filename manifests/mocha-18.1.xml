@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Local manifest for the LineageOS 18.1 tree. tools/build_lineage.sh installs it
+  as .repo/local_manifests/mocha.xml.
+
+  Every per-release repository below has a lineage-18.1 branch cut from what
+  17.1 shipped: our own repositories straight from their lineage-17.1, the
+  LineageOS forks from upstream's lineage-18.1 where it differs from 17.1 in
+  code, with our commits carried on top. An entry aimed at the wrong branch is
+  worse than a missing one, because a missing repository announces itself
+  while a wrong revision quietly builds something nobody meant to build.
+
+  Note for anyone editing this file: XML forbids a double hyphen inside a
+  comment, and repo reports it only as "not well-formed (invalid token)"
+  with a line and column, never as the reason.
+-->
+<manifest>
+  <!-- One kernel serves every version: nothing in SmokeR24.1-stable is tied to
+       a platform release. -->
+  <project name="arttttt/SmokeR24.1-kernel" path="kernel/xiaomi/mocha" remote="github" revision="SmokeR24.1-stable" />
+
+  <project name="arttttt/android_device_xiaomi_mocha" path="device/xiaomi/mocha" remote="github" revision="lineage-18.1" />
+
+  <!-- The blobs. This branch does not build shield's prebuilt composer, which
+       makes hardware/nvidia/hwcomposer below the only provider of
+       hwcomposer.tegra; two definitions of that module stop the build. -->
+  <project name="arttttt/proprietary_vendor_nvidia" path="vendor/nvidia" remote="github" revision="lineage-18.1" />
+
+  <!-- Our own composer. -->
+  <project name="arttttt/android_hardware_nvidia_hwcomposer" path="hardware/nvidia/hwcomposer" remote="github" revision="lineage-18.1" />
+
+  <!-- Built against the platform: the HIDL camera provider and device versions
+       are release specific, hence a branch per release. -->
+  <project name="arttttt/android-camera-hal" path="hardware/camera" remote="github" revision="lineage-18.1" />
+
+  <!-- The FM side of the Broadcom chip. It also carries brcm-uim-sysfs, which
+       attaches the line discipline for Bluetooth as well as FM, so this
+       repository is on the path of both radios. Upstream 17.1 and 18.1 are the
+       same commit, so our branch is our 17.1 unchanged. -->
+  <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="lineage-18.1" />
+
+  <!-- FMRadio: the upstream entry lives in snippets/lineage.xml and has to be
+       removed before ours can take the same path. What is ours here is the
+       bridge that drives the FM DAC from the system volume keys. -->
+  <remove-project name="LineageOS/android_packages_apps_FMRadio" />
+  <project name="arttttt/android_packages_apps_FMRadio" path="packages/apps/FMRadio" remote="github" revision="lineage-18.1" />
+
+  <!-- The OMX plugin. Upstream stopped at lineage-16.0, so this is ours from
+       17.1 on: a dlopen wrapper around libnvomx.so and the one seam where the
+       vendor component can be spoken to directly and its answers corrected.
+
+       Leaving it out costs nothing at build time and everything at runtime:
+       device.mk asks for the package, a missing project makes that request
+       resolve to nothing, and hardware decoding is simply absent from the
+       image. -->
+  <project name="arttttt/android_hardware_nvidia_libstagefrighthw" path="hardware/nvidia/libstagefrighthw" remote="github" revision="lineage-18.1" />
+
+  <!-- Thermal: upstream's lineage-18.1, which already sizes each list by its
+       own count and converts the C records field by field, plus what a board
+       without a fan still needs: a config with no cpu_usages must not crash
+       the count, a failed parse must answer FAILURE, and an empty cooling
+       list is a successful answer. -->
+  <project name="arttttt/android_hardware_nvidia_thermal" path="hardware/nvidia/thermal" remote="github" revision="lineage-18.1" />
+
+  <!-- CUDA, and the only entry here that no build needs: nvcc able to emit
+       sm_32, the driver API headers and the L4T packs, kept for GPU compute
+       work on this chip. A repository of archives and no part of an image,
+       so not in any group that syncs by default. Fetched when wanted:
+
+           repo sync prebuilts/cuda
+
+       One branch, because CUDA has nothing to do with the Android release. -->
+  <project name="arttttt/android_prebuilts_cuda" path="prebuilts/cuda" remote="github" revision="main" groups="notdefault,cuda" />
+</manifest>
