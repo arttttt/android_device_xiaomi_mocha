@@ -155,6 +155,34 @@ post_sync_171() {
 }
 
 #==============================================================================
+# 18.1
+#==============================================================================
+
+config_181() {
+    VER="18.1"
+    V=181
+    BUILD_DIR="/home/artem/DATA/projects/android/11.0.0"
+    REPO_INIT_URL="https://github.com/LineageOS/android.git"
+    REPO_INIT_BRANCH="lineage-18.1"
+    REPO_INIT_FLAGS="--git-lfs"
+    DEVICE_TREE_BRANCH="lineage-18.1"
+
+    # The one thing known before the first build: the in-tree androideabi-4.9
+    # pin miscompiles the kernel on this host, linaro-4.9.4 does not. Anything
+    # else 17.1 needed (MKE2FS_CONFIG and the like) comes back only when the
+    # bring-up hits the failure it cures.
+    : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
+    : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
+    export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
+}
+
+# Deliberately empty for the start of the bring-up: the tree patches carried
+# for 17.1 are not applied until each is known to still be needed on R.
+post_sync_181() {
+    echo "==> post-sync patches (18.1): none yet"
+}
+
+#==============================================================================
 # Actions (version-agnostic, driven by config_* vars)
 #==============================================================================
 
@@ -399,7 +427,7 @@ usage() {
     cat <<EOF
 usage: $(basename "$0") [<version> <action>]
 
-  version   17.1
+  version   17.1 | 18.1
   action    manifest | sync | post-sync | clean | installclean | build
             | vintf | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
@@ -423,6 +451,7 @@ EOF
 select_version() {
     case "$1" in
         17.1|171) config_171 ;;
+        18.1|181) config_181 ;;
         *) echo "unknown version: $1" >&2; return 1 ;;
     esac
 }
@@ -466,12 +495,14 @@ cat <<EOF
 
 ==================  LineageOS (mocha)  ===================
   1) 17.1
+  2) 18.1
   q) quit
 ==========================================================
 EOF
 read -p "> " ver_ans
 case "$ver_ans" in
     1) config_171 ;;
+    2) config_181 ;;
     q|Q|"") echo "bye"; exit 0 ;;
     *) echo "unknown: $ver_ans"; exit 1 ;;
 esac
