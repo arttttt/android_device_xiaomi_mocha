@@ -30,6 +30,13 @@ allow hal_graphics_composer_server graphics_device:chr_file rw_file_perms;
 # nvmap memory and the descriptors carry that label.
 allow hal_graphics_composer_server gpu_device:chr_file rw_file_perms;
 
+# The composition load governor lifts the processor's floor for the few
+# milliseconds between planning a merge and submitting it, through the
+# same pm_qos node the power daemons use. The engine's own clock request
+# goes through the nvhost node, which the gpu_device rule above already
+# covers.
+allow hal_graphics_composer_server pmqos_device:chr_file rw_file_perms;
+
 # In the power-saving profile the governor only wakes the engine and raises
 # nothing. The profile is what the power service publishes, and reading it
 # is the only thing the composer wants of that property.
