@@ -106,11 +106,21 @@ USE_OPENGL_RENDERER := true
 # shares nothing with it but the year -- so it is a sensible starting point
 # rather than a value tuned to one panel.
 #
+# The compositor's five milliseconds later became two and a half. Five was
+# what the check above needed then; with the composer of September 2026,
+# which no longer hands the framework a queued tail of old blanks, the check
+# holds at two and a half, and the time given back goes to the merge: the
+# video engine was being handed its work with under two milliseconds left of
+# the frame. Measured on the transition scenario, six runs each: frames the
+# compositor reported missed 1081 to 432, visible hitches 23 to 12, merges
+# submitted too late 24 to 12, and nothing lost on the application's side.
+# The application's offset is unchanged.
+#
 # Read at build time only on this release: they are compiled into
 # android.hardware.configstore@1.1-service, which the compositor then asks over
 # its interface. `dumpsys SurfaceFlinger | grep DispSync` says what is in force.
 VSYNC_EVENT_PHASE_OFFSET_NS := 7500000
-SF_VSYNC_EVENT_PHASE_OFFSET_NS := 5000000
+SF_VSYNC_EVENT_PHASE_OFFSET_NS := 2500000
 
 # How many buffers the compositor's own frame gets.
 #
