@@ -1,8 +1,12 @@
 #!/bin/bash
 # LineageOS (mocha) — unified sync / post-sync / clean / build menu.
-# Version (14.1 / 15.1 / 16.0 / 17.1) is chosen via the first menu. Each version has
-# its own config and its own post-sync patches — patches are per-system,
-# never shared, even when they look similar.
+# Version is chosen via the first menu. Each version has its own config and
+# its own post-sync patches — patches are per-system, never shared, even when
+# they look similar.
+#
+# Only the versions still being worked on live here. 14.1, 15.1 and 16.0 were
+# dropped; each of those device tree branches carries its own copy of this
+# script, and that copy is the one to build them with.
 
 export LC_ALL=C
 
@@ -51,153 +55,8 @@ if [ -z "${BUILD_LINEAGE_LOGGED:-}" ] \
 fi
 
 #==============================================================================
-# 14.1
+# Shared helpers
 #==============================================================================
-
-config_141() {
-    VER="14.1"
-    V=141
-    BUILD_DIR="/home/artem/DATA/projects/android/7.1.2"
-    REPO_INIT_URL="https://github.com/LineageOS/android.git"
-    REPO_INIT_BRANCH="cm-14.1"
-    REPO_INIT_FLAGS=""
-    DEVICE_TREE_BRANCH="cm-14.1"
-
-    # Old JDK 8u252 (last release before TLS 1.3 / stricter SSL defaults).
-    export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/linux-x86/jdk8u252-b09"
-    export PATH="$JAVA_HOME/bin:$BUILD_DIR/prebuilts/python/linux-x86/2.7.5/bin:$PATH"
-
-    # Kernel toolchain — prebuilts/gcc/.../arm-linux-androideabi-4.9 from
-    # the LOS 14.1 era miscompiles silently on modern glibc (2.34+, Manjaro
-    # 2026). Force linaro-4.9.4 which is portable across host versions.
-    # Override-friendly: set the vars in env before invoking this script
-    # to pin a different toolchain.
-    : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
-    : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
-    export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
-}
-
-post_sync_141() {
-    echo "==> post-sync patches (14.1)"
-    patch_zlib_141 || return 1
-    patch_fmradio_141 || return 1
-    echo "==> post-sync OK"
-}
-
-# Python 2.7.5 zlib.so — prebuilt has no zlib module; without it the final
-# packaging step fails. Compile from source against the system 32-bit libz.
-patch_zlib_141() {
-    local PY="$BUILD_DIR/prebuilts/python/linux-x86/2.7.5"
-    if "$PY/bin/python" -c "import zlib" 2>/dev/null; then
-        echo "  zlib.so: import works"
-        return 0
-    fi
-    echo "  zlib.so: building (32-bit, gcc -m32 + system libz)"
-    local TMP=$(mktemp -d)
-    ( cd "$TMP" \
-      && curl -fsSL https://www.python.org/ftp/python/2.7.5/Python-2.7.5.tgz -o py.tgz \
-      && tar xzf py.tgz Python-2.7.5/Modules/zlibmodule.c \
-      && gcc -m32 -shared -fPIC \
-             -I"$PY/include/python2.7" \
-             -DUSE_ZLIB_CRC32 -O2 \
-             Python-2.7.5/Modules/zlibmodule.c \
-             -lz \
-             -o "$PY/lib/python2.7/lib-dynload/zlib.so" )
-    rm -rf "$TMP"
-    "$PY/bin/python" -c "import zlib; zlib.compress(b'x')" \
-        && echo "  zlib.so: OK" \
-        || { echo "  zlib.so: FAIL" >&2; return 1; }
-}
-
-
-# FMRadio: backport upstream commit 5a56adcb3169 ("jni: Add broadcom FM to
-# the guard") — wraps include $(BUILD_SHARED_LIBRARY) in
-# FMRadio/jni/fmr/Android.mk with ifneq ($(BOARD_HAVE_BCM_FM),true) so its
-# libfmjni doesn't collide with the broadcom variant. Committed locally
-# (no fork, no push — sync wipes it, post-sync re-applies).
-patch_fmradio_141() {
-    local FMR="$BUILD_DIR/packages/apps/FMRadio"
-    local FMR_MK="$FMR/jni/fmr/Android.mk"
-    local FMR_SUBJ='jni: backport upstream guard to skip libfmjni when BOARD_HAVE_BCM_FM=true'
-    cd "$FMR" || return 1
-    if git log --format=%s -50 | grep -qF "$FMR_SUBJ"; then
-        echo "  FMRadio: commit already present"
-        return 0
-    fi
-    if [ ! -f "$FMR_MK" ]; then
-        echo "  FMRadio: $FMR_MK missing — skipping"
-        return 0
-    fi
-    if ! grep -q "BOARD_HAVE_BCM_FM" "$FMR_MK"; then
-        echo "  FMRadio: editing Android.mk"
-        FMR_MK="$FMR_MK" python3 - <<'PYEOF' || return 1
-import os, sys
-path = os.environ['FMR_MK']
-with open(path) as f: data = f.read()
-old = 'ifneq ($(BOARD_USES_QCOM_HARDWARE),true)\ninclude $(BUILD_SHARED_LIBRARY)\nendif\n'
-new = ('ifneq ($(BOARD_USES_QCOM_HARDWARE),true)\n'
-       'ifneq ($(BOARD_HAVE_BCM_FM),true)\n'
-       'include $(BUILD_SHARED_LIBRARY)\n'
-       'endif # BOARD_HAVE_BCM_FM\n'
-       'endif\n')
-if old not in data:
-    sys.stderr.write('  FMRadio: expected block not found — upstream changed\n')
-    sys.exit(1)
-with open(path, 'w') as f: f.write(data.replace(old, new))
-PYEOF
-    fi
-    echo "  FMRadio: committing locally"
-    git add jni/fmr/Android.mk
-    git commit -m "$FMR_SUBJ
-
-Locally backports LineageOS/android_packages_apps_FMRadio commit
-5a56adcb3169 (\"jni: Add broadcom FM to the guard\"), which never
-made it to cm-14.1. Without this, the MTK V4L2 libfmjni from this
-app collides with the Broadcom V4L2 libfmjni from hardware/broadcom/fm
-on mocha (BOARD_HAVE_BCM_FM=true) — same LOCAL_MODULE name.
-
-Local-only — no fork, not pushed."
-    echo "  FMRadio: OK"
-}
-
-#==============================================================================
-# 15.1
-#==============================================================================
-
-config_151() {
-    VER="15.1"
-    V=151
-    BUILD_DIR="/home/artem/DATA/projects/android/8.1.0"
-    REPO_INIT_URL="https://github.com/LineageOS/android.git"
-    REPO_INIT_BRANCH="lineage-15.1"
-    REPO_INIT_FLAGS="--git-lfs"
-    DEVICE_TREE_BRANCH="lineage-15.1"
-
-    # OpenJDK 8 from prebuilts (LOS 15.1 requires 1.8).
-    export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/jdk8/linux-x86"
-    export PATH="$JAVA_HOME/bin:$BUILD_DIR/prebuilts/python/linux-x86/2.7.5/bin:$PATH"
-
-    # Kernel toolchain — device BoardConfig pins androideabi-4.9 via ?=,
-    # so an env override wins. Use linaro-4.9.4 (portable across host
-    # glibc versions), same scheme as 14.1 but owned by this config.
-    : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
-    : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
-    export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
-}
-
-# NOTE: no FMRadio / broadcom-fm patches on 15.1 — the BCM guard
-# (FMRadio 036cbf2) and the clang fix (fm f7e8514) are committed in the
-# arttttt fork branches lineage-15.1, which the local manifest checks
-# out. 14.1 keeps its FMRadio post-sync patch — its fork branch does
-# not carry the guard.
-
-post_sync_151() {
-    echo "==> post-sync patches (15.1)"
-    patch_zlib_py27 || return 1
-    patch_lfs_webview || return 1
-    patch_trees || return 1
-    echo "==> post-sync OK"
-}
 
 # Patches for upstream projects we do not fork. They live in the device tree
 # under patches/, in a directory named after the project they apply to, so
@@ -240,110 +99,6 @@ patch_trees() {
     return 0
 }
 
-# Python 2.7.5 zlib.so — the AOSP prebuilt at prebuilts/python/linux-x86/2.7.5
-# ships without a zlib module. build_image.py / signapk / etc. all
-# `import gzip` -> `import zlib` and bomb out late with
-# `ImportError: No module named zlib`. Build the missing 32-bit .so from
-# upstream Python 2.7.5 source against the system libz.
-patch_zlib_py27() {
-    local PY="$BUILD_DIR/prebuilts/python/linux-x86/2.7.5"
-    if "$PY/bin/python" -c "import zlib" 2>/dev/null; then
-        echo "  zlib.so: import works"
-        return 0
-    fi
-    echo "  zlib.so: building (32-bit, gcc -m32 + system libz)"
-    local TMP=$(mktemp -d)
-    ( cd "$TMP" \
-      && curl -fsSL https://www.python.org/ftp/python/2.7.5/Python-2.7.5.tgz -o py.tgz \
-      && tar xzf py.tgz Python-2.7.5/Modules/zlibmodule.c \
-      && gcc -m32 -shared -fPIC \
-             -I"$PY/include/python2.7" \
-             -DUSE_ZLIB_CRC32 -O2 \
-             Python-2.7.5/Modules/zlibmodule.c \
-             -lz \
-             -o "$PY/lib/python2.7/lib-dynload/zlib.so" )
-    rm -rf "$TMP"
-    "$PY/bin/python" -c "import zlib; zlib.compress('x')" \
-        && echo "  zlib.so: OK" \
-        || { echo "  zlib.so: FAIL" >&2; return 1; }
-}
-
-# Git LFS pull for chromium-webview prebuilts. `repo sync` only pulls LFS
-# pointer files (~134 B each); without the real .apk the build fails at
-# packaging webview with:
-#   target Prebuilt: webview ... FAILED
-#   java.util.zip.ZipException: error in opening zip file
-# Requires git-lfs installed system-wide.
-patch_lfs_webview() {
-    local LFS_PROJECTS=(
-        external/chromium-webview/prebuilt/arm
-        external/chromium-webview/prebuilt/arm64
-        external/chromium-webview/prebuilt/x86
-        external/chromium-webview/prebuilt/x86_64
-    )
-    if ! command -v git-lfs >/dev/null 2>&1; then
-        echo "  git-lfs: not installed — install with 'sudo pacman -S git-lfs'" >&2
-        return 1
-    fi
-    local proj
-    for proj in "${LFS_PROJECTS[@]}"; do
-        local apk="$BUILD_DIR/$proj/webview.apk"
-        if [ ! -f "$apk" ]; then
-            echo "  $proj: no webview.apk, skipping"
-            continue
-        fi
-        local size=$(stat -c %s "$apk")
-        if [ "$size" -lt 1000 ]; then
-            echo "  $proj: LFS pointer ($size B) — pulling"
-            ( cd "$BUILD_DIR/$proj" && git lfs pull )
-            local newsize=$(stat -c %s "$apk")
-            echo "    -> $newsize B"
-        else
-            echo "  $proj: already $((size / 1024 / 1024)) MB"
-        fi
-    done
-}
-
-#==============================================================================
-# 16.0
-#==============================================================================
-
-config_160() {
-    VER="16.0"
-    V=160
-    BUILD_DIR="/home/artem/DATA/projects/android/9.0.0"
-    REPO_INIT_URL="https://github.com/LineageOS/android.git"
-    REPO_INIT_BRANCH="lineage-16.0"
-    REPO_INIT_FLAGS="--git-lfs"
-    DEVICE_TREE_BRANCH="lineage-16.0"
-
-    # This release moved off JDK 8: the tree ships prebuilts/jdk/jdk9 and the build
-    # refuses anything else. Confirm against the tree after the first sync --
-    # this is the AOSP default, not something verified on this machine yet.
-    export JAVA_HOME="$BUILD_DIR/prebuilts/jdk/jdk9/linux-x86"
-    export PATH="$JAVA_HOME/bin:$BUILD_DIR/prebuilts/python/linux-x86/2.7.5/bin:$PATH"
-
-    # Same kernel toolchain override as the other versions: the in-tree
-    # androideabi-4.9 pin miscompiles on this host, linaro-4.9.4 does not.
-    : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
-    : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
-    export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
-}
-
-# Same three as 15.1: both use the prebuilt python 2.7.5 that ships without
-# zlib, both package chromium-webview from LFS, and patch_trees picks up
-# whatever patches/ holds on the checked-out device tree branch -- so the
-# 16.0 branch carries its own set. The SystemUI patch inherited from 15.1
-# will need review there: a patch that no longer applies fails the sync
-# loudly, which is the intended behaviour.
-post_sync_160() {
-    echo "==> post-sync patches (16.0)"
-    patch_zlib_py27 || return 1
-    patch_lfs_webview || return 1
-    patch_trees || return 1
-    echo "==> post-sync OK"
-}
-
 #==============================================================================
 # 17.1
 #==============================================================================
@@ -357,7 +112,7 @@ config_171() {
     REPO_INIT_FLAGS="--git-lfs"
     DEVICE_TREE_BRANCH="lineage-17.1"
 
-    # No JDK and no python here, unlike the older versions. Q hands out both
+    # No JDK and no python here. Q hands out both
     # itself: soong_ui sets JAVA_HOME to prebuilts/jdk/jdk9 and prepends it to
     # PATH (build/soong/ui/build/config.go), overwriting whatever we export,
     # and prebuilts/build-tools/path carries python, python2 and python2.7 as
@@ -373,20 +128,18 @@ config_171() {
     # The tree ships a configuration of its own; point the tool at it.
     export MKE2FS_CONFIG="$BUILD_DIR/system/extras/ext4_utils/mke2fs.conf"
 
-    # Same kernel toolchain override as the other versions: the in-tree
-    # androideabi-4.9 pin miscompiles on this host, linaro-4.9.4 does not.
+    # The in-tree androideabi-4.9 pin miscompiles on this host, linaro-4.9.4
+    # does not. Env overrides still win.
     : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
     : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
     export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
 }
 
-# Deliberately empty: 17.1 starts with no post-sync work at all -- not even
-# the fixes the other versions share (zlib.so, webview LFS, patch_trees).
-# Each of those returns only when the bring-up hits the failure it cures,
-# so the list stays a record of observed needs rather than inherited habit.
+# Only what the bring-up actually hit, so the list stays a record of observed
+# needs rather than inherited habit.
 post_sync_171() {
     echo "==> post-sync patches (17.1)"
-    # The zlib and webview hacks the older branches need are not wanted here:
+    # The zlib.so and webview LFS hacks the pre-Q trees needed are not wanted:
     # Q hands out its own python through prebuilts/build-tools, and this tree
     # syncs with --git-lfs, so the webview prebuilts arrive whole.
     #
@@ -603,13 +356,6 @@ do_build() {
         echo "==> ERROR: kernel gcc not found at $KERNEL_TOOLCHAIN/${TARGET_KERNEL_CROSS_COMPILE_PREFIX}gcc" >&2
         return 1
     fi
-    # Jack is a 14.1/15.1-era thing: a leftover server holds stale state
-    # between builds and has to be killed first. Newer releases dropped it for d8/r8, so
-    # only call it where it exists rather than printing "Killing background
-    # server" from a binary that is not there.
-    if [ -x "$BUILD_DIR/prebuilts/sdk/tools/jack-admin" ]; then
-        "$BUILD_DIR/prebuilts/sdk/tools/jack-admin" kill-server 2>/dev/null || true
-    fi
     cd "$BUILD_DIR"
     source build/envsetup.sh
 
@@ -653,7 +399,7 @@ usage() {
     cat <<EOF
 usage: $(basename "$0") [<version> <action>]
 
-  version   14.1 | 15.1 | 16.0 | 17.1
+  version   17.1
   action    manifest | sync | post-sync | clean | installclean | build
             | vintf | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
@@ -676,9 +422,6 @@ EOF
 
 select_version() {
     case "$1" in
-        14.1|141) config_141 ;;
-        15.1|151) config_151 ;;
-        16.0|160) config_160 ;;
         17.1|171) config_171 ;;
         *) echo "unknown version: $1" >&2; return 1 ;;
     esac
@@ -722,19 +465,13 @@ fi
 cat <<EOF
 
 ==================  LineageOS (mocha)  ===================
-  1) 14.1
-  2) 15.1
-  3) 16.0
-  4) 17.1
+  1) 17.1
   q) quit
 ==========================================================
 EOF
 read -p "> " ver_ans
 case "$ver_ans" in
-    1) config_141 ;;
-    2) config_151 ;;
-    3) config_160 ;;
-    4) config_171 ;;
+    1) config_171 ;;
     q|Q|"") echo "bye"; exit 0 ;;
     *) echo "unknown: $ver_ans"; exit 1 ;;
 esac
