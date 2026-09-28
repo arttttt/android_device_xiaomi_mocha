@@ -300,6 +300,17 @@ PRODUCT_PACKAGES += \
 # and this board runs 3.10, so that check would refuse a device that works.
 PRODUCT_ENFORCE_VINTF_MANIFEST := true
 
+# R added a one-second sleep to libhidl's service lookup on devices that are
+# not full Treble, unless the manifest is enforced this way as well -- every
+# LineageOS tree of this age sets it on 18.1 (t124-common 3ffb056532).
+PRODUCT_ENFORCE_VINTF_MANIFEST_OVERRIDE := true
+
+# What R's base_vendor.mk installs for devices that shipped at API 29 or
+# earlier: the configstore 1.1 service and vndservicemanager. Shipping API 24
+# puts this board in that group, and the framework expects both
+# (shieldtablet aadb8faa17).
+PRODUCT_PACKAGES += $(PRODUCT_PACKAGES_SHIPPING_API_LEVEL_29)
+
 # The age of the stack this board runs, not the date the tablet went on sale.
 #
 # AOSP defines this as the API level the device shipped with, and by that
