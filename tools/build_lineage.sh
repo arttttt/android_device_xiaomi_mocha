@@ -167,10 +167,18 @@ config_181() {
     REPO_INIT_FLAGS="--git-lfs"
     DEVICE_TREE_BRANCH="lineage-18.1"
 
-    # The one thing known before the first build: the in-tree androideabi-4.9
-    # pin miscompiles the kernel on this host, linaro-4.9.4 does not. Anything
-    # else 17.1 needed (MKE2FS_CONFIG and the like) comes back only when the
-    # bring-up hits the failure it cures.
+    # The tree's mke2fs is from 2019 and reads /etc/mke2fs.conf, which on a
+    # rolling distribution lists features it has never heard of, so building
+    # an APEX payload dies with
+    #
+    #   Invalid filesystem option set: ...,orphan_file
+    #
+    # as it did on 17.1. The tree ships a configuration of its own.
+    export MKE2FS_CONFIG="$BUILD_DIR/system/extras/ext4_utils/mke2fs.conf"
+
+    # The in-tree androideabi-4.9 pin miscompiles the kernel on this host,
+    # linaro-4.9.4 does not. Anything else 17.1 needed comes back only when
+    # the bring-up hits the failure it cures.
     : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
     : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
     export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
