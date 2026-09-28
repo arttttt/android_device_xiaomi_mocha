@@ -9,6 +9,11 @@ LOCAL_C_INCLUDES := \
 LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_MODULE := libs
 LOCAL_MODULE_TAGS := optional
+# libglcore was hex-edited in 2018 to call haxprintf where it called
+# vsnprintf, and the rename kept the reference's version: it asks for
+# haxprintf@LIBC. Define it in that node, as t124-common does for the same
+# blob; unversioned, R's ELF check cannot match it.
+LOCAL_LDFLAGS_arm += -Wl,--version-script,$(LOCAL_PATH)/stdio_vsnprintf.arm.map
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
