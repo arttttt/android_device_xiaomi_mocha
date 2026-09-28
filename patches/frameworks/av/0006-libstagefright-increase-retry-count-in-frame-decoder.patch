@@ -23,21 +23,18 @@ same line.
 
 Signed-off-by: Artem Bambalov <artembambalov1993@gmail.com>
 ---
- media/libstagefright/FrameDecoder.cpp | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
 diff --git a/media/libstagefright/FrameDecoder.cpp b/media/libstagefright/FrameDecoder.cpp
-index 18a6bd851..273ae9d73 100644
+index 734f5bb..4ba85ba 100644
 --- a/media/libstagefright/FrameDecoder.cpp
 +++ b/media/libstagefright/FrameDecoder.cpp
-@@ -40,7 +40,7 @@
+@@ -43,7 +43,7 @@
  namespace android {
-
+ 
  static const int64_t kBufferTimeOutUs = 10000LL; // 10 msec
 -static const size_t kRetryCount = 50; // must be >0
 +static const size_t kRetryCount = 100; // must be >0
-
+ static const int64_t kDefaultSampleDurationUs = 33333LL; // 33ms
+ 
  sp<IMemory> allocVideoFrame(const sp<MetaData>& trackMeta,
-         int32_t width, int32_t height, int32_t tileWidth, int32_t tileHeight,
 --
 2.39.0

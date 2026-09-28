@@ -184,10 +184,13 @@ config_181() {
     export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
 }
 
-# Deliberately empty for the start of the bring-up: the tree patches carried
-# for 17.1 are not applied until each is known to still be needed on R.
+# The tree patches, reviewed against R: the three Codec2 stride fixes and the
+# Jelly relaunch fix are upstream there and were dropped; the rest were
+# carried over (the CCodec and SurfaceFlinger ones ported to R's code).
 post_sync_181() {
-    echo "==> post-sync patches (18.1): none yet"
+    echo "==> post-sync patches (18.1)"
+    patch_trees || return 1
+    echo "==> post-sync OK"
 }
 
 #==============================================================================

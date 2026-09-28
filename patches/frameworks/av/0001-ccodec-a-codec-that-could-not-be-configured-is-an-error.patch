@@ -40,12 +40,11 @@ measured.
 
 ---
 diff --git a/media/codec2/sfplugin/CCodec.cpp b/media/codec2/sfplugin/CCodec.cpp
+index 55ff18f..01f7354 100644
 --- a/media/codec2/sfplugin/CCodec.cpp
 +++ b/media/codec2/sfplugin/CCodec.cpp
-@@ -654,9 +654,19 @@
-     // initialize config here in case setParameters is called prior to configure
-     Mutexed<Config>::Locked config(mConfig);
-     status_t err = config->initialize(mClient, comp);
+@@ -687,7 +687,17 @@ void CCodec::allocate(const sp<MediaCodecInfo> &codecInfo) {
+     status_t err = config->initialize(mClient->getParamReflector(), comp);
      if (err != OK) {
          ALOGW("Failed to initialize configuration support");
 -        // TODO: report error once we complete implementation.
@@ -53,7 +52,7 @@ diff --git a/media/codec2/sfplugin/CCodec.cpp b/media/codec2/sfplugin/CCodec.cpp
 +        // config. initialize() is what creates mParamUpdater, so carrying on
 +        // means the next caller dereferences it and the process dies -- which
 +        // on a persistent process is a boot loop rather than a failed codec.
-+        config.unlock();
++        configLocked.unlock();
 +        Mutexed<State>::Locked state(mState);
 +        state->set(RELEASED);
 +        state.unlock();
@@ -62,4 +61,6 @@ diff --git a/media/codec2/sfplugin/CCodec.cpp b/media/codec2/sfplugin/CCodec.cpp
 +        return;
      }
      config->queryConfiguration(comp);
-
+ 
+--
+2.39.0
