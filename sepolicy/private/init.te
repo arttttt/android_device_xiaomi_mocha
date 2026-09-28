@@ -63,9 +63,6 @@ allow init sysfs_mmc_host:file rw_file_perms;
 
 allow init proc_wmem_max_writable:file rw_file_perms;
 
-# Shims
-allow init audioserver:process noatsecure;
-
 # The thermal zones, read while init decides which profile to start in.
 allow init sysfs_thermal:dir search;
 allow init sysfs_thermal:lnk_file read;
