@@ -306,3 +306,12 @@ WIFI_DRIVER_FW_PATH_PARAM        := "/sys/module/bcmdhd/parameters/firmware_path
                        
 # Zygote whitelist extra paths
 ZYGOTE_WHITELIST_PATH_EXTRA := \"/dev/nvhost-ctrl\",\"/dev/nvmap\",
+
+# Host: the tree's mke2fs is from 2019 and, left to itself, reads the host's
+# /etc/mke2fs.conf, which on a rolling distribution lists features it does
+# not know (orphan_file), and every APEX payload fails to build.
+# tools/build_lineage.sh points MKE2FS_CONFIG at the tree's own file, but R
+# hands ninja actions only an allowlisted environment
+# (build/soong/ui/build/ninja.go), so the variable has to be named here to
+# reach apexer.
+BUILD_BROKEN_NINJA_USES_ENV_VARS := MKE2FS_CONFIG
