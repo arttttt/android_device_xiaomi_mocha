@@ -54,8 +54,6 @@ phs.therm.fan_trip               u:object_r:thermal_prop:s0
 
 phs.bql.perfmodes.mask		     u:object_r:phs_prop:s0
 
-pbc.cfboost.default              u:object_r:pbc_prop:s0
-pbc.gfboost.default              u:object_r:pbc_prop:s0
 
 ro.hardware.gps                     u:object_r:gpsd_prop:s0
 #dual wifi

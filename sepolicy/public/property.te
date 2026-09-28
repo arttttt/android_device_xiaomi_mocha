@@ -24,9 +24,6 @@ type vrr_prop, property_type;
 # For ro.hardware.gps
 type gpsd_prop, property_type;
 
-# For pbc
-type pbc_prop, property_type;
-
 # For locality properties
 type locality_prop, property_type;
 

@@ -167,9 +167,6 @@
 # phs
 (/system)?/vendor/bin/ussrd		u:object_r:ussrd_exec:s0
 (/system)?/vendor/bin/ussr_setup.sh	u:object_r:ussr_setup_exec:s0
-# pbc
-(/system)?/vendor/bin/pbc		u:object_r:pbc_exec:s0
-(/system)?/vendor/bin/pbc2		u:object_r:pbc_exec:s0
 # cvc
 (/system)?/vendor/bin/cvc		u:object_r:cvc_exec:s0
 # upnpfused
@@ -268,7 +265,7 @@
 /sys/devices/platform/pwm-fan(.*)/target_pwm		u:object_r:sysfs_pwm_fan:s0
 /sys/devices/platform/pwm-fan(.*)/temp_control		u:object_r:sysfs_pwm_fan:s0
 
-# cfboost sysfs for pbc access
+# cfboost sysfs, for ussrd
 /sys/module/input_cfboost/parameters/boost_freq		u:object_r:sysfs_cfboost:s0
 /sys/module/input_cfboost/parameters/boost_gpu		u:object_r:sysfs_cfboost:s0
 # phs sysfs
