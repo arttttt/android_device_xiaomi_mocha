@@ -161,15 +161,6 @@
         </interface>
     </hal>
     <hal format="hidl">
-        <name>android.hardware.usb</name>
-        <transport>hwbinder</transport>
-        <version>1.0</version>
-        <interface>
-            <name>IUsb</name>
-            <instance>default</instance>
-        </interface>
-    </hal>
-    <hal format="hidl">
         <name>android.hardware.usb.gadget</name>
         <transport>hwbinder</transport>
         <version>1.0</version>
@@ -188,47 +179,20 @@
         </interface>
     </hal>
     <!--
-        The three wifi entries say what the binaries on this image actually
-        serve, which on Q is a version or two above what they served when
-        these lines were written. A declaration is a ceiling, not a label:
-        the framework asks for the version it wants and hwservicemanager
-        answers from this file, so understating it makes a working service
-        invisible. That is what kept wifi down: the framework asked for
-        supplicant 1.1, found 1.0 declared, and gave up:
-
-            hwservicemanager: getTransport: Cannot find entry
-            android.hardware.wifi.supplicant@1.1::ISupplicant/default
-            in either framework or device manifest.
-
-        Minor versions are inclusive, so 1.3 covers 1.0 through 1.3.
+        No usb, wifi, hostapd or supplicant here. On R each of those services
+        installs its own manifest fragment into /vendor/etc/vintf/manifest/
+        (usb@1.0-service.basic, wifi@1.0-service at 1.4, hostapd 1.2,
+        wpa_supplicant 1.3), and libvintf refuses a device manifest that
+        declares one HAL twice, which left hwservicemanager with no manifest
+        at all, so every HIDL service on the board failed to register.
     -->
     <hal format="hidl">
-        <!-- android.hardware.wifi@1.0-service is built from wifi/1.3/default
-             and registers every version up to 1.3. -->
-        <name>android.hardware.wifi</name>
-        <transport>hwbinder</transport>
-        <version>1.3</version>
-        <interface>
-            <name>IWifi</name>
-            <instance>default</instance>
-        </interface>
-    </hal>
-    <hal format="hidl">
-        <name>android.hardware.wifi.hostapd</name>
+        <!-- R's configstore@1.1-service ships no fragment of its own. -->
+        <name>android.hardware.configstore</name>
         <transport>hwbinder</transport>
         <version>1.1</version>
         <interface>
-            <name>IHostapd</name>
-            <instance>default</instance>
-        </interface>
-    </hal>
-    <hal format="hidl">
-        <!-- wpa_supplicant links 1.0, 1.1 and 1.2 (wpa_supplicant/Android.mk). -->
-        <name>android.hardware.wifi.supplicant</name>
-        <transport>hwbinder</transport>
-        <version>1.2</version>
-        <interface>
-            <name>ISupplicant</name>
+            <name>ISurfaceFlingerConfigs</name>
             <instance>default</instance>
         </interface>
     </hal>
