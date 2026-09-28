@@ -472,7 +472,7 @@ static void lazy_init_modules() {
     // dlopen the module files and cache their module symbols in sub_hw_modules
     sub_hw_modules = new std::vector<hw_module_t *>();
     dlerror(); // clear any old errors
-    add_so_module("libsensors.lsm6db0.so");
+    add_so_module("sensors.lsm6db0.so");
     pthread_mutex_unlock(&init_modules_mutex);
 }
 
