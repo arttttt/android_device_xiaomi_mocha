@@ -105,21 +105,21 @@ index c05b525..5b28577 100644
      return const_cast<compositionengine::LayerFE*>(
              static_cast<const compositionengine::LayerFE*>(this));
 diff --git a/services/surfaceflinger/Layer.h b/services/surfaceflinger/Layer.h
-index eecb86c..e902b39 100644
+index eecb86c..be966c0 100644
 --- a/services/surfaceflinger/Layer.h
 +++ b/services/surfaceflinger/Layer.h
-@@ -627,6 +627,11 @@ protected:
-     void prepareGeometryCompositionState();
-     virtual void preparePerFrameCompositionState();
-     void prepareCursorCompositionState();
+@@ -341,6 +341,11 @@ public:
+     // setPosition operates in parent buffer space (pre parent-transform) or display
+     // space for top-level layers.
+     virtual bool setPosition(float x, float y);
 +    // mocha: when this layer is the validated hardware cursor on the display,
 +    // compute its frame from the current state -- the direct cursor road
 +    // runs before any commit -- and hand the position to the composer.
 +    // Returns whether it was delivered.
 +    bool writeCursorPositionDirect(const DisplayDevice& display);
+     // Buffer space
+     virtual bool setCrop_legacy(const Rect& crop);
  
- public:
-     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
 index 878761b..50af066 100644
 --- a/services/surfaceflinger/SurfaceFlinger.cpp
