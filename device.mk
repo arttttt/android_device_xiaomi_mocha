@@ -229,8 +229,8 @@ PRODUCT_COPY_FILES += \
     
 # Ramdisk and the board's init files. Only the fstab rides in the ramdisk; the
 # rc files live in /vendor/etc/init/hw, where the second stage looks for
-# init.<hardware>.rc, and ueventd's board file is named ueventd.rc in /vendor,
-# which is the only name ueventd looks for there.
+# init.<hardware>.rc, and ueventd's board file is installed as ueventd.rc in
+# /vendor, which is the only name ueventd looks for there.
 PRODUCT_PACKAGES += \
     fstab.tn8 \
     fstab.tn8.vendor \
@@ -247,7 +247,7 @@ PRODUCT_PACKAGES += \
     init.ussrd.rc \
     power.tn8.rc \
     power.mocha.rc \
-    ueventd.rc \
+    ueventd.tn8.rc \
     ussrd.conf \
     ussr_setup
     

@@ -134,7 +134,11 @@ include $(BUILD_PREBUILT)
 include $(CLEAR_VARS)
 # ueventd has its own search list and the board's file is not part of it by
 # this name: it reads /ueventd.rc, /vendor/ueventd.rc and /odm/ueventd.rc.
-LOCAL_MODULE       := ueventd.rc
+# The installed name has to be ueventd.rc, but the module name cannot be: R
+# defines a module ueventd.rc for the platform's own file in system/core, so
+# ours is named after the board (tn8) and installs under the stem.
+LOCAL_MODULE       := ueventd.tn8.rc
+LOCAL_MODULE_STEM  := ueventd.rc
 LOCAL_MODULE_TAGS  := optional
 LOCAL_MODULE_CLASS := ETC
 LOCAL_SRC_FILES    := ueventd.rc
