@@ -55,7 +55,7 @@
  *
  * This lives here rather than in a patch to AOSP's passthrough allocator
  * because the quirk is this vendor's, and generic code has nothing wrong with
- * it. The vendor blob is installed as gralloc.nvidia.so and opened by full
+ * it. The vendor blob is installed as gralloc.nvgpu.so and opened by full
  * path; ours answers to gralloc.tegra, which ro.board.platform selects.
  *
  *
@@ -96,7 +96,7 @@
  *
  * To take the wrapper out of the way without rebuilding anything, set
  *
- *     ro.hardware.gralloc=nvidia
+ *     ro.hardware.gralloc=nvgpu
  *
  * hw_get_module_by_class reads ro.hardware.<class> before it walks the variant
  * keys (hardware/libhardware/hardware.c:219), so that loads the vendor blob
@@ -118,7 +118,7 @@
 #include <log/log.h>
 #include <sync/sync.h>
 
-static const char kVendorPath[] = "/vendor/lib/hw/gralloc.nvidia.so";
+static const char kVendorPath[] = "/vendor/lib/hw/gralloc.nvgpu.so";
 
 /* sizeof(NvGrModule), read off the blob's .data. See the note above. */
 static const size_t kVendorModuleSize = 368;

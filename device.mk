@@ -98,7 +98,7 @@ PRODUCT_COPY_FILES += \
 # Graphics
 #
 # Our own allocator, which answers to gralloc.tegra and opens the vendor blob
-# beside it. The blob is installed as gralloc.nvidia so that the name it used
+# beside it. The blob is installed as gralloc.nvgpu so that the name it used
 # to own is free for the wrapper to take.
 PRODUCT_PACKAGES += \
     gralloc.tegra \

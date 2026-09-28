@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # This takes the name the vendor blob used to answer to, and the blob is
-# installed beside it as gralloc.nvidia instead. hw_get_module_by_class walks
+# installed beside it as gralloc.nvgpu instead. hw_get_module_by_class walks
 # ro.hardware, ro.product.board, ro.board.platform and ro.arch in that order:
 # ro.hardware is tn8 here and no gralloc.tn8 exists, ro.product.board is empty,
 # so ro.board.platform is what this name answers to. Naming it for the platform
