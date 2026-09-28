@@ -331,6 +331,26 @@ do_vintf() {
         return 1
     fi
     echo "  manifest: $manifest"
+
+    # The device manifest is not one file. Since R, services install their own
+    # fragments beside it in vintf/manifest/, and libvintf merges them on the
+    # device; one HAL declared both there and in manifest.xml makes the whole
+    # device manifest unusable, and hwservicemanager then turns away every
+    # HIDL service on the board. Checking manifest.xml alone passed exactly
+    # that image. So merge the fragments first, as the device does -- a
+    # duplicate fails here -- and check the result.
+    local frags merged
+    frags=$(ls "$(dirname "$manifest")"/manifest/*.xml 2>/dev/null | tr '\n' ':' | sed 's/:$//')
+    merged=$(mktemp)
+    echo "  fragments: $(echo "$frags" | tr ':' '\n' | grep -c . )"
+    if ! "$av" -i "$manifest${frags:+:$frags}" -o "$merged"; then
+        echo "  the manifest and its fragments do not merge (a HAL declared twice?)" >&2
+        rm -f "$merged"
+        return 1
+    fi
+    manifest="$merged"
+    trap 'rm -f "$merged"' RETURN
+
     if PRODUCT_ENFORCE_VINTF_MANIFEST=true "$av" -i "$mats" -c "$manifest" \
             -o /dev/null; then
         echo "==> VINTF OK"
