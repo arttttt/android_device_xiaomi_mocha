@@ -37,12 +37,23 @@ PRODUCT_PACKAGES += \
     android.hardware.drm@1.0-service
 
 # Gatekeeper
-# The service carries no crypto: it finds an implementation through
-# hw_get_module_by_class() and exposes it over HIDL. Ours is the software
-# module built from gatekeeper/, installed as gatekeeper.tegra.
+# Software, and there is no other kind to have here: the stock secure world
+# (NVIDIA's TLK) runs, but none of its seven trusted applications is a
+# gatekeeper and the image is signed by Xiaomi, so an eighth cannot be added.
+# kernel docs/trustzone-tlk.md has the analysis.
+#
+# Up to Q this was the emulator's SoftGateKeeper copied into gatekeeper/ and
+# built as a legacy gatekeeper.tegra module behind the 1.0 service. R ships
+# the same scrypt implementation as a service of its own, with its manifest
+# fragment, so the copy is gone. Same key (zeros) and same parameters, so a
+# PIN enrolled through the old module still verifies.
+#
+# Security is what it was: attempt counters live in the normal world and root
+# can reach them. What the HAL buys is that compatibility_matrix.4.xml lists
+# gatekeeper as not optional, and that init stops asking for a service
+# nobody serves.
 PRODUCT_PACKAGES += \
-    android.hardware.gatekeeper@1.0-impl \
-    android.hardware.gatekeeper@1.0-service
+    android.hardware.gatekeeper@1.0-service.software
 
 # Graphics
 # The composer pair works like the camera one above: the passthrough impl
@@ -99,7 +110,7 @@ PRODUCT_PACKAGES += \
 # Software either way. This board's secure world runs, but its trusted
 # application list has no keymaster in it and the image is signed by Xiaomi,
 # so SecurityLevel::SOFTWARE is the honest answer here and was the honest
-# answer before -- see gatekeeper/README for the same story one interface
+# answer before -- see Gatekeeper above for the same story one interface
 # over. What 4.0 buys is the interface Q was written against: version
 # binding, the newer tag set, and an implementation that is maintained rather
 # than kept for compatibility.
