@@ -28,9 +28,7 @@ cc_binary {
     ],
     shared_libs: [
         "libhidlbase",
-        "libhidltransport",
         "liblog",
-        "libhwbinder",
         "libutils",
         "libhardware",
         // Both, not just the newer one. A minor version's generated library
