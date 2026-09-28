@@ -255,6 +255,12 @@ TARGET_LD_SHIM_LIBS := /system/bin/app_process32|libshim_zw.so
 # match nothing.
 TARGET_LD_SHIM_LIBS += /system/vendor/lib/libnvRSDriver.so|libshim_rs.so
 
+# R moved android::CallStack out of libutils into libutilscallstack. libglcore
+# still names only libutils, and nothing guarantees the new library is already
+# in the process when the GL driver loads, so it is attached to the driver --
+# what t124-common does for the same blob on 18.1.
+TARGET_LD_SHIM_LIBS += /system/vendor/lib/libglcore.so|libutilscallstack.so
+
 # Offmode Charging
 BOARD_CHARGER_DISABLE_INIT_BLANK := true
 BACKLIGHT_PATH := "/sys/class/backlight/lcd-backlight/brightness"
