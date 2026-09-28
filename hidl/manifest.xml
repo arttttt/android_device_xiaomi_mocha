@@ -187,6 +187,24 @@
         at all, so every HIDL service on the board failed to register.
     -->
     <hal format="hidl">
+        <!-- android.hardware.media.omx@1.0-service (frameworks/av mediacodec),
+             which base_vendor.mk installs and which hosts NVIDIA's OMX
+             components through libstagefrighthw. It ships no fragment either;
+             without this entry hwservicemanager keeps every client away from
+             it and hardware video decoding is simply absent. -->
+        <name>android.hardware.media.omx</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IOmx</name>
+            <instance>default</instance>
+        </interface>
+        <interface>
+            <name>IOmxStore</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
+    <hal format="hidl">
         <!-- R's configstore@1.1-service ships no fragment of its own. -->
         <name>android.hardware.configstore</name>
         <transport>hwbinder</transport>
