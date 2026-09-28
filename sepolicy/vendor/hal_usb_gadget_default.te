@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Android 10 introduced IUsbGadget but shipped no implementation of it, so
-# unlike light, power and the others there is no domain here waiting to be
-# given rules: the platform declares the attributes and stops. Our service
-# needs a domain of its own before its binary can be labelled at all.
-type hal_usb_gadget_default, domain;
-hal_server_domain(hal_usb_gadget_default, hal_usb_gadget)
-
-type hal_usb_gadget_default_exec, exec_type, vendor_file_type, file_type;
-init_daemon_domain(hal_usb_gadget_default)
+# R declares the domain itself in system/sepolicy/vendor, for its own
+# usb.gadget@1.1 service: the type, hal_server_domain and init_daemon_domain.
+# Declaring them here as well, as Q needed, is a duplicate type that stops
+# checkpolicy. Our binary only needs its label, in file_contexts.
 
 # Composing the gadget is writing configfs, and knowing when a function is
 # ready is watching the adb directory under functionfs. Both of those come
