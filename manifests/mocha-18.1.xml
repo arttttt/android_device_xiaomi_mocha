@@ -39,6 +39,13 @@
        same commit, so our branch is our 17.1 unchanged. -->
   <project name="arttttt/android_hardware_broadcom_fm" path="hardware/broadcom/fm" remote="github" revision="lineage-18.1" />
 
+  <!-- The Wi-Fi side: the vendor HAL library, libwifi-hal-bcm. AOSP's lacks
+       the virtual interface calls, so the Wi-Fi HAL cannot bring up a second
+       interface for the hotspot beside wlan0. Branched from the AOSP commit
+       18.1 carries (8f608ec), which default.xml takes from the aosp remote. -->
+  <remove-project name="platform/hardware/broadcom/wlan" />
+  <project name="arttttt/android_hardware_broadcom_wlan" path="hardware/broadcom/wlan" remote="github" revision="lineage-18.1" groups="pdk,broadcom_wlan" />
+
   <!-- FMRadio: the upstream entry lives in snippets/lineage.xml and has to be
        removed before ours can take the same path. What is ours here is the
        bridge that drives the FM DAC from the system volume keys. -->
