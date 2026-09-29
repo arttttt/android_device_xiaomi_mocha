@@ -290,10 +290,11 @@
 # Bluetooth rfkill interface for Platform data driver
 /sys/devices/platform/bluedroid_pm(.*)/rfkill/rfkill0/state	u:object_r:sysfs_bluetooth_writable:s0
 # Bluetooth rfkill interface for DT enabled driver
-/sys/devices/platform/bluedroid_pm/rfkill/rfkill0/state		u:object_r:sysfs_bluetooth_writable:s0
+/sys/devices/platform/bluedroid_pm/rfkill/rfkill0(/.*)?		u:object_r:sysfs_bluetooth_writable:s0
 
 # The shared line discipline's install flag
-/sys/devices/platform/bcm_ldisc/install			u:object_r:sysfs_bcm_ldisc:s0
+/sys/devices/platform/bcm_ldisc(/.*)?			u:object_r:sysfs_bcm_ldisc:s0
+/dev/ttyTHS2					u:object_r:hci_attach_dev:s0
 /(vendor|system/vendor)/bin/brcm-uim-sysfs		u:object_r:brcm_uim_exec:s0
 # Tegra i2c devices sysfs
 /sys/devices/platform/tegra.*i2c\.[0-9]+(/.*)?	u:object_r:sysfs_nvi2c:s0

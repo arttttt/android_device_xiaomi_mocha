@@ -1,0 +1,2 @@
+# The thermal HAL reads the thermal zones.
+r_dir_file(hal_thermal_default, sysfs_thermal)

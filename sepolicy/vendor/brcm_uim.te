@@ -6,3 +6,15 @@ type brcm_uim, domain;
 type brcm_uim_exec, exec_type, vendor_file_type, file_type;
 
 init_daemon_domain(brcm_uim)
+
+# The Bluetooth UART, on which it sets the HCI line discipline.
+allow brcm_uim hci_attach_dev:chr_file { rw_file_perms ioctl };
+allow brcm_uim self:capability net_admin;
+
+# bcm_ldisc's install, vendor_params and bdaddr; the Bluetooth rfkill.
+allow brcm_uim sysfs_bcm_ldisc:file rw_file_perms;
+allow brcm_uim sysfs_bluetooth_writable:dir search;
+allow brcm_uim sysfs_bluetooth_writable:file rw_file_perms;
+
+get_prop(brcm_uim, bluetooth_prop)
+get_prop(brcm_uim, exported_bluetooth_prop)
