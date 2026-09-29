@@ -279,7 +279,8 @@ PRODUCT_PACKAGES += \
     hostapd \
     wpa_supplicant \
     wpa_supplicant.conf \
-    WifiOverlay
+    WifiOverlay \
+    TetheringOverlay
 
 # wifi and bt macs settter
 PRODUCT_PACKAGES += \

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The interfaces Wi-Fi Direct groups come up on. bcmdhd names them after
+         the station interface, p2p-wlan0-0, where the default expects the
+         p2p-p2p0-0 of drivers with a p2p0 device. Unmatched, tethering refuses
+         the group ("Tried to Tether an unknown iface") and the peer that joined
+         it never gets an address. The defaults stay alongside. -->
+    <string-array translatable="false" name="config_tether_wifi_p2p_regexs">
+        <item>"p2p-wlan\\d+-.*"</item>
+        <item>"p2p-p2p\\d-.*"</item>
+        <item>"p2p\\d"</item>
+    </string-array>
+</resources>
