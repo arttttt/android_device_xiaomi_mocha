@@ -1,0 +1,8 @@
+# brcm-uim-sysfs: attaches the Broadcom HCI line discipline for Bluetooth and
+# FM when bcm_ldisc asks for it. It ran in init's domain for want of a label
+# of its own; the domain is the one LineageOS's Broadcom boards give it
+# (sony shinano-common, kitakami-common, lge msm8226-common).
+type brcm_uim, domain;
+type brcm_uim_exec, exec_type, vendor_file_type, file_type;
+
+init_daemon_domain(brcm_uim)

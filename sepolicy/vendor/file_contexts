@@ -294,6 +294,7 @@
 
 # The shared line discipline's install flag
 /sys/devices/platform/bcm_ldisc/install			u:object_r:sysfs_bcm_ldisc:s0
+/(vendor|system/vendor)/bin/brcm-uim-sysfs		u:object_r:brcm_uim_exec:s0
 # Tegra i2c devices sysfs
 /sys/devices/platform/tegra.*i2c\.[0-9]+(/.*)?	u:object_r:sysfs_nvi2c:s0
 /sys/devices/platform/[0-9a-f]+\.i2c(/.*)?	u:object_r:sysfs_nvi2c:s0
@@ -399,6 +400,7 @@
 # R's software gatekeeper; system/sepolicy labels only the plain 1.0 service.
 /(vendor|system/vendor)/bin/hw/android\.hardware\.gatekeeper@1\.0-service\.software  u:object_r:hal_gatekeeper_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.light@2\.0-service\.mocha         u:object_r:hal_light_default_exec:s0
+/(vendor|system/vendor)/bin/hw/android\.hardware\.thermal@1\.0-service-nvidia    u:object_r:hal_thermal_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.power@1\.3-service\.mocha         u:object_r:hal_power_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.usb\.gadget@1\.0-service\.mocha   u:object_r:hal_usb_gadget_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.vibrator@1\.3-service\.mocha      u:object_r:hal_vibrator_default_exec:s0
