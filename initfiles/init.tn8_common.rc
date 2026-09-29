@@ -39,7 +39,6 @@ on boot
 
 on init
     setprop keyguard.no_require_sim true
-    setprop persist.tegra.didim.enable 0
 
 service charger /charger
     group graphics input

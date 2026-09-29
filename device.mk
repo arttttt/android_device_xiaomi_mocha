@@ -337,6 +337,12 @@ PRODUCT_SHIPPING_API_LEVEL := 24
 # Disable adb auth so adb works without on-device "Allow USB debugging?"
 # prompt. Necessary because mocha has no UART and we may need to reach a
 # half-booted device for early-boot debug without UI being available to
-# tap Allow. /default.prop override (so adbd reads it before /system mounts).
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-    ro.adb.secure=0
+# tap Allow.
+#
+# Through LineageOS's own switch, not a property of ours: for userdebug its
+# common.mk writes ro.adb.secure=1 into /system/etc/prop.default, which init
+# loads before the ramdisk's /default.prop, and a read-only property keeps
+# the first value it is given. So the 0 this used to put in /default.prop
+# never reached adbd. With the switch set, LineageOS writes the 0 itself,
+# into the file that wins.
+WITH_ADB_INSECURE := true
