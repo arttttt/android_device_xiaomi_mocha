@@ -19,15 +19,6 @@ on boot
     # TBD: Remove the below line that give permissions for scaling_governor
     chown system system /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
-    # Smoke kernel default governor
-    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor smartmax
-
-    # Smoke kernel default governor settings
-    write /sys/devices/system/cpu/cpufreq/smartmax/awake_ideal_freq 1326000
-    write /sys/devices/system/cpu/cpufreq/smartmax/boost_freq 1428000
-    write /sys/devices/system/cpu/cpufreq/smartmax/touch_poke_freq 1326000
-    write /sys/devices/system/cpu/cpufreq/smartmax/input_boost_duration 45000
-
     chown system system /sys/devices/tegradc.0/enable
     chown system system /sys/devices/platform/host1x/nvavp/boost_sclk
     chown system system /sys/class/input/input1/enabled
@@ -55,6 +46,20 @@ on boot
     write /sys/kernel/tegra_cpu_emc/table_src 1
 
 on late-fs
+    # The governor every performance profile runs, chosen before zygote
+    # starts rather than first by a profile. The kernel boots on userspace,
+    # and the interactive governor's nodes exist only once it is chosen;
+    # the power HAL is told the screen is on (io_is_busy) well before any
+    # profile is set, found no node, and io_is_busy stayed 0 with the screen
+    # on until it was next turned off and on. A profile writing the same
+    # governor again changes nothing, so what the HAL wrote here survives.
+    # Ownership is the HAL's for the reason power.mocha.rc gives.
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactive
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+    chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+    chmod 0664 /sys/devices/system/cpu/cpufreq/interactive/io_is_busy
+
     write /sys/block/mmcblk0/queue/iostats 0
     write /sys/block/mmcblk0/queue/nr_requests 256
     write /sys/block/mmcblk0/queue/read_ahead_kb 2048
