@@ -1,7 +1,9 @@
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
-LOCAL_SRC_FILES := stdio_vsnprintf.cpp
+LOCAL_SRC_FILES := \
+    glcore_realloc.cpp \
+    stdio_vsnprintf.cpp
 LOCAL_C_INCLUDES := \
     bionic/libc \
     bionic/libc/stdio \
@@ -12,8 +14,9 @@ LOCAL_MODULE_TAGS := optional
 # libglcore was hex-edited in 2018 to call haxprintf where it called
 # vsnprintf, and the rename kept the reference's version: it asks for
 # haxprintf@LIBC. Define it in that node, as t124-common does for the same
-# blob; unversioned, R's ELF check cannot match it.
-LOCAL_LDFLAGS_arm += -Wl,--version-script,$(LOCAL_PATH)/stdio_vsnprintf.arm.map
+# blob; unversioned, R's ELF check cannot match it. glrealc, the name its
+# realloc import is renamed to, asks for the same node.
+LOCAL_LDFLAGS_arm += -Wl,--version-script,$(LOCAL_PATH)/libs.arm.map
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)

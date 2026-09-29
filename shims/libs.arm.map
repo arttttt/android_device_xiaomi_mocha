@@ -1,4 +1,5 @@
 LIBC {
   global:
+    glrealc; # arm
     haxprintf; # arm
 };
