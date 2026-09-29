@@ -62,3 +62,7 @@ allow init rpx_block_device:blk_file rw_file_perms;
 allow init sysfs_mmc_host:file rw_file_perms;
 
 allow init proc_wmem_max_writable:file rw_file_perms;
+
+# init chowns the backlight's brightness to system (init.rc, init.tegra.rc)
+# and the eMMC's I/O scheduler (LineageOS's lineage-iosched.rc).
+allow init { sysfs_nvi2c sysfs_pwm_backlight sysfs_mmc_host }:file setattr;

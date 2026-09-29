@@ -12,6 +12,7 @@ allow brcm_uim hci_attach_dev:chr_file { rw_file_perms ioctl };
 allow brcm_uim self:capability net_admin;
 
 # bcm_ldisc's install, vendor_params and bdaddr; the Bluetooth rfkill.
+allow brcm_uim sysfs_bcm_ldisc:dir search;
 allow brcm_uim sysfs_bcm_ldisc:file rw_file_perms;
 allow brcm_uim sysfs_bluetooth_writable:dir search;
 allow brcm_uim sysfs_bluetooth_writable:file rw_file_perms;
