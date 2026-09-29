@@ -279,7 +279,8 @@ $(call inherit-product-if-exists, hardware/broadcom/wlan/bcmdhd/config/config-bc
 PRODUCT_PACKAGES += \
     hostapd \
     wpa_supplicant \
-    wpa_supplicant.conf
+    wpa_supplicant.conf \
+    WifiOverlay
 
 # wifi and bt macs settter
 PRODUCT_PACKAGES += \

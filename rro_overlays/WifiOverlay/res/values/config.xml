@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Boolean indicating whether the wifi chipset supports background scanning mechanism.
+         This mechanism allows the host to remain in suspend state and the dongle to actively
+         scan and wake the host when a configured SSID is detected by the dongle. This chipset
+         capability can provide power savings when wifi needs to be always kept on.
+         The driver commands needed to support the feature are BGSCAN-START and BGSCAN-STOP -->
+    <bool name="config_wifi_background_scan_support">true</bool>
+
+    <!-- Boolean indicating whether the wifi chipset has 5GHz frequency band support -->
+    <bool translatable="false" name="config_wifi5ghzSupport">true</bool>
+
+    <!-- Boolean indicating associated network selection is allowed -->
+    <bool translatable="false" name="config_wifi_framework_enable_associated_network_selection">false</bool>
+
+    <!-- No WPA2 to WPA3 auto-upgrade. R turns a saved WPA2 network into a WPA3
+         one whenever the access point also offers SAE, on the assumption that
+         every device it ships on can do SAE. This one cannot: bcmdhd connects
+         with a single connect command and offers the supplicant no SME to run
+         SAE in, so the upgraded network finds no key management to use and
+         the connection never starts. -->
+    <bool translatable="false" name="config_wifiSaeUpgradeEnabled">false</bool>
+</resources>

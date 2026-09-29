@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- R moved the wifi service into its own module, and its settings with it:
+     they are resources of com.android.wifi.resources now, which a static
+     overlay of the framework no longer reaches. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.android.wifi.resources.mocha"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <application android:hasCode="false" />
+    <overlay
+      android:targetPackage="com.android.wifi.resources"
+      android:targetName="WifiCustomization"
+      android:isStatic="true"
+      android:priority="0"/>
+</manifest>
