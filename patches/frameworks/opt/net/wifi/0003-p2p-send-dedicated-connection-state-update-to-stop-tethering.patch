@@ -1,0 +1,70 @@
+From a7b7d70d3c091e958840cb59b59475d2a94e488c Mon Sep 17 00:00:00 2001
+From: Jimmy Chen <jimmycmchen@google.com>
+Date: Thu, 13 May 2021 15:56:29 +0800
+Subject: [PATCH] p2p: send dedicated connection state update to stop tethering
+ while location mode is off
+
+When location mode is off, tethering service cannot receive
+regular connection state changed event, and won't stop tethering
+normally.
+
+Bug: 185609688
+Test: start a p2p group with location mode disabled and terminate it.
+Change-Id: I855d2ad710df627f23d561ef378eb63fd0894129
+---
+ .../server/wifi/p2p/WifiP2pServiceImpl.java   | 21 ++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java b/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
+index 307b10ad5a..aa7b22b5ce 100644
+--- a/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
++++ b/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
+@@ -2528,11 +2528,8 @@ public boolean processMessage(Message message) {
+                             // As a result, P2P sends a unicast intent to tether service to trigger
+                             // the whole flow before entering GroupCreatedState.
+                             setWifiP2pInfoOnGroupFormation(null);
+-                            String tetheringServicePackage = findTetheringServicePackage();
+-                            if (!TextUtils.isEmpty(tetheringServicePackage)) {
+-                                sendP2pTetherRequestBroadcast(tetheringServicePackage);
+-                            } else {
+-                                loge("No valid tethering service, remove " + mGroup);
++                            if (!sendP2pTetherRequestBroadcast()) {
++                                loge("Cannot start tethering, remove " + mGroup);
+                                 mWifiNative.p2pGroupRemove(mGroup.getInterface());
+                             }
+                             break;
+@@ -3060,6 +3057,12 @@ public void exit() {
+                 resetWifiP2pInfo();
+                 mDetailedState = NetworkInfo.DetailedState.DISCONNECTED;
+                 sendP2pConnectionChangedBroadcast();
++                // When location mode is off, tethering service cannot receive regular
++                // p2p connection changed event to stop tethering, send a
++                // dedicated update to stop it.
++                if (!mWifiPermissionsUtil.isLocationModeEnabled()) {
++                    sendP2pTetherRequestBroadcast();
++                }
+             }
+         }
+ 
+@@ -3255,8 +3258,11 @@ private String findTetheringServicePackage() {
+             return null;
+         }
+ 
+-        private void sendP2pTetherRequestBroadcast(String tetheringServicePackage) {
+-            if (mVerboseLoggingEnabled) logd("sending p2p tether request broadcast");
++        private boolean sendP2pTetherRequestBroadcast() {
++            String tetheringServicePackage = findTetheringServicePackage();
++            if (TextUtils.isEmpty(tetheringServicePackage)) return false;
++            Log.i(TAG, "sending p2p tether request broadcast to "
++                    + tetheringServicePackage);
+ 
+             Intent intent = new Intent(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+             intent.setPackage(tetheringServicePackage);
+@@ -3269,6 +3275,7 @@ private void sendP2pTetherRequestBroadcast(String tetheringServicePackage) {
+             Context context = mContext.createContextAsUser(UserHandle.ALL, 0);
+             context.sendBroadcastWithMultiplePermissions(
+                     intent, RECEIVER_PERMISSIONS_FOR_BROADCAST);
++            return true;
+         }
+ 
+         private void sendP2pPersistentGroupsChangedBroadcast() {

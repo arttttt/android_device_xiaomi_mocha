@@ -1,0 +1,31 @@
+From c0bb3c786e3d3a32380674e25440225d3958b1fa Mon Sep 17 00:00:00 2001
+From: Jimmy Chen <jimmycmchen@google.com>
+Date: Wed, 9 Dec 2020 11:53:43 +0800
+Subject: [PATCH] p2p: send tethering request regardless of location mode
+
+When location mode is off, all sensitive broadcasts
+are sent to settings only. As a result, network stack
+cannot get tethering request correctly.
+
+Bug: 175092919
+Test: create a p2p group with location mode off
+Change-Id: I0736d0eaed59f3bb06e861c058a2f76a63dbb393
+---
+ .../java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java  | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java b/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
+index 50ca905d45..c0106715f0 100644
+--- a/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
++++ b/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
+@@ -3197,7 +3197,9 @@ private void sendP2pTetherRequestBroadcast(String tetheringServicePackage) {
+             intent.putExtra(WifiP2pManager.EXTRA_NETWORK_INFO, makeNetworkInfo());
+             intent.putExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP, eraseOwnDeviceAddress(mGroup));
+ 
+-            sendBroadcastMultiplePermissions(intent);
++            Context context = mContext.createContextAsUser(UserHandle.ALL, 0);
++            context.sendBroadcastWithMultiplePermissions(
++                    intent, RECEIVER_PERMISSIONS_FOR_BROADCAST);
+         }
+ 
+         private void sendP2pPersistentGroupsChangedBroadcast() {

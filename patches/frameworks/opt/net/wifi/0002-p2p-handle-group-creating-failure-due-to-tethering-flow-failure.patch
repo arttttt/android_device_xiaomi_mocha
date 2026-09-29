@@ -1,0 +1,35 @@
+From 96d0b8905e2d928bd9ef9559c2565bd02bf4162b Mon Sep 17 00:00:00 2001
+From: Jimmy Chen <jimmycmchen@google.com>
+Date: Thu, 22 Apr 2021 13:44:04 +0800
+Subject: [PATCH] p2p: handle group creating failure due to tethering flow
+ failure
+
+Bug: 185609688
+Test: atest FrameworksWifiTests
+Change-Id: Iead1064ca973525ecbc16a8173ea3d7c4b12f2d6
+[Only the service part: R keeps WifiP2pServiceImplTest under
+ tests/wifitests with other surroundings, and tests are not built into
+ the image.]
+---
+ .../server/wifi/p2p/WifiP2pServiceImpl.java   |  8 +++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java b/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
+index d0a576ac66..f1e02c3ff0 100644
+--- a/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
++++ b/service/java/com/android/server/wifi/p2p/WifiP2pServiceImpl.java
+@@ -3960,6 +3960,14 @@ private void updateThisDevice(int status) {
+         }
+ 
+         private void handleGroupCreationFailure() {
++            // A group is formed, but the tethering request is not proceed.
++            if (null != mGroup) {
++                // Clear any timeout that was set. This is essential for devices
++                // that reuse the main p2p interface for a created group.
++                mWifiNative.setP2pGroupIdle(mGroup.getInterface(), 0);
++                mWifiNative.p2pGroupRemove(mGroup.getInterface());
++                mGroup = null;
++            }
+             resetWifiP2pInfo();
+             mDetailedState = NetworkInfo.DetailedState.FAILED;
+             sendP2pConnectionChangedBroadcast();
