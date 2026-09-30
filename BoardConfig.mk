@@ -299,8 +299,18 @@ BOARD_WLAN_DEVICE                := bcmdhd
 BOARD_HOSTAPD_DRIVER             := NL80211
 BOARD_HOSTAPD_PRIVATE_LIB        := lib_driver_cmd_bcmdhd
 WIFI_DRIVER_FW_PATH_STA          := "/vendor/firmware/mocha_fw_bcmdhd.bin"
-WIFI_DRIVER_FW_PATH_AP           := "/vendor/firmware/mocha_fw_bcmdhd_apsta.bin"
 WIFI_DRIVER_FW_PATH_PARAM        := "/sys/module/bcmdhd/parameters/firmware_path"
+
+# The hotspot beside the station, on an interface of its own, rather than
+# instead of it. Without this the Wi-Fi HAL runs the chip in two modes and
+# switches between them by reloading the firmware with an AP-only build:
+# every hotspot took the station down. One firmware serves both, so the
+# AP build is no longer loaded; the driver adds the hotspot interface (wlan1) on
+# the station's channel, the only one it runs at a time. Station and
+# hotspot, or station and Wi-Fi Direct, as the HAL's own dual-interface
+# setup has it: the hotspot and a P2P group would contend for the one
+# further BSS the chip keeps beside the station's.
+WIFI_HAL_INTERFACE_COMBINATIONS  := {{{STA}, 1}, {{AP}, 1}}, {{{STA}, 1}, {{P2P}, 1}}
 #WIFI_DRIVER_MODULE_ARG           := "iface_name=wlan0"
 #WIFI_DRIVER_MODULE_NAME          := "bcmdhd"
                        
