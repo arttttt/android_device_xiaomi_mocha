@@ -17,29 +17,45 @@
 */
 -->
 <device name="Android">
-  <!-- All values are in mA except as noted -->
-  <item name="none">0</item>
+  <!-- All values are in mA except as noted.
+
+       Laid out for R's PowerProfile. The CPU part was in the old format,
+       cpu.speeds and a cpu.active array, which R does not read, so batterystats
+       had no CPU power at any speed. The numbers are the ones this file always
+       carried, NVIDIA's, not measured on this board. -->
   <item name="screen.on">272.8</item>
   <item name="screen.full">441.6</item>
   <item name="bluetooth.active">12.6</item>
-      <!--
-      Bluetooth file transfer
-      -->
   <item name="bluetooth.on">1.6</item>
   <item name="wifi.on">3.3</item>
   <item name="wifi.active">46.5</item>
   <item name="wifi.scan">24.0</item>
-  <item name="dsp.audio">6.4</item>
-  <item name="dsp.video">41.3</item>
+  <item name="audio">6.4</item>
+  <item name="video">41.3</item>
   <item name="gps.on">7.6</item>
   <item name="radio.active">190.8</item>
   <item name="radio.scanning">0</item>
   <array name="radio.on"> <!-- Strength 0 to BINS-1 (4) -->
       <value>13.2</value>
   </array>
-      <!-- Different CPU speeds as reported in
-       /sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state -->
-  <array name="cpu.speeds">
+
+  <!-- CPU. Suspended (the old cpu.idle), and on top of that while a wakelock
+       holds the CPU up with nothing to run (the old cpu.awake). -->
+  <item name="cpu.suspend">8.2</item>
+  <item name="cpu.idle">19.1</item>
+
+  <!-- One cluster, the four Cortex-A15 cores under one cpufreq policy
+       ("tegra"). R adds cpu.active, the cluster's power and each running
+       core's power at its speed. The old table gave the CPU's power at each
+       speed with no core count, so it goes in per core, and the other two
+       are zero: an upper bound when all four run, until measured. -->
+  <item name="cpu.active">0</item>
+  <array name="cpu.clusters.cores">
+      <value>4</value>
+  </array>
+  <item name="cpu.cluster_power.cluster0">0</item>
+  <!-- As in /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies -->
+  <array name="cpu.core_speeds.cluster0">
       <value>51000</value>
       <value>102000</value>
       <value>204000</value>
@@ -62,11 +78,7 @@
       <value>2116500</value>
       <value>2218500</value>
   </array>
-  <!-- Power consumption when CPU is idle -->
-  <item name="cpu.idle">8.2</item>
-  <item name="cpu.awake">19.1</item>
-  <!-- Power consumption at different speeds -->
-  <array name="cpu.active">
+  <array name="cpu.core_power.cluster0">
       <value>2.18</value>
       <value>6.64</value>
       <value>26.97</value>
@@ -90,9 +102,6 @@
       <value>567.05</value>
   </array>
 
-  <!-- This is the battery capacity in mAh -->
+  <!-- Battery capacity in mAh, 6700 mAh at 3.8 V -->
   <item name="battery.capacity">6700</item>
-      <!--
-      Battery capacity is 6700 mAH (at 3.8 Volts)
-      -->
 </device>
