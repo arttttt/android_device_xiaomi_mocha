@@ -34,40 +34,12 @@
         <item>"ethernet,9,9,3,-1,true"</item>
     </string-array>
 
-    <!-- This array should be overridden by the device to present a list of radio
-         attributes. This is used by the connectivity manager to decide which networks
-         can coexist based on the hardware. -->
-    <!-- An array of "[ConnectivityManager connectionType],
-                      [# simultaneous connection types]" -->
-    <string-array translatable="false" name="radioAttributes">
-        <item>"1,1"</item>
-        <item>"7,1"</item>
-        <item>"9,0"</item>
-    </string-array>
 
-    <!-- List of regexpressions describing the interface (if any) that represent tetherable
-         USB interfaces.  If the device doesn't want to support tething over USB this should
-         be empty.  An example would be "usb.*" -->
-    <string-array translatable="false" name="config_tether_usb_regexs">
-        <item>"rndis0"</item>
-    </string-array>
 
     <!-- Is the notification LED intrusive? Used to decide if there should be a disable option -->
     <bool name="config_intrusiveNotificationLed">true</bool>
 
-    <!-- List of regexpressions describing the interface (if any) that represent tetherable
-         Wifi interfaces.  If the device doesn't want to support tethering over Wifi this
-         should be empty.  An example would be "softap.*" -->
-    <string-array translatable="false" name="config_tether_wifi_regexs">
-        <item>"wlan0"</item>
-    </string-array>
 
-    <!-- List of regexpressions describing the interface (if any) that represent tetherable
-    Bluetooth interfaces.  If the device doesn't want to support tethering over bluetooth this
-    should be empty. -->
-    <string-array translatable="false" name="config_tether_bluetooth_regexs">
-        <item>"bt-pan"</item>
-    </string-array>
 
     <!-- Flag indicating whether the we should enable the automatic brightness in Settings.
          Software implementation will be used if config_hardware_auto_brightness_available is not set -->
@@ -136,54 +108,13 @@
         <item>255</item>  <!-- 1520+ -->
     </integer-array>
 
-    <!-- Array of output values for button backlight corresponding to the LUX values
-         in the config_autoBrightnessLevels array.  This array should have size one greater
-         than the size of the config_autoBrightnessLevels array.
-         This must be overridden in platform specific overlays -->
-    <integer-array name="config_autoBrightnessButtonBacklightValues">
-        <item>60</item>   <!--    0 -    3 LUX -->
-        <item>60</item>   <!--    3 -    6 -->
-        <item>60</item>   <!--    6 -   12 -->
-        <item>50</item>   <!--   12 -   19 -->
-        <item>40</item>   <!--   19 -   25 -->
-        <item>30</item>   <!--   25 -   50 -->
-        <item>20</item>   <!--   50 -  100 -->
-        <item>10</item>   <!--  100 -  150 -->
-        <item>0</item>    <!--  150 -  320 -->
-        <item>0</item>    <!--  320 -  480 -->
-        <item>0</item>    <!--  480 -  960 -->
-        <item>0</item>    <!--  960 - 1240 -->
-        <item>0</item>    <!-- 1240 - 1520 -->
-        <item>0</item>    <!-- 1520+ -->
-    </integer-array>
 
-    <!-- Array of output values for keyboard backlight corresponding to the LUX values
-         in the config_autoBrightnessLevels array.  This array should have size one greater
-         than the size of the config_autoBrightnessLevels array.
-         This must be overridden in platform specific overlays -->
-    <integer-array name="config_autoBrightnessKeyboardBacklightValues">
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-    </integer-array>
 
     <!-- If this is true, the screen will come on when you unplug usb/power/whatever. -->
     <bool name="config_unplugTurnsOnScreen">true</bool>
 
-    <!-- Enable electronBeam animation instead of fading off. -->
-    <bool name="config_animateScreenLights">false</bool>
 
-    <!-- Whether a software navigation bar should be shown. NOTE: in the future this may be
-         autodetected from the Configuration. -->
-    <bool name="config_showNavigationBar">false</bool>
 
-    <!--  Maximum number of supported users -->
-    <integer name="config_multiuserMaximumUsers">8</integer>
-    <!-- Whether UI for multi user should be shown -->
-    <bool name="config_enableMultiUserUI">true</bool>
 
      <!-- Shutdown if the battery temperature exceeds (this value * 0.1) Celsius. -->
      <integer name="config_shutdownBatteryTemperature">600</integer>
@@ -195,8 +126,6 @@
          rather than the uevent framework. -->
     <bool name="config_useDevInputEventForAudioJack">true</bool>
 
-    <!-- Default persistent data block package as GMS -->
-    <string name="config_persistentDataPackageName" translatable="false">com.google.android.gms</string>
 
     <!-- Enable doze mode
          ComponentName of a dream to show whenever the system would otherwise have gone to sleep. -->
@@ -204,7 +133,7 @@
 
     <!-- If true, the doze component is not started until after the screen has been turned off
          and the screen off animation has been performed. -->
-    <bool name="config_dozeAfterScreenOff">true</bool>
+    <bool name="config_dozeAfterScreenOffByDefault">true</bool>
 
     <!-- Specifies whether to decouple the interactive state of the device from the display on/off state. -->
     <bool name="config_powerDecoupleInteractiveModeFromDisplay">true</bool>
@@ -214,8 +143,6 @@
          that can be set by the user. -->
     <integer name="config_screenBrightnessDoze">17</integer>
 
-    <!-- enable doze powersaving mode -->
-    <bool name="config_enableAutoPowerModes">true</bool>
 
     <!-- Whether device supports double tap to wake -->
     <bool name="config_supportDoubleTapWake">true</bool>
