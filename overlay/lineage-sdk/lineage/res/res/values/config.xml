@@ -54,6 +54,11 @@
          For example, a device with Home, Back and Menu keys would set this
          config to 7. -->
     <integer name="config_deviceHardwareWakeKeys">71</integer>
+
+    <!-- Button backlight brightness: 0 none, 1 on/off only, 2 variable. The
+         keys are lit by a PWM LED (button-backlight) the light HAL scales,
+         so LineageParts can offer the brightness slider. -->
+    <integer name="config_deviceSupportsButtonBrightnessControl">2</integer>
     
     <!-- Indicate whether encryption causes significant performances loss.
          This MUST NOT be set to true on devices produced in 2016 or later -->
