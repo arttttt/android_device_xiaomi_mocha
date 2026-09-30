@@ -297,8 +297,11 @@
       minSampleRate="8000" maxSampleRate="8000"
       minChannels="1" maxChannels="1" />
 
-  <VideoDecoderCap name="wmv" enabled="true"/>
-  <AudioDecoderCap name="wma" enabled="true"/>
+  <!-- WMV and WMA off: R has no ASF extractor and no OMX role for either,
+       and the WMA and VC-1 names in libnvomx are pointed at by nothing, as
+       mpeg2v's (see media_codecs.xml). Nothing here plays them yet. -->
+  <VideoDecoderCap name="wmv" enabled="false"/>
+  <AudioDecoderCap name="wma" enabled="false"/>
   <VideoEditorCap maxInputFrameWidth="1920"
     maxInputFrameHeight="1080"
     maxOutputFrameWidth="1920"

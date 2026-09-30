@@ -168,8 +168,33 @@ Only the three quirks included above are recognized at this point:
                     update="true" domain="!tv" enabled="true">
         </MediaCodec>
 
-        <MediaCodec name="OMX.Nvidia.mp3.decoder" type="audio/mpeg-L2" >
+        <!-- NVIDIA's audio decoders, ahead of the software ones.
+
+             Codec2's software decoders rank ahead of any OMX component on R,
+             so these were never picked; rank="1" puts them first. They report
+             no limits of their own, so the limits are the formats'. Each was
+             tried on the device with a generated file and played.
+
+             MPEG audio Layer II belongs to mp2.decoder. mp3.decoder stood
+             here under audio/mpeg-L2 and answered "does not support any
+             media types": MP2 soundtracks in TS and MPEG files played silent.
+             AOSP has no software MP2 decoder, so this one is the only path.
+
+             Left out, being broken on this blob: vorbis.decoder (configure
+             fails, ParamAudioVorbis not implemented; Ogg is every system
+             sound), wav and bsac (not created). -->
+        <MediaCodec name="OMX.Nvidia.aac.decoder" type="audio/mp4a-latm" rank="1" >
              <Limit name="channel-count" max="6" />
+             <Limit name="sample-rate" ranges="7350,8000,11025,12000,16000,22050,24000,32000,44100,48000,64000,88200,96000" />
+             <Limit name="bitrate" range="8000-960000" />
+        </MediaCodec>
+        <MediaCodec name="OMX.Nvidia.mp3.decoder" type="audio/mpeg" rank="1" >
+             <Limit name="channel-count" max="2" />
+             <Limit name="sample-rate" ranges="8000,11025,12000,16000,22050,24000,32000,44100,48000" />
+             <Limit name="bitrate" range="8000-320000" />
+        </MediaCodec>
+        <MediaCodec name="OMX.Nvidia.mp2.decoder" type="audio/mpeg-L2" rank="1" >
+             <Limit name="channel-count" max="2" />
              <Limit name="sample-rate" ranges="16000,22050,24000,32000,44100,48000" />
              <Limit name="bitrate" range="8000-384000" />
         </MediaCodec>
