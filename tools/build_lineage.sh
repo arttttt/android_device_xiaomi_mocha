@@ -63,7 +63,14 @@ fi
 # patches/frameworks/base/*.patch goes to $BUILD_DIR/frameworks/base. A sync
 # resets those projects, so this re-applies after every one.
 #
-# Idempotent: a patch that reverse-applies is already in, and is skipped.
+# Idempotent, per project rather than per patch: a patch cannot tell by
+# itself whether it is in once a later patch of the same project has
+# changed the lines around it -- the P2P tethering series in
+# frameworks/opt/net/wifi does exactly that, and its first patch stopped
+# reverse-applying. A project with no local changes gets its series applied
+# in order; one with changes is compared with the series applied to HEAD in
+# a scratch index, and is either exactly that (already in) or something
+# else, which is an error.
 patch_trees() {
     local tree="$BUILD_DIR/device/xiaomi/mocha"
     local root="$tree/patches"
@@ -79,20 +86,42 @@ patch_trees() {
         echo "  patches: none on this branch"
         return 0
     fi
-    local p proj
-    for p in $(find "$root" -name '*.patch' | sort); do
-        proj=$(dirname "${p#$root/}")
-        local dir="$BUILD_DIR/$proj"
+    local proj dir p idx expected
+    for proj in $(find "$root" -name '*.patch' -exec dirname {} \; | sort -u); do
+        proj=${proj#$root/}
+        dir="$BUILD_DIR/$proj"
         if [ ! -d "$dir/.git" ]; then
-            echo "  $proj: not a git project, skipping $(basename "$p")" >&2
+            echo "  $proj: not a git project, skipping its patches" >&2
             continue
         fi
-        if git -C "$dir" apply --check --reverse -p1 "$p" >/dev/null 2>&1; then
-            echo "  $proj: $(basename "$p") already applied"
-        elif git -C "$dir" apply -p1 "$p" 2>/dev/null; then
-            echo "  $proj: applied $(basename "$p")"
+        if git -C "$dir" diff --quiet HEAD; then
+            for p in $(find "$root/$proj" -maxdepth 1 -name '*.patch' | sort); do
+                if git -C "$dir" apply -p1 "$p" 2>/dev/null; then
+                    echo "  $proj: applied $(basename "$p")"
+                else
+                    echo "  $proj: FAILED to apply $(basename "$p")" >&2
+                    return 1
+                fi
+            done
+            continue
+        fi
+        idx=$(mktemp)
+        expected=
+        if GIT_INDEX_FILE="$idx" git -C "$dir" read-tree HEAD; then
+            expected=ok
+            for p in $(find "$root/$proj" -maxdepth 1 -name '*.patch' | sort); do
+                if ! GIT_INDEX_FILE="$idx" git -C "$dir" apply --cached -p1 "$p" 2>/dev/null; then
+                    expected=
+                    break
+                fi
+            done
+            [ -n "$expected" ] && expected=$(GIT_INDEX_FILE="$idx" git -C "$dir" write-tree)
+        fi
+        rm -f "$idx"
+        if [ -n "$expected" ] && git -C "$dir" diff --quiet "$expected"; then
+            echo "  $proj: already applied"
         else
-            echo "  $proj: FAILED to apply $(basename "$p")" >&2
+            echo "  $proj: FAILED - local changes that are not its patches" >&2
             return 1
         fi
     done
