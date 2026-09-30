@@ -10,9 +10,6 @@
     <!-- Boolean indicating whether the wifi chipset has 5GHz frequency band support -->
     <bool translatable="false" name="config_wifi5ghzSupport">true</bool>
 
-    <!-- Boolean indicating associated network selection is allowed -->
-    <bool translatable="false" name="config_wifi_framework_enable_associated_network_selection">false</bool>
-
     <!-- No WPA2 to WPA3 auto-upgrade. R turns a saved WPA2 network into a WPA3
          one whenever the access point also offers SAE, on the assumption that
          every device it ships on can do SAE. This one cannot: bcmdhd connects
@@ -20,6 +17,11 @@
          SAE in, so the upgraded network finds no key management to use and
          the connection never starts. -->
     <bool translatable="false" name="config_wifiSaeUpgradeEnabled">false</bool>
+
+    <!-- A MAC address of its own for each network the station joins, as R
+         offers. The driver sets it with an interface down and up, which it
+         does for the factory address already. -->
+    <bool translatable="false" name="config_wifi_connected_mac_randomization_supported">true</bool>
 
     <!-- The hotspot's default name. The framework appends "_" and four
          random digits, and uses it only while no hotspot has been saved. -->
