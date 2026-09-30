@@ -20,4 +20,8 @@
          SAE in, so the upgraded network finds no key management to use and
          the connection never starts. -->
     <bool translatable="false" name="config_wifiSaeUpgradeEnabled">false</bool>
+
+    <!-- The hotspot's default name. The framework appends "_" and four
+         random digits, and uses it only while no hotspot has been saved. -->
+    <string name="wifi_tether_configure_ssid_default" translatable="false">MiPad</string>
 </resources>
