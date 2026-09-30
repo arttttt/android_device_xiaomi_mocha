@@ -106,3 +106,12 @@ PRODUCT_PROPERTY_OVERRIDES += \
     wifi.interface=wlan0 \
     wifi.direct.interface=p2p-dev-wlan0 \
     persist.debug.wfd.enable=1
+
+# Wi-Fi country. Without a SIM, R takes the country from ro.boot.wificountrycode
+# and from nothing else: left unset, the framework has no country, the settings
+# offer the hotspot 2.4 GHz only, and a 5 GHz hotspot is refused ("Failed to
+# set country code, required for setting up soft ap in 5GHz"). It could come
+# as androidboot.wificountrycode on the kernel cmdline, but that is baked into
+# boot.img; here it is a system property, and a cmdline value would still win.
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+    ro.boot.wificountrycode=US
