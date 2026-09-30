@@ -1,0 +1,79 @@
+From: Artem Bambalov <artembambalov1993@gmail.com>
+Subject: [PATCH] hidl: bring a P2P Device back from its primary interface
+
+A dedicated P2P Device (p2p-dev-wlan0) has no netdev. The supplicant
+creates it from the primary interface as that interface is added, and
+nowhere else. When the framework tears P2P down, to bring up a hotspot
+beside the station for one, it removes the P2P Device; when it asks for
+it back, addInterface looks for a netdev by that name, finds none
+("Could not read interface p2p-dev-wlan0 flags: No such device"), and
+Wi-Fi Direct stays down until Wi-Fi is switched off and on.
+
+addInterface now creates a p2p-dev- interface from its primary with
+wpas_p2p_add_p2pdev_interface and the same configuration the supplicant
+uses at start-up, as Android 12's supplicant does (addP2pDevInterface).
+---
+ wpa_supplicant/hidl/1.3/supplicant.cpp | 33 ++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/wpa_supplicant/hidl/1.3/supplicant.cpp b/wpa_supplicant/hidl/1.3/supplicant.cpp
+index 50d2343..a2516aa 100644
+--- a/wpa_supplicant/hidl/1.3/supplicant.cpp
++++ b/wpa_supplicant/hidl/1.3/supplicant.cpp
+@@ -15,6 +15,11 @@
+ #include <fcntl.h>
+ #include <sys/stat.h>
+ 
++extern "C"
++{
++#include "p2p_supplicant.h"
++}
++
+ namespace {
+ 
+ // Pre-populated interface params for interfaces controlled by wpa_supplicant.
+@@ -35,6 +40,7 @@ constexpr char kVendorTemplateConfPath[] =
+     "/vendor/etc/wifi/wpa_supplicant.conf";
+ constexpr char kOldStaIfaceConfPath[] = "/data/misc/wifi/wpa_supplicant.conf";
+ constexpr char kOldP2pIfaceConfPath[] = "/data/misc/wifi/p2p_supplicant.conf";
++constexpr char kP2pMgmtDevicePrefix[] = "p2p-dev-";
+ constexpr mode_t kConfigFileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+ 
+ int copyFile(
+@@ -305,6 +311,33 @@ Supplicant::addInterfaceInternal(const IfaceInfo& iface_info)
+ 		}
+ 	}
+ 	iface_params.ifname = iface_info.name.c_str();
++	if (iface_info.type == IfaceType::P2P &&
++	    strncmp(iface_params.ifname, kP2pMgmtDevicePrefix,
++		    strlen(kP2pMgmtDevicePrefix)) == 0) {
++		/*
++		 * A dedicated P2P Device has no netdev to add by name: the
++		 * supplicant creates it from its primary interface, which it
++		 * does by itself only when that interface is added. Once the
++		 * framework has removed it (to bring up a hotspot, say), it can
++		 * only come back this way.
++		 */
++		struct wpa_supplicant* primary_wpa_s = wpa_supplicant_get_iface(
++		    wpa_global_,
++		    iface_params.ifname + strlen(kP2pMgmtDevicePrefix));
++		if (!primary_wpa_s) {
++			return {{SupplicantStatusCode::FAILURE_IFACE_UNKNOWN,
++				 "No primary interface for the P2P Device"},
++				{}};
++		}
++		if (wpas_p2p_add_p2pdev_interface(
++			primary_wpa_s,
++			primary_wpa_s->global->params.conf_p2p_dev) < 0) {
++			return {{SupplicantStatusCode::FAILURE_UNKNOWN,
++				 "Failed to create the P2P Device"},
++				{}};
++		}
++		return getInterfaceInternal(iface_info);
++	}
+ 	struct wpa_supplicant* wpa_s =
+ 	    wpa_supplicant_add_iface(wpa_global_, &iface_params, NULL);
+ 	if (!wpa_s) {
+-- 
+2.56.0
+
