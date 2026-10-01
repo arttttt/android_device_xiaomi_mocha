@@ -192,6 +192,9 @@ struct stream {
     int     ref_count;
     int     max_ref_count;
 
+    /* Output flags this stream serves; 0 serves any (see get_stream) */
+    uint32_t flags;
+
     int     enable_path;    /* id of paths to invoke when enabled */
     int     disable_path;   /* id of paths to invoke when disabled */
 
@@ -266,6 +269,7 @@ enum attrib_index {
     e_attrib_min,
     e_attrib_max,
     e_attrib_file,
+    e_attrib_flags,
 
     e_attrib_count
 };
@@ -863,12 +867,28 @@ static bool open_stream_l(struct config_mgr *cm, struct stream *s)
     }
 }
 
+/*
+ * A stream serves a request when every flag it declares is among the
+ * requested ones; one that declares none serves any request. Of those the
+ * one declaring the most flags wins, so a deep buffer output lands on the
+ * stream made for it and everything else on the general one.
+ */
+static int stream_flags_score(const struct stream *s, uint32_t flags)
+{
+    if (s->flags & ~flags) {
+        return -1;
+    }
+    return __builtin_popcount(s->flags);
+}
+
 const struct hw_stream *get_stream(struct config_mgr *cm,
                                    const audio_devices_t devices,
                                    const audio_output_flags_t flags,
                                    const struct audio_config *config )
 {
     int i;
+    int best = -1;
+    int best_score = -1;
     struct stream *s = cm->anon_stream_array.streams;
     const bool pcm = audio_is_linear_pcm(config->format);
     enum stream_type type;
@@ -884,13 +904,24 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
 
     pthread_mutex_lock(&cm->lock);
     for (i = cm->anon_stream_array.count - 1; i >= 0; --i) {
-        ALOGV("get_stream: require type=%d; try type=%d refcount=%d refmax=%d",
-                    type, s[i].info.type, s[i].ref_count, s[i].max_ref_count );
-        if (s[i].info.type == type) {
-            if (open_stream_l(cm, &s[i])) {
-                break;
-            }
+        int score;
+
+        ALOGV("get_stream: require type=%d; try type=%d refcount=%d refmax=%d flags=0x%x",
+                    type, s[i].info.type, s[i].ref_count, s[i].max_ref_count,
+                    s[i].flags );
+        if (s[i].info.type != type ||
+                s[i].ref_count >= s[i].max_ref_count) {
+            continue;
         }
+        score = stream_flags_score(&s[i], flags);
+        if (score > best_score) {
+            best = i;
+            best_score = score;
+        }
+    }
+    i = best;
+    if (i >= 0 && !open_stream_l(cm, &s[i])) {
+        i = -1;
     }
     pthread_mutex_unlock(&cm->lock);
 
@@ -1146,7 +1177,7 @@ static const struct parse_element elem_table[e_elem_count] = {
                             | BIT(e_attrib_dir) | BIT(e_attrib_card) | BIT(e_attrib_cardname)
                             | BIT(e_attrib_device) | BIT(e_attrib_instances)
                             | BIT(e_attrib_rate) | BIT(e_attrib_period_size)
-                            | BIT(e_attrib_period_count),
+                            | BIT(e_attrib_period_count) | BIT(e_attrib_flags),
         .required_attribs = BIT(e_attrib_type),
         .valid_subelem = BIT(e_elem_stream_ctl)
                             | BIT(e_elem_enable) | BIT(e_elem_disable)
@@ -1282,8 +1313,22 @@ static const struct parse_attrib attrib_table[e_attrib_count] = {
     [e_attrib_period_count] = {"period_count"},
     [e_attrib_min] = {"min"},
     [e_attrib_max] = {"max"},
-    [e_attrib_file] = {"file"}
+    [e_attrib_file] = {"file"},
+    [e_attrib_flags] = {"flags"}
  };
+
+/* Names for the "flags" attribute of an output <stream>, joined by '|' */
+static const struct {
+    const char *name;
+    audio_output_flags_t flag;
+} output_flag_table[] = {
+    {"primary",         AUDIO_OUTPUT_FLAG_PRIMARY},
+    {"fast",            AUDIO_OUTPUT_FLAG_FAST},
+    {"deep_buffer",     AUDIO_OUTPUT_FLAG_DEEP_BUFFER},
+    {"raw",             AUDIO_OUTPUT_FLAG_RAW},
+    {"direct",          AUDIO_OUTPUT_FLAG_DIRECT},
+    {"compress_offload", AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD},
+};
 
 static const struct parse_device device_table[] = {
     {"global",      0}, /* special dummy device for global settings */
@@ -2374,6 +2419,38 @@ static int parse_stream_ctl_start(struct parse_state *state)
 
 static int get_card_id_for_name(const char* name, uint32_t *id);
 
+static int parse_output_flags(uint32_t *result, const char *str)
+{
+    uint32_t flags = 0;
+    char *copy = strdup(str);
+    char *save = NULL;
+    char *tok;
+    size_t i;
+
+    if (!copy) {
+        return -ENOMEM;
+    }
+
+    for (tok = strtok_r(copy, "| ", &save); tok != NULL;
+            tok = strtok_r(NULL, "| ", &save)) {
+        for (i = 0; i < (sizeof(output_flag_table) / sizeof(output_flag_table[0])); ++i) {
+            if (strcmp(tok, output_flag_table[i].name) == 0) {
+                break;
+            }
+        }
+        if (i == (sizeof(output_flag_table) / sizeof(output_flag_table[0]))) {
+            ALOGE("'%s' is not a known output flag", tok);
+            free(copy);
+            return -EINVAL;
+        }
+        flags |= output_flag_table[i].flag;
+    }
+
+    free(copy);
+    *result = flags;
+    return 0;
+}
+
 static int parse_stream_start(struct parse_state *state)
 {
     const char *type = state->attribs.value[e_attrib_type];
@@ -2474,6 +2551,18 @@ static int parse_stream_start(struct parse_state *state)
         return -EINVAL;
     }
 
+    if (state->attribs.value[e_attrib_flags] != NULL) {
+        if (name != NULL || (s->info.type != e_stream_out_pcm &&
+                s->info.type != e_stream_out_compress)) {
+            ALOGE("'flags' applies only to anonymous output streams");
+            return -EINVAL;
+        }
+        if (parse_output_flags(&s->flags,
+                               state->attribs.value[e_attrib_flags]) != 0) {
+            return -EINVAL;
+        }
+    }
+
     if (name != NULL) {
         s->name = strdup(name);
         if (!s->name) {
@@ -2484,10 +2573,10 @@ static int parse_stream_start(struct parse_state *state)
     s->info.device_number = device;
     s->max_ref_count = maxref;
 
-    ALOGV("Added stream %s type=%u card=%u device=%u max_ref=%u",
+    ALOGV("Added stream %s type=%u card=%u device=%u max_ref=%u flags=0x%x",
                     s->name ? s->name : "",
                     s->info.type, s->info.card_number, s->info.device_number,
-                    s->max_ref_count );
+                    s->max_ref_count, s->flags );
 
     state->current.stream = s;
 
