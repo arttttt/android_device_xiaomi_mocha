@@ -195,11 +195,13 @@ struct stream_out_pcm {
     uint32_t hw_sample_rate;    /* actual sample rate of hardware */
     int hw_channel_count;  /* actual number of output channels */
 
-    /* For get_presentation_position: frames handed to the PCM so far, and
-     * when the last of them will have been played out. */
+    /* For get_presentation_position: frames handed to the PCM since the
+     * stream was opened (standby does not reset it), and the last answer
+     * given, so that one is repeated while there is no running PCM to ask. */
     uint64_t frames_written;
-    struct timespec timestamp;
-    bool timestamp_valid;
+    uint64_t presented_frames;
+    struct timespec presented_time;
+    bool presented_valid;
 };
 
 #ifdef TINYHAL_COMPRESS_PLAYBACK
@@ -727,9 +729,12 @@ static int start_output_pcm(struct stream_out_pcm *out)
 
     ALOGV("+start_output_stream(%p)", out);
 
+    /* PCM_MONOTONIC: the PCM's timestamps feed get_presentation_position,
+     * which owes AudioFlinger CLOCK_MONOTONIC time; ALSA's default is the
+     * wall clock. */
     out->pcm = pcm_open(out->common.hw->card_number,
                         out->common.hw->device_number,
-                        PCM_OUT,
+                        PCM_OUT | PCM_MONOTONIC,
                         &config);
 
     if (out->pcm && !pcm_is_ready(out->pcm)) {
@@ -752,41 +757,6 @@ static int out_pcm_standby(struct audio_stream *stream)
     do_out_pcm_standby(out);
     pthread_mutex_unlock(&out->common.lock);
 
-    return 0;
-}
-
-/* From upstream tinyhal (CirrusLogic, audio/audio_hw.c). */
-static void timestamp_adjust(struct timespec *ts, ssize_t frames, uint32_t sampling_rate)
-{
-    /* The adjustment is a buffer's worth of frames, far below the two
-     * seconds a 32-bit long holds in nanoseconds. */
-    long adj_nsec = (frames / (float)sampling_rate) * 1E9L;
-
-    ts->tv_nsec += adj_nsec;
-
-    while (ts->tv_nsec >= 1E9L) {
-        ts->tv_sec++;
-        ts->tv_nsec -= 1E9L;
-    }
-
-    if (ts->tv_nsec < 0) {
-        ts->tv_sec--;
-        ts->tv_nsec += 1E9L;
-    }
-}
-
-/* The hardware's timestamp for the PCM, moved on by what is still queued in
- * it: the time at which the last frame written will have been played. */
-static int get_pcm_timestamp(struct pcm *pcm, uint32_t sample_rate,
-                             struct timespec *timestamp)
-{
-    unsigned int available;
-
-    if (pcm_get_htimestamp(pcm, &available, timestamp) < 0) {
-        return -EINVAL;
-    }
-
-    timestamp_adjust(timestamp, pcm_get_buffer_size(pcm) - available, sample_rate);
     return 0;
 }
 
@@ -821,8 +791,6 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void* buffer
     ret = pcm_writei(out->pcm, buffer, pcm_bytes_to_frames(out->pcm, bytes));
     if (ret >= 0) {
         out->frames_written += pcm_bytes_to_frames(out->pcm, bytes);
-        out->timestamp_valid = get_pcm_timestamp(out->pcm, out->common.sample_rate,
-                                                 &out->timestamp) == 0;
         ret = bytes;
     }
 
@@ -846,11 +814,18 @@ static int out_pcm_get_render_position(const struct audio_stream_out *stream,
  * AudioFlinger asks every stream for this, and FastMixer counted each refusal
  * as an error, 23347 of them in one boot: without it the mixer had no hardware
  * time to correct its timing against, and A/V sync no position to follow.
+ *
+ * The contract is frames presented, not written: what is still queued in the
+ * PCM is subtracted, and the time is the PCM's own, taken where hw_ptr was
+ * read. Asked while there is no running PCM (standby, or before the first
+ * period has played), the last answer is repeated; before any, -ENODATA.
  */
 static int out_pcm_get_presentation_position(const struct audio_stream_out *stream,
                                              uint64_t *frames, struct timespec *timestamp)
 {
     struct stream_out_pcm *out = (struct stream_out_pcm *)stream;
+    unsigned int avail;
+    struct timespec now;
     int ret = -ENODATA;
 
     if (frames == NULL || timestamp == NULL) {
@@ -858,11 +833,29 @@ static int out_pcm_get_presentation_position(const struct audio_stream_out *stre
     }
 
     pthread_mutex_lock(&out->common.lock);
-    if (out->timestamp_valid) {
-        *frames = out->frames_written;
-        *timestamp = out->timestamp;
+
+    if (!out->common.standby && out->pcm != NULL &&
+            pcm_get_htimestamp(out->pcm, &avail, &now) == 0) {
+        const unsigned int size = pcm_get_buffer_size(out->pcm);
+        /* avail beyond the buffer is an underrun: nothing left queued */
+        const uint64_t queued = (avail < size) ? size - avail : 0;
+        const uint64_t presented = (out->frames_written > queued)
+                                        ? out->frames_written - queued : 0;
+
+        /* never let the count step back, whatever the driver reports */
+        if (!out->presented_valid || presented >= out->presented_frames) {
+            out->presented_frames = presented;
+            out->presented_time = now;
+            out->presented_valid = true;
+        }
+    }
+
+    if (out->presented_valid) {
+        *frames = out->presented_frames;
+        *timestamp = out->presented_time;
         ret = 0;
     }
+
     pthread_mutex_unlock(&out->common.lock);
 
     return ret;
