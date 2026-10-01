@@ -15,45 +15,64 @@
  */
 
 #define LOG_TAG "tiny_hal_config"
-/*#define LOG_NDEBUG 0*/
-/*#undef NDEBUG*/
 
+/* For asprintf */
+#define _GNU_SOURCE
+
+#include <limits.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include <pthread.h>
 #include <assert.h>
-#include <cutils/log.h>
-#include <cutils/properties.h>
-#include <cutils/compiler.h>
 #include <ctype.h>
 #include <dirent.h>
-#include <stdio.h>
-#include <string.h>
-
+#include <linux/limits.h>
+#ifdef ANDROID
+#include <cutils/log.h>
+#include <cutils/compiler.h>
 #include <system/audio.h>
+#else
+#include "audio_logging.h"
+#endif
 
 /* Workaround for linker error if audio_effect.h is included in multiple
  * source files. Prevent audio.h including it */
 #define ANDROID_AUDIO_EFFECT_H
 struct effect_interface_s;
 typedef struct effect_interface_s **effect_handle_t;
+#ifdef ANDROID
 #include <hardware/audio.h>
+#endif
+
+#include "thcm_test_harness.h"
+
+#ifdef ENABLE_COVERAGE
+#include <coverage.h>
+#endif
 
 #include <tinyalsa/asoundlib.h>
 #include <expat.h>
 
-#include <tinyhal/audio_config.h>
+#include "../include/tinyhal/audio_config.h"
 
 #define MIXER_CARD_DEFAULT 0
-#define PCM_DEVICE_DEFAULT 0
-#define COMPRESS_DEVICE_DEFAULT 0
 
 /* The dynamic arrays are extended in multiples of this number of objects */
 #define DYN_ARRAY_GRANULE 16
 
-/* Largest byte array control we handle */
-#define BYTE_ARRAY_MAX_SIZE 512
-
 #define INVALID_CTL_INDEX 0xFFFFFFFFUL
+
+#ifdef ANDROID
+#ifndef ETC_PATH
+#define ETC_PATH "/system/etc"
+#endif
+#endif
 
 struct config_mgr;
 struct stream;
@@ -63,6 +82,7 @@ struct usecase;
 struct scase;
 struct codec_probe;
 struct codec_case;
+struct constant;
 
 /* Dynamically extended array of fixed-size objects */
 struct dyn_array {
@@ -78,6 +98,7 @@ struct dyn_array {
         struct scase       *cases;
         struct ctl         *ctls;
         struct codec_case  *codec_cases;
+        struct constant    *constants;
         const char         **path_names;
     };
 };
@@ -89,22 +110,38 @@ enum {
     e_path_id_custom_base = 2
 };
 
-struct ctl {
+/* Old versions of tinalsa don't have mixer_ctl_get_id() */
+struct ctl_ref {
+#ifdef TINYALSA_NO_CTL_GET_ID
+    struct mixer_ctl    *ctl;
+#else
     uint                id;
+#endif
+};
+
+struct ctl {
+    struct ctl_ref      ref;
     const char          *name;
     uint32_t            index;
     uint32_t            array_count;
     enum mixer_ctl_type type;
+    uint8_t             *buffer;
+    const char          *data_file_name;
 
     /* If the control couldn't be opened during boot the value will hold
      * a pointer to the original value string from the config file and will
      * be converted later into the appropriate type
      */
     union {
-        uint32_t        uinteger;
+        int             integer;
         const uint8_t   *data;
         const char      *string;
     } value;
+};
+
+struct constant {
+    const char *name;
+    const char *value;
 };
 
 struct path {
@@ -119,7 +156,7 @@ struct codec_case {
 
 struct codec_probe {
     const char *file;
-    char *new_xml_file;           /* To store the the new xml file after parsing the codec_probe */
+    const char *new_xml_file;
     struct dyn_array codec_case_array;
 };
 
@@ -140,16 +177,10 @@ struct usecase {
 };
 
 struct stream_control {
-    uint                id;
+    struct ctl_ref      ref;
     uint                index;
-    uint                min;
-    uint                max;
-};
-
-struct volume_control {
-    struct stream_control control;
-    uint min;
-    uint max;
+    int                 min;
+    int                 max;
 };
 
 struct stream {
@@ -172,6 +203,7 @@ struct stream {
     } controls;
 
     struct dyn_array    usecase_array;
+    struct dyn_array    constants_array;
 };
 
 struct config_mgr {
@@ -183,7 +215,8 @@ struct config_mgr {
     uint32_t        supported_input_devices;
 
     struct dyn_array device_array;
-    struct dyn_array stream_array;
+    struct dyn_array anon_stream_array;
+    struct dyn_array named_stream_array;
 };
 
 /*********************************************************************
@@ -202,8 +235,10 @@ enum element_index {
     e_elem_disable,
     e_elem_case,
     e_elem_usecase,
+    e_elem_set,
     e_elem_stream_ctl,
     e_elem_init,
+    e_elem_pre_init,
     e_elem_mixer,
     e_elem_audiohal,
     e_elem_codec_probe,
@@ -222,6 +257,7 @@ enum attrib_index {
     e_attrib_index,
     e_attrib_dir,
     e_attrib_card,
+    e_attrib_cardname,
     e_attrib_device,
     e_attrib_instances,
     e_attrib_rate,
@@ -230,7 +266,6 @@ enum attrib_index {
     e_attrib_min,
     e_attrib_max,
     e_attrib_file,
-    e_attrib_cardname,
 
     e_attrib_count
 };
@@ -242,8 +277,8 @@ typedef int(*elem_fn)(struct parse_state *state);
 
 struct parse_element {
     const char      *name;
-    uint16_t        valid_attribs;  /* bitflags of valid attribs for this element */
-    uint16_t        required_attribs;   /* bitflags of attribs that must be present */
+    uint32_t        valid_attribs;  /* bitflags of valid attribs for this element */
+    uint32_t        required_attribs;   /* bitflags of attribs that must be present */
     uint16_t        valid_subelem;  /* bitflags of valid sub-elements */
     elem_fn         start_fn;
     elem_fn         end_fn;
@@ -272,7 +307,7 @@ struct parse_state {
     char                read_buf[256];
     int                 parse_error; /* value >0 aborts without error */
     int                 error_line;
-    uint32_t            mixer_card_number;
+    unsigned int        mixer_card_number;
 
     struct {
         const char      *value[e_attrib_count];
@@ -296,10 +331,12 @@ struct parse_state {
     /* This array hold a de-duplicated list of all path names encountered */
     struct dyn_array    path_name_array;
 
-    /* This is a temporary path object used to collect the initial
-     * mixer setup control settings under <mixer><init>
+    /* These are temporary path objects used to collect the initial
+     * mixer setup control settings under <pre_init> and <init>
      */
+    struct path         preinit_path;
     struct path         init_path;
+
     struct codec_probe  init_probe;
 
     struct {
@@ -310,12 +347,91 @@ struct parse_state {
 
 
 static int string_to_uint(uint32_t *result, const char *str);
-static int make_byte_array(struct ctl *c, struct mixer_ctl *ctl);
+static int string_to_int(int *result, const char *str);
+static int get_value_from_file(struct ctl *c, uint32_t vnum);
+static int make_byte_work_buffer(struct ctl *pctl, uint32_t buffer_size);
+static int make_byte_array(struct ctl *c, uint32_t vnum);
 static const char *debug_device_to_name(uint32_t device);
+static void free_ctl_array(struct dyn_array *ctl_array);
+
+/*
+ * Utility function to join a filename to a base path. This doesn't bother to
+ * strip . and .. components.
+ */
+static char *join_paths(const char *base, const char *file, int strip_leaf)
+{
+    size_t base_len;
+    char *p;
+
+    if (!base) {
+        base_len = 0;
+    } else if (strip_leaf) {
+        /* Strip trailing filename part of base */
+        p = strrchr(base, '/');
+        if (!p) {
+            /* No path component */
+            base_len = 0;
+        } else {
+            /* Take the part up to but not including the / */
+            base_len = p - base;
+        }
+    } else {
+        /* Normalize to not include a trailing / */
+        base_len = strlen(base);
+        if (base[base_len - 1] == '/') {
+            --base_len;
+        }
+    }
+
+    if (asprintf(&p, "%.*s/%s", (int)base_len, base, file) < 0) {
+        return NULL;
+    }
+
+    return p;
+}
 
 /*********************************************************************
  * Routing control
  *********************************************************************/
+
+static inline void ctl_ref_init(struct ctl_ref *pctl_ref)
+{
+#ifdef TINYALSA_NO_CTL_GET_ID
+    pctl_ref->ctl = NULL;
+#else
+    pctl_ref->id = UINT_MAX;
+#endif
+}
+
+static inline bool ctl_ref_valid(struct ctl_ref *pctl_ref)
+{
+#ifdef TINYALSA_NO_CTL_GET_ID
+    return pctl_ref->ctl != NULL;
+#else
+    return pctl_ref->id != UINT_MAX;
+#endif
+}
+
+static inline void ctl_set_ref(struct ctl_ref *pctl_ref,
+                               struct mixer_ctl *ctl)
+{
+#ifdef TINYALSA_NO_CTL_GET_ID
+    pctl_ref->ctl = ctl;
+#else
+    pctl_ref->id = mixer_ctl_get_id(ctl);
+#endif
+}
+
+static inline struct mixer_ctl *ctl_get_ptr(const struct config_mgr *cm,
+                                            const struct ctl_ref *pctl_ref)
+{
+#ifdef TINYALSA_NO_CTL_GET_ID
+    (void)cm;
+    return pctl_ref->ctl;
+#else
+    return mixer_get_ctl(cm->mixer, pctl_ref->id);
+#endif
+}
 
 static int ctl_open(struct config_mgr *cm, struct ctl *pctl)
 {
@@ -324,7 +440,7 @@ static int ctl_open(struct config_mgr *cm, struct ctl *pctl)
     struct mixer_ctl *ctl;
     int ret;
 
-    if (pctl->id != UINT_MAX) {
+    if (ctl_ref_valid(&pctl->ref)) {
         /* control already populated on boot */
         return 0;
     }
@@ -332,13 +448,16 @@ static int ctl_open(struct config_mgr *cm, struct ctl *pctl)
    /* Control wasn't found on boot, try to get it now */
 
     ctl = mixer_get_ctl_by_name(cm->mixer, pctl->name);
+#if !defined(TINYALSA_NO_ADD_NEW_CTRLS) || !defined(TINYALSA_NO_CTL_GET_ID)
     if (!ctl) {
         /* Update tinyalsa with any new controls that have been added
-         * and try again
+         * and try again. NOTE: only safe if mixer_ctl_get_id() supported
+         * because the pointers are likely to change as the list is updated.
          */
         mixer_add_new_ctls(cm->mixer);
         ctl = mixer_get_ctl_by_name(cm->mixer, pctl->name);
     }
+#endif
 
     if (!ctl) {
         ALOGW("Control '%s' not found", pctl->name);
@@ -351,16 +470,16 @@ static int ctl_open(struct config_mgr *cm, struct ctl *pctl)
             if (pctl->index == INVALID_CTL_INDEX) {
                 pctl->index = 0;
             }
-            ret = make_byte_array(pctl, ctl);
+            const unsigned int vnum = mixer_ctl_get_num_values(ctl);
+            ret = make_byte_work_buffer(pctl, vnum);
             if (ret != 0) {
                 return ret;
             }
-            ALOGV("Added ctl '%s' byte array len %d", pctl->name, pctl->array_count);
             break;
 
         case MIXER_CTL_TYPE_BOOL:
         case MIXER_CTL_TYPE_INT:
-            if (string_to_uint(&pctl->value.uinteger, val_str) == -EINVAL) {
+            if (string_to_int(&pctl->value.integer, val_str) == -EINVAL) {
                 return -EINVAL;
             }
 
@@ -368,9 +487,9 @@ static int ctl_open(struct config_mgr *cm, struct ctl *pctl)
 
             /* This log statement is just to aid to debugging */
             ALOGE_IF((ctl_type == MIXER_CTL_TYPE_BOOL)
-                        && (pctl->value.uinteger > 1),
-                        "WARNING: Illegal value for bool control");
-            ALOGV("Added ctl '%s' value %u", pctl->name, pctl->value.uinteger);
+                     && ((unsigned int)pctl->value.integer > 1),
+                     "WARNING: Illegal value for bool control");
+            ALOGV("Added ctl '%s' value 0x%x", pctl->name, pctl->value.integer);
             break;
 
         case MIXER_CTL_TYPE_ENUM:
@@ -386,7 +505,8 @@ static int ctl_open(struct config_mgr *cm, struct ctl *pctl)
     }
 
     pctl->type = ctl_type;
-    pctl->id = mixer_ctl_get_id(ctl);
+    ctl_set_ref(&pctl->ref, ctl);
+
     return 0;
 }
 
@@ -397,7 +517,6 @@ static void apply_ctls_l(struct config_mgr *cm, struct ctl *pctl, const int ctl_
     unsigned int vnum;
     unsigned int value_count;
     int err = 0;
-    uint8_t ctl_data[BYTE_ARRAY_MAX_SIZE];
 
     ALOGV("+apply_ctls_l");
 
@@ -406,7 +525,7 @@ static void apply_ctls_l(struct config_mgr *cm, struct ctl *pctl, const int ctl_
             break;
         }
 
-        ctl = mixer_get_ctl(cm->mixer, pctl->id);
+        ctl = ctl_get_ptr(cm, &pctl->ref);
 
         switch (mixer_ctl_get_type(ctl)) {
             case MIXER_CTL_TYPE_BOOL:
@@ -415,22 +534,22 @@ static void apply_ctls_l(struct config_mgr *cm, struct ctl *pctl, const int ctl_
 
                 ALOGV("apply ctl '%s' = 0x%x (%d values)",
                                         mixer_ctl_get_name(ctl),
-                                        pctl->value.uinteger,
+                                        pctl->value.integer,
                                         value_count);
 
                 if (pctl->index == INVALID_CTL_INDEX) {
                     for (vnum = 0; vnum < value_count; ++vnum) {
-                        err = mixer_ctl_set_value(ctl, vnum, pctl->value.uinteger);
+                        err = mixer_ctl_set_value(ctl, vnum, pctl->value.integer);
                         if (err < 0) {
                             break;
                         }
                     }
                 } else {
-                    err = mixer_ctl_set_value(ctl, pctl->index, pctl->value.uinteger);
+                    err = mixer_ctl_set_value(ctl, pctl->index, pctl->value.integer);
                 }
-                ALOGE_IF(err < 0, "Failed to set ctl '%s' to %u",
+                ALOGE_IF(err < 0, "Failed to set ctl '%s' to 0x%x",
                                         mixer_ctl_get_name(ctl),
-                                        pctl->value.uinteger);
+                                        pctl->value.integer);
                 break;
 
             case MIXER_CTL_TYPE_BYTE:
@@ -445,10 +564,10 @@ static void apply_ctls_l(struct config_mgr *cm, struct ctl *pctl, const int ctl_
                     err = mixer_ctl_set_array(ctl, pctl->value.data, pctl->array_count);
                 } else {
                     /* read-modify-write */
-                    err = mixer_ctl_get_array(ctl, ctl_data, vnum);
+                    err = mixer_ctl_get_array(ctl, pctl->buffer, vnum);
                     if (err >= 0) {
-                        memcpy(&ctl_data[pctl->index], pctl->value.data, pctl->array_count);
-                        err = mixer_ctl_set_array(ctl, ctl_data, vnum);
+                        memcpy(&pctl->buffer[pctl->index], pctl->value.data, pctl->array_count);
+                        err = mixer_ctl_set_array(ctl, pctl->buffer, vnum);
                     }
                 }
 
@@ -604,10 +723,6 @@ void apply_route( const struct hw_stream *stream, uint32_t devices )
     struct stream *s = (struct stream *)stream;
     struct config_mgr *cm = s->cm;
 
-    /* Only apply routes to devices that have changed state on this stream */
-    uint32_t enabling = devices & ~s->current_devices;
-    uint32_t disabling = ~devices & s->current_devices;
-
     ALOGV("apply_route(%p) devices=0x%x", stream, devices);
 
     if (devices != 0) {
@@ -631,6 +746,15 @@ void apply_route( const struct hw_stream *stream, uint32_t devices )
 
     pthread_mutex_lock(&cm->lock);
 
+    /*
+     * Only apply routes to devices that have changed state on this stream.
+     * The input bit will be stripped as unchanged so restore it after.
+     */
+    uint32_t enabling = devices & ~s->current_devices;
+    uint32_t disabling = ~devices & s->current_devices;
+    enabling |= devices & AUDIO_DEVICE_BIT_IN;
+    disabling |= devices & AUDIO_DEVICE_BIT_IN;
+
     apply_paths_to_devices_l(cm, disabling, s->disable_path, e_path_id_off);
     apply_paths_to_devices_l(cm, enabling, e_path_id_on, s->enable_path);
 
@@ -640,22 +764,19 @@ void apply_route( const struct hw_stream *stream, uint32_t devices )
     pthread_mutex_unlock(&cm->lock);
 }
 
-uint32_t get_routed_devices( const struct hw_stream *stream )
-{
-    struct stream *s = (struct stream *)stream;
-    return s->current_devices;
-}
-
 /*********************************************************************
  * Stream control
  *********************************************************************/
 
 static int set_vol_ctl(struct stream *stream,
-                       const struct stream_control *volctl, uint percent)
+                       const struct stream_control *volctl,
+                       int percent)
 {
-    struct mixer_ctl *ctl = mixer_get_ctl(stream->cm->mixer, volctl->id);
-    uint val;
-    uint range;
+    struct mixer_ctl *ctl = ctl_get_ptr(stream->cm, &volctl->ref);
+    int val;
+    long long lmin;
+    long long lmax;
+    long long lval;
 
     switch (percent) {
     case 0:
@@ -667,8 +788,10 @@ static int set_vol_ctl(struct stream *stream,
         break;
 
     default:
-        range = volctl->max - volctl->min;
-        val = volctl->min + ((percent * range)/100);
+        lmin = volctl->min;
+        lmax = volctl->max;
+        lval = lmin + (((lmax - lmin) * percent) / 100LL);
+        val = (int)lval;
         break;
     }
 
@@ -681,8 +804,18 @@ int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc)
     struct stream *s = (struct stream *)stream;
     int ret = -ENOSYS;
 
-    if (s->controls.volume_left.id != UINT_MAX) {
-        if (s->controls.volume_right.id == UINT_MAX) {
+    if ((left_pc < 0) || (left_pc > 100)) {
+        ALOGE("Volume percent %d is out of range 0..100", left_pc);
+        return -EINVAL;
+    }
+
+    if ((right_pc < 0) || (right_pc > 100)) {
+        ALOGE("Volume percent %d is out of range 0..100", right_pc);
+        return -EINVAL;
+    }
+
+    if (ctl_ref_valid(&s->controls.volume_left.ref)) {
+        if (!ctl_ref_valid(&s->controls.volume_right.ref)) {
             /* Control is mono so average left and right */
             left_pc = (left_pc + right_pc) / 2;
         }
@@ -690,7 +823,7 @@ int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc)
         ret = set_vol_ctl(s, &s->controls.volume_left, left_pc);
     }
 
-    if (s->controls.volume_right.id != UINT_MAX) {
+    if (ctl_ref_valid(&s->controls.volume_right.ref)) {
         ret = set_vol_ctl(s, &s->controls.volume_right, right_pc);
     }
 
@@ -702,10 +835,10 @@ int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc)
 static struct stream *find_named_stream(struct config_mgr *cm,
                                    const char *name)
 {
-    struct stream *s = cm->stream_array.streams;
+    struct stream *s = cm->named_stream_array.streams;
     int i;
 
-    for (i = cm->stream_array.count - 1; i >= 0; --i) {
+    for (i = cm->named_stream_array.count - 1; i >= 0; --i) {
         if (s->name) {
             if (strcmp(s->name, name) == 0) {
                 return s;
@@ -736,7 +869,7 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
                                    const struct audio_config *config )
 {
     int i;
-    struct stream *s = cm->stream_array.streams;
+    struct stream *s = cm->anon_stream_array.streams;
     const bool pcm = audio_is_linear_pcm(config->format);
     enum stream_type type;
 
@@ -750,7 +883,7 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
     }
 
     pthread_mutex_lock(&cm->lock);
-    for (i = cm->stream_array.count - 1; i >= 0; --i) {
+    for (i = cm->anon_stream_array.count - 1; i >= 0; --i) {
         ALOGV("get_stream: require type=%d; try type=%d refcount=%d refmax=%d",
                     type, s[i].info.type, s[i].ref_count, s[i].max_ref_count );
         if (s[i].info.type == type) {
@@ -762,6 +895,9 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
     pthread_mutex_unlock(&cm->lock);
 
     if (i >= 0) {
+        // apply initial routing
+        apply_route(&s[i].info, devices);
+
         ALOGV("-get_stream =%p (refcount=%d)", &s[i].info,
                                                 s[i].ref_count );
         return &s[i].info;
@@ -774,7 +910,6 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
 const struct hw_stream *get_named_stream(struct config_mgr *cm,
                                    const char *name)
 {
-    int i;
     struct stream *s;
 
     ALOGV("+get_named_stream '%s'", name);
@@ -884,6 +1019,66 @@ exit:
 }
 
 /*********************************************************************
+ * Constants
+ *********************************************************************/
+int get_stream_constant_string(const struct hw_stream *stream,
+                                const char *name, char const **value)
+{
+    struct stream *s = (struct stream *)stream;
+    struct constant *pc = s->constants_array.constants;
+    const int count = s->constants_array.count;
+    int i;
+
+    for (i = 0; i < count; ++i) {
+        if (0 == strcmp(pc[i].name, name)) {
+            *value = pc[i].value;
+            return 0;
+        }
+    }
+    return -ENOSYS;
+}
+
+int get_stream_constant_uint32(const struct hw_stream *stream,
+                                const char *name, uint32_t *value)
+{
+    const char *string = NULL;
+    uint32_t val = 0;
+    int ret = get_stream_constant_string(stream, name, &string);
+
+    if (!ret) {
+        ret = string_to_uint(&val, string);
+        if (!ret) {
+            *value = val;
+        }
+    }
+
+    return ret;
+}
+
+int get_stream_constant_int32(const struct hw_stream *stream,
+                              const char *name, int32_t *value)
+{
+    const char *string = NULL;
+    int val = 0;
+    int ret = get_stream_constant_string(stream, name, &string);
+
+    if (!ret) {
+        ret = string_to_int(&val, string);
+        if (ret != 0) {
+            return ret;
+        }
+        /* pick up out-of-range on 64-bit machines */
+        if ((sizeof(int) > sizeof(int32_t)) &&
+            ((val > 0x7FFFFFFF) || (-val > 0x7FFFFFFF))) {
+            return -EINVAL;
+        }
+        *value = val;
+    }
+
+    return ret;
+}
+
+/*********************************************************************
  * Config file parsing
  *
  * To keep this simple we restrict the order that config file entries
@@ -892,6 +1087,7 @@ exit:
  * - Paths must be defined before they can be referred to
  *********************************************************************/
 static int parse_mixer_start(struct parse_state *state);
+static int parse_mixer_end(struct parse_state *state);
 static int parse_device_start(struct parse_state *state);
 static int parse_device_end(struct parse_state *state);
 static int parse_stream_start(struct parse_state *state);
@@ -906,16 +1102,21 @@ static int parse_usecase_end(struct parse_state *state);
 static int parse_enable_start(struct parse_state *state);
 static int parse_disable_start(struct parse_state *state);
 static int parse_ctl_start(struct parse_state *state);
+static int parse_preinit_start(struct parse_state *state);
+static int parse_preinit_end(struct parse_state *state);
 static int parse_init_start(struct parse_state *state);
+static int parse_init_end(struct parse_state *state);
 static int parse_codec_probe_start(struct parse_state *state);
 static int parse_codec_probe_end(struct parse_state *state);
 static int parse_codec_case_start(struct parse_state *state);
+static int parse_set_start(struct parse_state *state);
 
 static const struct parse_element elem_table[e_elem_count] = {
     [e_elem_ctl] =    {
         .name = "ctl",
-        .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_val) | BIT(e_attrib_index),
-        .required_attribs = BIT(e_attrib_name) | BIT(e_attrib_val),
+        .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_val)
+                            | BIT(e_attrib_index) | BIT(e_attrib_file),
+        .required_attribs = BIT(e_attrib_name),
         .valid_subelem = 0,
         .start_fn = parse_ctl_start,
         .end_fn = NULL
@@ -942,15 +1143,14 @@ static const struct parse_element elem_table[e_elem_count] = {
     [e_elem_stream] =    {
         .name = "stream",
         .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_type)
-                            | BIT(e_attrib_dir) | BIT(e_attrib_card)
-                            | BIT(e_attrib_cardname)
+                            | BIT(e_attrib_dir) | BIT(e_attrib_card) | BIT(e_attrib_cardname)
                             | BIT(e_attrib_device) | BIT(e_attrib_instances)
                             | BIT(e_attrib_rate) | BIT(e_attrib_period_size)
                             | BIT(e_attrib_period_count),
         .required_attribs = BIT(e_attrib_type),
         .valid_subelem = BIT(e_elem_stream_ctl)
                             | BIT(e_elem_enable) | BIT(e_elem_disable)
-                            | BIT(e_elem_usecase),
+                            | BIT(e_elem_usecase) | BIT(e_elem_set),
         .start_fn = parse_stream_start,
         .end_fn = parse_stream_end
         },
@@ -991,6 +1191,14 @@ static const struct parse_element elem_table[e_elem_count] = {
         .end_fn = parse_usecase_end
         },
 
+    [e_elem_set] =    {
+        .name = "set",
+        .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_val),
+        .required_attribs = BIT(e_attrib_name) | BIT(e_attrib_val),
+        .valid_subelem = 0,
+        .start_fn = parse_set_start
+        },
+
     [e_elem_stream_ctl] =    {
         .name = "ctl",
         .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_function)
@@ -1008,16 +1216,25 @@ static const struct parse_element elem_table[e_elem_count] = {
         .required_attribs = 0,
         .valid_subelem = BIT(e_elem_ctl),
         .start_fn = parse_init_start,
-        .end_fn = NULL
+        .end_fn = parse_init_end
+        },
+
+    [e_elem_pre_init] =     {
+        .name = "pre_init",
+        .valid_attribs = 0,
+        .required_attribs = 0,
+        .valid_subelem = BIT(e_elem_ctl),
+        .start_fn = parse_preinit_start,
+        .end_fn = parse_preinit_end
         },
 
     [e_elem_mixer] =    {
         .name = "mixer",
-        .valid_attribs = BIT(e_attrib_card) | BIT(e_attrib_name),
+        .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_card),
         .required_attribs = 0,
-        .valid_subelem = BIT(e_elem_init),
+        .valid_subelem = BIT(e_elem_pre_init) | BIT(e_elem_init),
         .start_fn = parse_mixer_start,
-        .end_fn = NULL
+        .end_fn = parse_mixer_end
         },
 
     [e_elem_audiohal] =    {
@@ -1057,6 +1274,7 @@ static const struct parse_attrib attrib_table[e_attrib_count] = {
     [e_attrib_index] =      {"index"},
     [e_attrib_dir] =        {"dir"},
     [e_attrib_card] =       {"card"},
+    [e_attrib_cardname] =   {"cardname"},
     [e_attrib_device] =     {"device"},
     [e_attrib_instances] =  {"instances"},
     [e_attrib_rate] =       {"rate"},
@@ -1064,8 +1282,7 @@ static const struct parse_attrib attrib_table[e_attrib_count] = {
     [e_attrib_period_count] = {"period_count"},
     [e_attrib_min] = {"min"},
     [e_attrib_max] = {"max"},
-    [e_attrib_file] = {"file"},
-    [e_attrib_cardname] = {"cardname"}
+    [e_attrib_file] = {"file"}
  };
 
 static const struct parse_device device_table[] = {
@@ -1083,8 +1300,7 @@ static const struct parse_device device_table[] = {
     {"back mic",    AUDIO_DEVICE_IN_BACK_MIC},
     {"voice",       AUDIO_DEVICE_IN_VOICE_CALL},
     {"aux",         AUDIO_DEVICE_IN_AUX_DIGITAL},
-    {"fm",          AUDIO_DEVICE_OUT_FM},
-    {"fm_in",       AUDIO_DEVICE_IN_FM_TUNER}
+    {"hdmi",        AUDIO_DEVICE_OUT_HDMI},
 };
 
 static const char *predefined_path_name_table[] = {
@@ -1134,11 +1350,10 @@ static void dyn_array_fix(struct dyn_array *array)
     const uint size = array->count * array->elem_size;
     void *p = realloc(array->data, size);
 
-    if (p)
-        {
+    if (p) {
         array->data = p;
         array->max_count = array->count;
-        }
+    }
 }
 
 static void dyn_array_free(struct dyn_array *array)
@@ -1155,7 +1370,7 @@ static struct ctl* new_ctl(struct dyn_array *array, const char *name)
     }
 
     c = &array->ctls[array->count - 1];
-    c->id = UINT_MAX;
+    ctl_ref_init(&c->ref);
     c->index = INVALID_CTL_INDEX;
     c->name = name;
     c->type = MIXER_CTL_TYPE_UNKNOWN;
@@ -1175,10 +1390,6 @@ static struct codec_case* new_codec_case(struct dyn_array *array, const char *co
     cc->file = file;
 
     return cc;
-}
-
-static void compress_ctl(struct ctl *ctl)
-{
 }
 
 static struct path* new_path(struct dyn_array *array, int id)
@@ -1210,7 +1421,11 @@ static struct scase* new_case(struct dyn_array *array, const char *name)
 
     sc = &array->cases[array->count - 1];
     sc->ctl_array.elem_size = sizeof(struct ctl);
-    sc->name = name;
+    sc->name = strdup(name);
+    if (!sc->name) {
+        return NULL;
+    }
+
     return sc;
 }
 
@@ -1234,13 +1449,32 @@ static struct usecase* new_usecase(struct dyn_array *array, const char *name)
 
     puc = &array->usecases[array->count - 1];
     puc->case_array.elem_size = sizeof(struct scase);
-    puc->name = name;
+    puc->name = strdup(name);
+    if (!puc->name) {
+        return NULL;
+    }
+
     return puc;
 }
 
 static void compress_usecase(struct usecase *puc)
 {
     dyn_array_fix(&puc->case_array);
+}
+
+static struct constant* new_constant(struct dyn_array *array,
+                                     const char *name, const char *val)
+{
+    struct constant *pc;
+
+    if (dyn_array_extend(array) < 0) {
+        return NULL;
+    }
+
+    pc = &array->constants[array->count - 1];
+    pc->name = name;
+    pc->value = val;
+    return pc;
 }
 
 static struct device* new_device(struct dyn_array *array, uint32_t type)
@@ -1272,11 +1506,12 @@ static struct stream* new_stream(struct dyn_array *array, struct config_mgr *cm)
 
     s = &array->streams[array->count - 1];
     s->usecase_array.elem_size = sizeof(struct usecase);
+    s->constants_array.elem_size = sizeof(struct constant);
     s->cm = cm;
     s->enable_path = -1;    /* by default no special path to invoke */
     s->disable_path = -1;
-    s->controls.volume_left.id = UINT_MAX;
-    s->controls.volume_right.id = UINT_MAX;
+    ctl_ref_init(&s->controls.volume_left.ref);
+    ctl_ref_init(&s->controls.volume_right.ref);
     return s;
 }
 
@@ -1294,7 +1529,11 @@ static int new_name(struct dyn_array *array, const char* name)
     }
 
     i = array->count - 1;
-    array->path_names[i] = name;
+    array->path_names[i] = strdup(name);
+    if (!array->path_names[i]) {
+        return -ENOMEM;
+    }
+
     return i;
 }
 
@@ -1305,7 +1544,8 @@ static struct config_mgr* new_config_mgr()
         return NULL;
     }
     mgr->device_array.elem_size = sizeof(struct device);
-    mgr->stream_array.elem_size = sizeof(struct stream);
+    mgr->anon_stream_array.elem_size = sizeof(struct stream);
+    mgr->named_stream_array.elem_size = sizeof(struct stream);
     pthread_mutex_init(&mgr->lock, NULL);
     return mgr;
 }
@@ -1313,7 +1553,8 @@ static struct config_mgr* new_config_mgr()
 static void compress_config_mgr(struct config_mgr *mgr)
 {
     dyn_array_fix(&mgr->device_array);
-    dyn_array_fix(&mgr->stream_array);
+    dyn_array_fix(&mgr->anon_stream_array);
+    dyn_array_fix(&mgr->named_stream_array);
 }
 
 static int find_path_name(struct parse_state *state, const char *name)
@@ -1334,7 +1575,6 @@ static int add_path_name(struct parse_state *state, const char *name)
 {
     struct dyn_array *array = &state->path_name_array;
     int index;
-    const char *s;
 
     /* Check if already in array */
     index = find_path_name(state, name);
@@ -1342,12 +1582,7 @@ static int add_path_name(struct parse_state *state, const char *name)
         return index;   /* already exists */
     }
 
-    s = strdup(name);
-    if (s == NULL) {
-        return -ENOMEM;
-    }
-
-    index = new_name(array, s);
+    index = new_name(array, name);
     if (index < 0) {
         return -ENOMEM;
     }
@@ -1385,7 +1620,6 @@ static void codec_probe_free(struct parse_state *state)
     free((void*)state->cur_xml_file);
     state->cur_xml_file = NULL;
 
-    free((void*)state->init_probe.new_xml_file);
     state->init_probe.new_xml_file = NULL;
 
     dyn_array_free(array);
@@ -1411,6 +1645,26 @@ static int string_to_uint(uint32_t *result, const char *str)
     }
 }
 
+static int string_to_int(int *result, const char *str)
+{
+    char *endptr;
+    unsigned long int v;
+
+    if (!str) {
+        return -ENOENT;
+    }
+
+    /* return error if not a valid decimal or hex number */
+    v = strtol(str, &endptr, 0);
+    if ((endptr[0] == '\0') && (endptr != str)) {
+        *result = v;
+        return 0;
+    } else {
+        ALOGE("'%s' not a valid signed integer", str);
+        return -EINVAL;
+    }
+}
+
 static int attrib_to_uint(uint32_t *result, struct parse_state *state,
                                 enum attrib_index index)
 {
@@ -1418,39 +1672,110 @@ static int attrib_to_uint(uint32_t *result, struct parse_state *state,
     return string_to_uint(result, str);
 }
 
-static int make_byte_array(struct ctl *c, struct mixer_ctl *ctl)
+static int attrib_to_int(int *result, struct parse_state *state,
+                                enum attrib_index index)
+{
+    const char *str = state->attribs.value[index];
+    return string_to_int(result, str);
+}
+
+static int make_byte_work_buffer(struct ctl *c,
+                                 uint32_t buffer_size)
+{
+    int ret = 0;
+
+    c->buffer = malloc(buffer_size);
+    if (!c->buffer) {
+        ALOGE("Failed to allocate work buffer");
+        return -ENOMEM;
+    }
+
+    if (c->data_file_name) {
+        ret = get_value_from_file(c, buffer_size);
+    } else {
+        ret = make_byte_array(c, buffer_size);
+    }
+    if (ret != 0) {
+        return ret;
+    }
+
+    ALOGV("Added ctl '%s' byte array len %d", c->name, c->array_count);
+    return 0;
+}
+
+static int get_value_from_file(struct ctl *c, uint32_t vnum)
+{
+    uint32_t data_size;
+    FILE *fp;
+
+    fp = fopen(c->data_file_name, "rb");
+    if (fp == 0) {
+        ALOGE("Failed to open %s", c->data_file_name);
+        return -EIO;
+    }
+    fseek(fp, 0L, SEEK_END);
+    data_size = (uint32_t) ftell(fp);
+    rewind(fp);
+
+    if (data_size > vnum) {
+        ALOGE("Data size %d exceeded max control size, the first %d bytes are kept",
+               data_size, vnum);
+        c->array_count = vnum;
+    } else {
+        c->array_count = data_size;
+    }
+
+    uint8_t *buffer = malloc(c->array_count);
+    if (!buffer) {
+        ALOGE("Failed to allocate read buffer");
+        fclose(fp);
+        return -ENOMEM;
+    }
+
+    int read = fread((void *)buffer, 1, c->array_count, fp);
+    fclose(fp);
+    if (read < (int)c->array_count) {
+        ALOGE("Failed to get control value: %d", -errno);
+        free(buffer);
+        return -EIO;
+    }
+
+    c->value.data = buffer;
+
+    return 0;
+}
+
+static int make_byte_array(struct ctl *c, uint32_t vnum)
 {
     const char *val_str = c->value.string;
-    const unsigned int vnum = mixer_ctl_get_num_values(ctl);
     char *str;
     uint8_t *pdatablock = NULL;
     uint8_t *bytes;
     int count;
-    char *p;
+    char *p, *savep;
     uint32_t v;
     int ret;
 
-    str = strdup(val_str);
-    if (!str) {
-        ret = -ENOMEM;
-        goto fail;
-    }
-
-    if (vnum > BYTE_ARRAY_MAX_SIZE) {
-        ALOGE("Byte array control too big(%u)", vnum);
+    if (c->index >= vnum) {
+        ALOGE("Control index out of range(%u>%u)", c->index, vnum);
         return -EINVAL;
     }
 
-    if (c->index >= vnum) {
-        ALOGE("Control index out of range(%u>%u)", c->index, vnum);
-        ret = -EINVAL;
-        goto fail;
+    str = strdup(val_str);
+    if (!str) {
+        return -ENOMEM;
     }
 
     /* get number of entries in value string by counting commas */
-    p = strtok(str, ",");
+    p = strtok_r(str, ",", &savep);
     for (count = 0; p != NULL; count++) {
-        p = strtok(NULL, ",");
+        p = strtok_r(NULL, ",", &savep);
+    }
+
+    if (count == 0) {
+        ALOGE("No values for byte array");
+        ret = -EINVAL;
+        goto fail;
     }
 
     if ((c->index + count) > vnum) {
@@ -1471,7 +1796,7 @@ static int make_byte_array(struct ctl *c, struct mixer_ctl *ctl)
     strcpy(str,val_str);
     bytes = pdatablock;
 
-    for (p = strtok(str, ","); p != NULL;) {
+    for (p = strtok_r(str, ",", &savep); p != NULL;) {
         ret = string_to_uint(&v, p);
         if (ret != 0) {
             goto fail;
@@ -1479,7 +1804,7 @@ static int make_byte_array(struct ctl *c, struct mixer_ctl *ctl)
         ALOGE_IF(v > 0xFF, "Byte out of range");
 
         *bytes++ = (uint8_t)v;
-        p = strtok(NULL, ",");
+        p = strtok_r(NULL, ",", &savep);
     }
 
     free(str);
@@ -1529,10 +1854,8 @@ static const char *debug_device_to_name(uint32_t device)
 static int parse_ctl_start(struct parse_state *state)
 {
     const char *name = strdup(state->attribs.value[e_attrib_name]);
-    const char *index = state->attribs.value[e_attrib_index];
     struct dyn_array *array;
     struct ctl *c = NULL;
-    enum mixer_ctl_type ctl_type;
     int ret;
 
     if (state->current.path) {
@@ -1552,7 +1875,6 @@ static int parse_ctl_start(struct parse_state *state)
         ret = -ENOMEM;
         goto fail;
     }
-    c->name = name;
 
     if (attrib_to_uint(&c->index, state, e_attrib_index) == -EINVAL) {
         ALOGE("Invalid ctl index");
@@ -1560,10 +1882,19 @@ static int parse_ctl_start(struct parse_state *state)
         goto fail;
     }
 
-    c->value.string = strdup(state->attribs.value[e_attrib_val]);
-    if(!c->value.string) {
-        ret = -ENOMEM;
-        goto fail;
+    const char *filename = state->attribs.value[e_attrib_file];
+    if (filename) {
+        c->data_file_name = strdup(filename);
+        if (!c->data_file_name) {
+            ret = -ENOMEM;
+            goto fail;
+        }
+    } else {
+        c->value.string = strdup(state->attribs.value[e_attrib_val]);
+        if(!c->value.string) {
+            ret = -ENOMEM;
+            goto fail;
+        }
     }
 
     ret = ctl_open(state->cm, c);
@@ -1580,14 +1911,29 @@ fail:
     return ret;
 }
 
-
 static int parse_codec_case_start(struct parse_state * state)
 {
     const char *codec = strdup(state->attribs.value[e_attrib_name]);
-    const char *file = strdup(state->attribs.value[e_attrib_file]);
+    const char *file = state->attribs.value[e_attrib_file];
     struct dyn_array *array = &state->current.codec_probe->codec_case_array;
     struct codec_case  *cc = NULL;
     int ret = 0;
+
+    while (isspace(*file)) {
+        ++file;
+    }
+
+    if (file[0] == '/') {
+        /* Absolute path: use as-is. */
+        file = strdup(file);
+    } else {
+        /* Relative to location of current XML file: get full path. */
+        file = join_paths(state->cur_xml_file, file, 1);
+    }
+
+    if (!file) {
+        return -ENOMEM;
+    }
 
     cc = new_codec_case(array, codec, file);
     if (cc == NULL) {
@@ -1608,11 +1954,55 @@ static int parse_init_start(struct parse_state *state)
      */
     state->current.path = &state->init_path;
 
+    /* Don't allow <pre_init> or another <init> to follow this */
+    state->stack.entry[state->stack.index - 1].valid_subelem &=
+        ~(BIT(e_elem_pre_init) | BIT(e_elem_init));
+
     ALOGV("Added init path");
     return 0;
 }
 
-char *probe_trim_spaces(char *str)
+static int parse_init_end(struct parse_state *state)
+{
+    compress_path(state->current.path);
+    state->current.path = NULL;
+    return 0;
+}
+
+static int parse_preinit_start(struct parse_state *state)
+{
+    /* This is handled the same way as <init> section except that
+     * when we get the end tag we immediately process the settings
+     * before parsing the rest of the config.
+     */
+    state->current.path = &state->preinit_path;
+
+    ALOGV("Started <pre_init>");
+    return 0;
+}
+
+static int parse_preinit_end(struct parse_state *state)
+{
+    ALOGV("Applying <pre_init>");
+
+    state->current.path = NULL;
+
+    /* Execute the pre_init commands now */
+    apply_path_l(state->cm, &state->preinit_path);
+
+    /* Re-open tinyalsa to pick up any controls added by the pre_init */
+    mixer_close(state->cm->mixer);
+    state->cm->mixer = mixer_open(state->mixer_card_number);
+
+    if (!state->cm->mixer) {
+        ALOGE("Failed to re-open mixer card %u", state->mixer_card_number);
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+static char *probe_trim_spaces(char *str)
 {
     int len;
     char *end;
@@ -1636,9 +2026,12 @@ char *probe_trim_spaces(char *str)
 
 static int probe_config_file(struct parse_state *state)
 {
-    int i, len;
-    char buf[40],*codec;
-    FILE *fp = NULL;
+    int i;
+    char buf[40], *codec;
+    FILE *fp;
+    int ret;
+
+    ALOGV("+probe_config_file");
 
     fp = fopen(state->init_probe.file, "r");
     while (fp == NULL) {
@@ -1647,49 +2040,72 @@ static int probe_config_file(struct parse_state *state)
     }
 
     if (fgets(buf,sizeof(buf),fp) == NULL) {
-		ALOGE("I/O error reading codec probe file");
-        return -EIO;
+        ALOGE("I/O error reading codec probe file");
+        ret = -EIO;
+        goto exit;
     }
 
     codec = probe_trim_spaces(buf);
-    free((void*)state->init_probe.new_xml_file);
     state->init_probe.new_xml_file = NULL;
 
     for (i = 0; i < (int)state->init_probe.codec_case_array.count; ++i)
     {
         if (strcmp(codec, state->init_probe.codec_case_array.codec_cases[i].codec_name) == 0)
         {
-            state->init_probe.new_xml_file = strdup(state->init_probe.codec_case_array.codec_cases[i].file);
             break;
         }
     }
 
     if (i == (int)state->init_probe.codec_case_array.count) {
         ALOGE("Codec probe file not found");
-        return 0;
+        ret = 0;
+        goto exit;
     }
 
+    state->init_probe.new_xml_file = state->init_probe.codec_case_array.codec_cases[i].file;
+
     if (strcmp(state->init_probe.new_xml_file, state->cur_xml_file) == 0) {
-        /*There is no new xml file to redirect */
-        free((void*)state->init_probe.new_xml_file);
+        /* There is no new xml file to redirect */
         state->init_probe.new_xml_file = NULL;
         XML_StopParser(state->parser,false);
         ALOGE("A codec probe case can't redirect to its own config file");
-        return -EINVAL;
+        ret = -EINVAL;
     } else {
-        /* We are Stopping the Parser as we got new codec xml file
-        * And we will restart the parser with that new file
-        */
+        /*
+         * We are stopping the Parser as we got new codec xml file
+         * and we will restart the parser with that new file
+         */
+        ALOGV("Got new config file %s", state->init_probe.new_xml_file);
         XML_StopParser(state->parser,XML_TRUE);
+        ret = 0;
     }
 
-    return 0;
+exit:
+    fclose(fp);
+
+    return ret;
 }
 
 static int parse_codec_probe_start(struct parse_state *state)
 {
-    const char *file = strdup(state->attribs.value[e_attrib_file]);
+    const char *file = state->attribs.value[e_attrib_file];
     int ret = 0;
+
+    while (isspace(*file)) {
+        ++file;
+    }
+
+    if (file[0] == '/') {
+        /* Absolute path: use as-is. */
+        file = strdup(file);
+    } else {
+        /* Relative to location of current XML file: get full path. */
+        file = join_paths(state->cur_xml_file, file, 1);
+    }
+
+    if (!file) {
+        return -ENOMEM;
+    }
 
     if (state->init_probe.file == NULL) {
         state->init_probe.file = file;
@@ -1747,14 +2163,10 @@ static int parse_path_end(struct parse_state *state)
 
 static int parse_case_start(struct parse_state *state)
 {
-    const char *name = strdup(state->attribs.value[e_attrib_name]);
+    const char *name = state->attribs.value[e_attrib_name];
     struct usecase *puc = state->current.usecase;
     struct dyn_array *array = &puc->case_array;
     struct scase *sc;
-
-    if (!name) {
-        return -ENOMEM;
-    }
 
     sc = new_case(array, name);
     if (sc == NULL) {
@@ -1777,13 +2189,9 @@ static int parse_case_end(struct parse_state *state)
 
 static int parse_usecase_start(struct parse_state *state)
 {
-    const char *name = strdup(state->attribs.value[e_attrib_name]);
+    const char *name = state->attribs.value[e_attrib_name];
     struct dyn_array *array = &state->current.stream->usecase_array;
     struct usecase *puc;
-
-    if (!name) {
-        return -ENOMEM;
-    }
 
     puc = new_usecase(array, name);
     if (puc == NULL) {
@@ -1801,6 +2209,35 @@ static int parse_usecase_end(struct parse_state *state)
 {
     /* Free unused memory in the case array */
     compress_usecase(state->current.usecase);
+    return 0;
+}
+
+static int parse_set_start(struct parse_state *state)
+{
+    const char *name = strdup(state->attribs.value[e_attrib_name]);
+    struct dyn_array *array = &state->current.stream->constants_array;
+    struct constant *pc;
+    const char *val = NULL;
+
+    if (!name) {
+        return -ENOMEM;
+    }
+
+    val = strdup(state->attribs.value[e_attrib_val]);
+    if (!val) {
+        free((void *)name);
+        return -ENOMEM;
+    }
+
+    pc = new_constant(array, name, val);
+    if (pc == NULL) {
+        free((void *)name);
+        free((void *)val);
+        return -ENOMEM;
+    }
+
+    ALOGV("Added constant '%s'=%s", name, val);
+
     return 0;
 }
 
@@ -1854,12 +2291,22 @@ static int parse_stream_ctl_start(struct parse_state *state)
     struct mixer_ctl *ctl;
     struct stream_control *streamctl;
     uint idx_val = 0;
-    uint32_t v;
-    int r;
+    int v;
 
     ctl = mixer_get_ctl_by_name(state->cm->mixer, name);
     if (!ctl) {
         ALOGE("Control '%s' not found", name);
+        return -EINVAL;
+    }
+
+    /*
+     * Tinyalsa mixer_ctl_get_range_min()/mixer_ctl_get_range_max()
+     * return negative error if the control isn't valid. As the minimum
+     * value could be negative we can't check for errors so check in advance
+     * that the control will not cause an error from these functions.
+     */
+    if (mixer_ctl_get_type(ctl) != MIXER_CTL_TYPE_INT) {
+        ALOGE("Control '%s' is not an integer", name);
         return -EINVAL;
     }
 
@@ -1870,11 +2317,11 @@ static int parse_stream_ctl_start(struct parse_state *state)
     }
 
     if (0 == strcmp(function, "leftvol")) {
-        ALOGE_IF(state->current.stream->controls.volume_left.id != UINT_MAX,
+        ALOGE_IF(ctl_ref_valid(&state->current.stream->controls.volume_left.ref),
                                 "Left volume control specified again");
         streamctl = &(state->current.stream->controls.volume_left);
     } else if (0 == strcmp(function, "rightvol")) {
-        ALOGE_IF(state->current.stream->controls.volume_right.id != UINT_MAX,
+        ALOGE_IF(ctl_ref_valid(&state->current.stream->controls.volume_right.ref),
                                 "Right volume control specified again");
         streamctl = &(state->current.stream->controls.volume_right);
     } else {
@@ -1884,19 +2331,14 @@ static int parse_stream_ctl_start(struct parse_state *state)
 
     streamctl->index = idx_val;
 
-    switch (attrib_to_uint(&v, state, e_attrib_min)) {
+    switch (attrib_to_int(&v, state, e_attrib_min)) {
     case -EINVAL:
         ALOGE("Invalid min for '%s'", name);
         return -EINVAL;
 
     case -ENOENT:
         /* Not specified, get control's min value */
-        r = mixer_ctl_get_range_min(ctl);
-        if (r < 0) {
-            ALOGE("Failed to get control min");
-            return r;
-        }
-        streamctl->min = (uint)r;
+        streamctl->min = mixer_ctl_get_range_min(ctl);
         break;
 
     default:
@@ -1904,19 +2346,14 @@ static int parse_stream_ctl_start(struct parse_state *state)
         break;
     }
 
-    switch (attrib_to_uint(&v, state, e_attrib_max)) {
+    switch (attrib_to_int(&v, state, e_attrib_max)) {
     case -EINVAL:
         ALOGE("Invalid max for '%s'", name);
         return -EINVAL;
 
     case -ENOENT:
         /* Not specified, get control's max value */
-        r = mixer_ctl_get_range_max(ctl);
-        if (r < 0) {
-            ALOGE("Failed to get control max");
-            return r;
-        }
-        streamctl->max = (uint)r;
+        streamctl->max = mixer_ctl_get_range_max(ctl);
         break;
 
     default:
@@ -1924,16 +2361,16 @@ static int parse_stream_ctl_start(struct parse_state *state)
         break;
     }
 
-    streamctl->id = mixer_ctl_get_id(ctl);
+    ctl_set_ref(&streamctl->ref, ctl);
 
-    ALOGV("(%p) Added control '%s' id %u function '%s' range %u-%u",
+    ALOGV("(%p) Added control '%s' function '%s' range %d-%d",
                 state->current.stream,
-                name, streamctl->id, function, streamctl->min, streamctl->max);
+                name, function, streamctl->min, streamctl->max);
 
     return 0;
 }
 
-static int get_card_number_for_id(const char *id, uint32_t *number);
+static int get_card_id_for_name(const char* name, uint32_t *id);
 
 static int parse_stream_start(struct parse_state *state)
 {
@@ -1943,25 +2380,20 @@ static int parse_stream_start(struct parse_state *state)
     bool out;
     bool global;
     uint32_t card = state->mixer_card_number;
-    uint32_t device;
+    uint32_t device = UINT_MAX;
     uint32_t maxref = INT_MAX;
     struct stream *s;
-
-    if (name != NULL) {
-        name = strdup(name);
-        if (name == NULL) {
-            return -ENOMEM;
-        }
-    }
 
     if (name != NULL) {
         if (find_named_stream(state->cm, name) != NULL) {
             ALOGE("Stream '%s' already declared", name);
             return -EINVAL;
         }
+        s = new_stream(&state->cm->named_stream_array, state->cm);
+    } else {
+        s = new_stream(&state->cm->anon_stream_array, state->cm);
     }
 
-    s = new_stream(&state->cm->stream_array, state->cm);
     if (s == NULL) {
         return -ENOMEM;
     }
@@ -1996,19 +2428,16 @@ static int parse_stream_start(struct parse_state *state)
         s->info.type = out ? e_stream_out_hw : e_stream_in_hw;
     } else if (0 == strcmp(type, "pcm")) {
         s->info.type = out ? e_stream_out_pcm : e_stream_in_pcm;
-        device = PCM_DEVICE_DEFAULT;
     } else if (0 == strcmp(type, "compress")) {
         s->info.type = out ? e_stream_out_compress : e_stream_in_compress;
-        device = COMPRESS_DEVICE_DEFAULT;
     } else {
         ALOGE("'%s' not a valid stream type", type);
         return -EINVAL;
     }
 
-    /* A stream lives on the mixer's card unless it names another one */
-    if (state->attribs.value[e_attrib_card] != NULL &&
-            state->attribs.value[e_attrib_cardname] != NULL) {
-        ALOGE("Stream takes 'card' or 'cardname', not both");
+    if (state->attribs.value[e_attrib_cardname] != NULL &&
+        state->attribs.value[e_attrib_card] != NULL) {
+        ALOGE("stream must be configured by only one of 'card' OR 'cardname'. Both provided.");
         return -EINVAL;
     }
 
@@ -2017,8 +2446,7 @@ static int parse_stream_start(struct parse_state *state)
     }
 
     if (state->attribs.value[e_attrib_cardname] != NULL &&
-            get_card_number_for_id(state->attribs.value[e_attrib_cardname],
-                                   &card) != 0) {
+        get_card_id_for_name(state->attribs.value[e_attrib_cardname], &card) != 0) {
         return -EINVAL;
     }
 
@@ -2044,7 +2472,12 @@ static int parse_stream_start(struct parse_state *state)
         return -EINVAL;
     }
 
-    s->name = name;
+    if (name != NULL) {
+        s->name = strdup(name);
+        if (!s->name) {
+            return -ENOMEM;
+        }
+    }
     s->info.card_number = card;
     s->info.device_number = device;
     s->max_ref_count = maxref;
@@ -2121,88 +2554,74 @@ static int parse_device_end(struct parse_state *state)
     return 0;
 }
 
-/*
- * The id ALSA gives a card ("tegrart5671") is fixed by its driver, while
- * the number depends on which cards registered first, so a card is better
- * named than counted. /proc/asound/cardN/id holds that id.
- */
-static int get_card_id_for_number(uint32_t number, char *id, size_t len)
+static int get_card_name_for_id(unsigned int id, char* name, int len)
 {
-    char path[32];
+    char cardInfoFile[32];
     FILE *fp;
     int ret = 0;
+    snprintf(cardInfoFile, sizeof(cardInfoFile), "/proc/asound/card%u/id", id);
 
-    snprintf(path, sizeof(path), "/proc/asound/card%u/id", number);
-
-    fp = fopen(path, "r");
+    fp = fopen(cardInfoFile, "r");
     if (fp == NULL) {
-        return -ENOENT;
+        ALOGE("Failed to open file: %s", cardInfoFile);
+        return -EINVAL;
     }
 
-    if (fgets(id, len, fp) == NULL) {
+    if (fgets(name, len, fp) == NULL) {
+        ALOGE("Failed to read name from file: %s", cardInfoFile);
         ret = -EINVAL;
-    } else {
-        id[strcspn(id, "\n")] = '\0';
+        goto read_fail;
     }
-
+    //Only return first line of file, without new lines.
+    name[strcspn(name, "\n")] = 0;
+read_fail:
     fclose(fp);
     return ret;
 }
 
-static int get_card_number_for_id(const char *id, uint32_t *number)
+static int get_card_id_for_name(const char* name, uint32_t *id)
 {
-    DIR *dir;
-    struct dirent *entry;
-    int ret = -ENOENT;
+    if (name == NULL) {
+        return -EINVAL;
+    }
+
+    DIR* dir;
+    struct dirent* entry;
+    int ret = -EINVAL;
 
     dir = opendir("/proc/asound");
-    if (dir == NULL) {
-        ALOGE("Cannot open /proc/asound to look for card '%s'", id);
-        return -ENOENT;
-    }
 
-    while ((entry = readdir(dir)) != NULL) {
-        unsigned int n;
-        char found[64];
-
-        if (sscanf(entry->d_name, "card%u", &n) != 1) {
-            continue;
+    if (dir != NULL) {
+        while ((entry = readdir(dir)) != NULL) {
+            unsigned int t_id;
+            if (sscanf(entry->d_name, "card%u" , &t_id)) {
+                char t_name[128];
+                if (get_card_name_for_id(t_id, t_name, sizeof(t_name)) == 0 &&
+                        strcmp(t_name, name) == 0) {
+                    ALOGV("Found card %u with name %s", t_id, name);
+                    *id = t_id;
+                    ret = 0;
+                    break;
+                }
+            }
         }
-
-        if (get_card_id_for_number(n, found, sizeof(found)) == 0 &&
-                strcmp(found, id) == 0) {
-            *number = n;
-            ret = 0;
-            break;
-        }
+        closedir(dir);
     }
-
-    closedir(dir);
-
-    if (ret != 0) {
-        ALOGE("No sound card with id '%s'", id);
-    }
-
     return ret;
 }
 
 static int parse_mixer_start(struct parse_state *state)
 {
     uint32_t card = MIXER_CARD_DEFAULT;
-    const char *id = state->attribs.value[e_attrib_name];
 
     ALOGV("parse_mixer_start");
-
-    if (id != NULL && state->attribs.value[e_attrib_card] != NULL) {
-        ALOGE("Mixer takes 'card' or 'name', not both");
-        return -EINVAL;
-    }
-
-    if (attrib_to_uint(&card, state, e_attrib_card) == -EINVAL) {
-        return -EINVAL;
-    }
-
-    if (id != NULL && get_card_number_for_id(id, &card) != 0) {
+    if (attrib_to_uint(&card, state, e_attrib_card) == 0) {
+        if (state->attribs.value[e_attrib_name] != NULL) {
+            ALOGE("Mixer must be configured by only one of 'card' OR 'name'. Both provided.");
+            return -EINVAL;
+        }
+    } else if (get_card_id_for_name(state->attribs.value[e_attrib_name],
+                                    &card) != 0) {
         return -EINVAL;
     }
 
@@ -2216,6 +2635,13 @@ static int parse_mixer_start(struct parse_state *state)
     }
 
     state->mixer_card_number = card;
+
+    return 0;
+}
+
+static int parse_mixer_end(struct parse_state *state)
+{
+    ALOGV("parse_mixer_end");
 
     /* Now we can allow all other root elements but not another <mixer> */
     state->stack.entry[state->stack.index - 1].valid_subelem =
@@ -2373,7 +2799,13 @@ static int do_parse(struct parse_state *state)
 
         eof = feof(state->file);
 
-        XML_Parse(state->parser, state->read_buf, len, eof);
+        if (XML_Parse(state->parser,
+                      state->read_buf,
+                      len,
+                      eof) == XML_STATUS_SUSPENDED) {
+            /* A codec_probe redirection suspends parsing of the current file */
+            break;
+        }
         if (parse_log_error(state) < 0) {
             ret = -EINVAL;
             break;
@@ -2383,30 +2815,22 @@ static int do_parse(struct parse_state *state)
     return ret;
 }
 
-static int open_config_file(struct parse_state *state, char *file)
+static int open_config_file(struct parse_state *state, const char *file)
 {
-    char name[80], cur_file[40];
-    char property[PROPERTY_VALUE_MAX];
-
     free((void *)state->cur_xml_file);
 
-
     if (file == NULL) {
-        property_get("ro.product.device", property, "generic");
-        snprintf(name, sizeof(name), "/vendor/etc/audio.%s.xml", property);
-        snprintf(cur_file, sizeof(cur_file), "audio.%s.xml", property);
-        state->cur_xml_file = strdup(cur_file);
-    } else {
-        snprintf(name, sizeof(name), "/vendor/etc/%s", file);
-        state->cur_xml_file = strdup(file);
+        ALOGE("Invalid file name (NULL)\n");
+        return -EINVAL;
     }
+    state->cur_xml_file = strdup(file);
 
-    ALOGV("Reading configuration from %s\n", name);
-    state->file = fopen(name, "r");
+    ALOGV("Reading configuration from %s\n", file);
+    state->file = fopen(file, "r");
     if (state->file) {
         return 0;
     } else {
-        ALOGE_IF(!state->file, "Failed to open config file %s", name);
+        ALOGE_IF(!state->file, "Failed to open config file %s", file);
         return -ENOSYS;
     }
 }
@@ -2419,7 +2843,8 @@ static void cleanup_parser(struct parse_state *state)
 
         codec_probe_free(state);
 
-        dyn_array_free(&state->init_path.ctl_array);
+        free_ctl_array(&state->init_path.ctl_array);
+        free_ctl_array(&state->preinit_path.ctl_array);
 
         if (state->parser) {
             XML_ParserFree(state->parser);
@@ -2443,6 +2868,7 @@ static int init_state(struct parse_state *state)
     }
 
     state->path_name_array.elem_size = sizeof(const char *);
+    state->preinit_path.ctl_array.elem_size = sizeof(struct ctl);
     state->init_path.ctl_array.elem_size = sizeof(struct ctl);
     state->init_probe.codec_case_array.elem_size = sizeof(struct codec_case);
 
@@ -2481,13 +2907,11 @@ static void print_ctls(const struct config_mgr *cm)
             for (ctl_idx = 0; ctl_idx < ctl_array->count; ctl_idx++) {
                 c = &ctl_array->ctls[ctl_idx];
                 ALOGV("Ctl %d: "
-                        "id %d, "
                         "name %s, "
                         "index %d, "
                         "array_count %d, "
                         "type %d ",
                         ctl_idx,
-                        c->id,
                         c->name,
                         c->index,
                         c->array_count,
@@ -2496,10 +2920,14 @@ static void print_ctls(const struct config_mgr *cm)
                 switch (c->type) {
                 case MIXER_CTL_TYPE_BOOL:
                 case MIXER_CTL_TYPE_INT:
-                    ALOGV("int: %d", c->value.uinteger);
+                    ALOGV("int: 0x%x", c->value.integer);
                     break;
                 case MIXER_CTL_TYPE_BYTE:
-                    ALOGV("byte[0]: %d", c->value.data[0]);
+                    if (c->data_file_name) {
+                        ALOGV("file: %s", c->data_file_name);
+                    } else {
+                        ALOGV("byte[0]: %d", c->value.data[0]);
+                    }
                     break;
                 default:
                     ALOGV("string: \"%s\"", c->value.string);
@@ -2510,7 +2938,7 @@ static void print_ctls(const struct config_mgr *cm)
     }
 }
 
-static int parse_config_file(struct config_mgr *cm)
+static int parse_config_file(struct config_mgr *cm, const char *file_name)
 {
     struct parse_state *state;
     int ret = 0;
@@ -2529,32 +2957,42 @@ static int parse_config_file(struct config_mgr *cm)
     }
 
     state->parser = XML_ParserCreate(NULL);
-
+    if ( !state->parser ) {
+        goto fail;
+    }
+    ret = open_config_file(state,file_name);
     do {
-        if (state->file) {
-            fclose(state->file);
-        }
-
-        ret = open_config_file(state, state->init_probe.new_xml_file);
-        if (ret == 0) {
-            ret = -ENOMEM;
-            if (state->init_probe.new_xml_file != NULL) {
-                free((void*)state->init_probe.file);
-                state->init_probe.file = NULL;
-                XML_ParserReset(state->parser, NULL);
-                free((void*)state->init_probe.new_xml_file);
-                state->init_probe.new_xml_file = NULL;
-            }
-
-            XML_SetUserData(state->parser, state);
-            XML_SetElementHandler(state->parser, parse_section_start, parse_section_end);
-            ret = do_parse(state);
-        } else {
+        if (ret != 0) {
             ALOGE("Error while opening XML file\n");
             ret = -ENOMEM;
             break;
         }
-    } while (state->init_probe.new_xml_file != NULL );
+
+        if (state->init_probe.new_xml_file != NULL) {
+            free((void*)state->init_probe.file);
+            state->init_probe.file = NULL;
+            XML_ParserReset(state->parser, NULL);
+            state->init_probe.new_xml_file = NULL;
+        }
+
+        XML_SetUserData(state->parser, state);
+        XML_SetElementHandler(state->parser, parse_section_start, parse_section_end);
+        ret = do_parse(state);
+
+        if (ret != 0) {
+            ALOGE("Error while parsing XML file\n");
+            break;
+        }
+
+        if (state->init_probe.new_xml_file != NULL) {
+            if (state->file) {
+                fclose(state->file);
+            }
+
+            ALOGV("Opening new XML file");
+            ret = open_config_file(state, state->init_probe.new_xml_file);
+        }
+    } while (state->init_probe.new_xml_file != NULL);
 
     if (ret >= 0) {
         print_ctls(cm);
@@ -2573,15 +3011,55 @@ fail:
  * Initialization
  *********************************************************************/
 
-struct config_mgr *init_audio_config()
+struct config_mgr *init_audio_config(const char *config_file_name)
 {
-    struct stream *streams;
+    char *cwd_path;
+    char *absolute_path = NULL;
     int ret;
 
     struct config_mgr* mgr = new_config_mgr();
 
-    if (0 != parse_config_file(mgr)) {
-        free(mgr);
+#ifdef ENABLE_COVERAGE
+    enableCoverageSignal();
+#endif
+
+    /*
+     * If path is relative, make it absolute so it can be used to
+     * create the base path for any codec_probe redirections that are
+     * specified as relative.
+     */
+    while (isspace(*config_file_name)) {
+        ++config_file_name;
+    }
+
+    if (config_file_name[0] != '/') {
+#ifdef ANDROID
+        absolute_path = join_paths(ETC_PATH, config_file_name, 0);
+#else
+        /*
+         * realpath() will cause links to be pre-resolved now, prefer getcwd()
+         * which leaves links to be resolved at the time the file is opened.
+         */
+        cwd_path = malloc(sizeof(char) * PATH_MAX);
+        if (getcwd(cwd_path, PATH_MAX) == NULL) {
+            ret = errno;
+            free(cwd_path);
+            errno = ret;
+            return NULL;
+        }
+
+        absolute_path = join_paths(cwd_path, config_file_name, 0);
+        free(cwd_path);
+#endif
+
+        config_file_name = absolute_path;
+    }
+
+    ret = parse_config_file(mgr, config_file_name);
+    free(absolute_path);
+    if (ret != 0) {
+        free_audio_config(mgr);
+        errno = -ret;
         return NULL;
     }
 
@@ -2589,6 +3067,47 @@ struct config_mgr *init_audio_config()
     compress_config_mgr(mgr);
 
     return mgr;
+}
+
+struct mixer *get_mixer( const struct config_mgr *cm )
+{
+    return cm->mixer;
+}
+
+static void free_ctl_array(struct dyn_array *ctl_array)
+{
+    struct ctl *c;
+    int ctl_idx;
+
+    for (ctl_idx = ctl_array->count - 1; ctl_idx >= 0; --ctl_idx) {
+        c = &ctl_array->ctls[ctl_idx];
+        /* The name attribute is mandatory for controls */
+        free((void *)c->name);
+
+        switch (c->type) {
+        /*
+         * The val attribute has been freed for the BOOL/INT
+         * types of controls
+         */
+        case MIXER_CTL_TYPE_BOOL:
+        case MIXER_CTL_TYPE_INT:
+            break;
+        /*
+         * The val attribute has been converted to byte array
+         * for the BYTE type of controls
+         */
+        case MIXER_CTL_TYPE_BYTE:
+            free((void *)c->value.data);
+            free((void *)c->buffer);
+            free((void *)c->data_file_name);
+            break;
+        default:
+            free((void *)c->value.string);
+            break;
+        }
+    }
+
+    dyn_array_free(ctl_array);
 }
 
 static void free_usecases( struct stream *stream )
@@ -2603,15 +3122,46 @@ static void free_usecases( struct stream *stream )
         pcase = puc->case_array.cases;
         for (i = puc->case_array.count; i > 0; i--, pcase++) {
             free((void *)pcase->name);
+            free_ctl_array(&pcase->ctl_array);
         }
+        dyn_array_free(&puc->case_array);
     }
+
+    dyn_array_free(&stream->usecase_array);
+}
+
+static void free_constants( struct stream *stream )
+{
+    struct constant *pc = stream->constants_array.constants;
+    int count = stream->constants_array.count;
+
+    for (; count > 0; count--, pc++) {
+        free((void *)pc->name);
+        free((void *)pc->value);
+    }
+
+    dyn_array_free(&stream->constants_array);
+}
+
+static void free_stream_array(struct dyn_array *stream_array)
+{
+    int stream_idx;
+    struct stream *s;
+
+    for(stream_idx = stream_array->count - 1; stream_idx >= 0; --stream_idx) {
+        s = &stream_array->streams[stream_idx];
+        free((void *)s->name);
+        free_usecases(s);
+        free_constants(s);
+    }
+
+    dyn_array_free(stream_array);
 }
 
 void free_audio_config( struct config_mgr *cm )
 {
-    struct dyn_array *path_array, *ctl_array, *stream_array;
-    int dev_idx, path_idx, ctl_idx, stream_idx;
-    struct ctl *c;
+    struct dyn_array *path_array;
+    int dev_idx, path_idx;
 
     if (cm) {
         /* Free all devices */
@@ -2619,35 +3169,7 @@ void free_audio_config( struct config_mgr *cm )
             /* Free all paths in device */
             path_array = &cm->device_array.devices[dev_idx].path_array;
             for (path_idx = path_array->count - 1; path_idx >= 0; --path_idx) {
-                /* Free all ctls in path */
-                ctl_array = &path_array->paths[path_idx].ctl_array;
-                for (ctl_idx = ctl_array->count - 1; ctl_idx >= 0; --ctl_idx) {
-                    c = &ctl_array->ctls[ctl_idx];
-                    /* The name attribute is mandatory for controls */
-                    free((void *)c->name);
-
-                    switch (c->type) {
-                    /*
-                     * The val attribute has been freed for the BOOL/INT
-                     * types of controls
-                     */
-                    case MIXER_CTL_TYPE_BOOL:
-                    case MIXER_CTL_TYPE_INT:
-                        break;
-                    /*
-                     * The val attribute has been converted to byte array
-                     * for the BYTE type of controls
-                     */
-                    case MIXER_CTL_TYPE_BYTE:
-                        free((void *)c->value.data);
-                        break;
-                    default:
-                        free((void *)c->value.string);
-                        break;
-                    }
-                }
-
-                dyn_array_free(ctl_array);
+                free_ctl_array(&path_array->paths[path_idx].ctl_array);
             }
 
             dyn_array_free(path_array);
@@ -2655,11 +3177,8 @@ void free_audio_config( struct config_mgr *cm )
 
         dyn_array_free(&cm->device_array);
 
-        stream_array = &cm->stream_array;
-        for(stream_idx = stream_array->count - 1; stream_idx >= 0; --stream_idx) {
-            free_usecases(&stream_array->streams[stream_idx]);
-        }
-        dyn_array_free(&cm->stream_array);
+        free_stream_array(&cm->anon_stream_array);
+        free_stream_array(&cm->named_stream_array);
 
         if (cm->mixer) {
             mixer_close(cm->mixer);

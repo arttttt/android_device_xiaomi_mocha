@@ -1,7 +1,9 @@
-================================
+======================================================================
 TINYHAL README
-Copyright 2015 Cirrus Logic Inc.
-================================
+Copyright (C) 2015, 2019 Cirrus Logic, Inc. and
+                         Cirrus Logic International Semiconductor Ltd.
+                         All rights reserved.
+======================================================================
 
 TinyHAL is an audio HAL for Android systems aimed at providing an improved
 basis for doing audio system integration in the Android application layer.
@@ -22,7 +24,7 @@ Key features include:
 - Configuration via an XML file
 
 - As much configuration as possible done via a text configuration file,
-    minimizing the need for source code modifications 
+    minimizing the need for source code modifications
 
 - Custom streams can be defined to represent extra hardware audio routes
     outside of the standard Android playback and record - for example specific
@@ -66,16 +68,33 @@ Requires:
  - tinycompress
  - expat
 
-TinyHAL requires the upstream (mainline) versions of tinyalsa and tinecompress
-since it generally depends on new features and we submit contributions to both
-tinyalsa and tinycompress.
+TinyHAL can build against the upstream (mainline) versions of tinyalsa and
+tinycompress, or the versions shipped with Android. When building against
+the Android versions, see section below "BUILDING AGAINST OLD LIBRARY VERSIONS".
 
 The upstream versions are available from:
 tinyalsa: https://github.com/tinyalsa
 tinycompress: http://git.alsa-project.org/?p=tinycompress.git;a=summary
 
-Note: merges into the mainline tinyalsa are only done occasionally so you should
-also check the pull requests for any new patches that are needed for TinyHAL.
+=========================================================
+BUILDING AGAINST OLD LIBRARY VERSIONS (including Android)
+=========================================================
+The version of tinyalsa and tinycompress shipped with Android source is not
+usually the latest mainline so some functionality might be missing or different.
+By default TinyHAL builds against the upstream versions.
+
+There are build flags that you can define to disable or modify features if
+you are building against an older version of a library:
+
+TINYALSA_NO_ADD_NEW_CTRLS
+    define if your version of tinyalsa does not have mixer_add_new_ctls()
+
+TINYALSA_NO_CTL_GET_ID
+    define if your version of tinyalsa does not have mixer_ctl_get_id()
+
+TINYCOMPRESS_TSTAMP_IS_LONG
+    define if your version of tinycompress takes an unsigned long* argument to
+    compress_get_tstamp()
 
 =================
 HOW TINYHAL WORKS
@@ -165,11 +184,16 @@ Stream closed=>
 ===========================
 Auto-detecting the hardware
 ===========================
-To allow building a standard system image that can be used on multiple hardware
-TinyHAL includes an ability to auto-select which configuration file to load.
-This is based on having a file or pseudo-file that contains as its first line
-a string identifying the hardware. TinyHAL doesn't care how this file is
-generated, the most typical use is to point it at the pseudo-file
+The simplest mode of auto-detection is to specify the ALSA card by name instead
+of by number. Tinyhal will search all /proc/asound/card*/id files for one that
+matches the given name. This abstracts from the actual card number, which isn't
+guaranteed to be the same between boots or across different devices using the
+same ALSA sound card.
+
+A more sophisticated mechanism is to auto-select which configuration file to
+load. This is based on having a file or pseudo-file that contains as its first
+line a string identifying the hardware. TinyHAL doesn't care how this file is
+generated. A typical use is to point it at the pseudo-file
 /sys/class/sound/card0/id, which contains a single line giving the name of
 the audio card (as defined by the kernel audio card driver or codec driver.)
 But it could just as well be any readable pseudo-file, or a real file created
@@ -185,5 +209,3 @@ XML file and instead start processing the alternate XML file. If none of the
 strings match, TinyHAL will continue to process the current XML file.
 
 The syntax for this is shown in audio.example.xml (see the codec_probe block)
-
-

@@ -18,8 +18,17 @@
 #define AUDIO_CONFIG_H
 
 #include <stddef.h>
+#ifdef ANDROID
 #include <system/audio.h>
+#else
+#include <tinyhal/audio_defs.h>
+#endif
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+struct mixer;
 struct mixer_ctl;
 struct config_mgr;
 struct audio_config;
@@ -38,8 +47,8 @@ enum stream_type {
 /** Information about a stream */
 struct hw_stream {
     enum stream_type    type : 8;
-    uint8_t             card_number;
-    uint8_t             device_number;
+    unsigned int        card_number;
+    unsigned int        device_number;
     unsigned int        rate;
     unsigned int        period_size;
     unsigned int        period_count;
@@ -98,16 +107,28 @@ return (stream->type == e_stream_out_hw)
     || (stream->type == e_stream_in_hw);
 }
 
-/** Initialize audio config layer */
-struct config_mgr *init_audio_config();
+/** Initialize audio config layer
+ * On error return value is NULL and errno is set
+ */
+struct config_mgr *init_audio_config(const char *config_file_name);
 
 /** Delete audio config layer */
 void free_audio_config( struct config_mgr *cm );
 
-/** Get list of all supported devices */
-uint32_t get_supported_devices( struct config_mgr *cm );
+/** Get libtinyalsa mixer backing this config_mgr instance */
+struct mixer *get_mixer( const struct config_mgr *cm );
 
-/** Find a suitable stream and return pointer to it */
+/** Return list of all supported input devices */
+uint32_t get_supported_input_devices( struct config_mgr *cm );
+
+/** Return list of all supported output devices */
+uint32_t get_supported_output_devices( struct config_mgr *cm );
+
+/**
+ * Find a suitable stream and return pointer to it.
+ * Note that this only considers unnamed streams (those without a 'name'
+ * attribute). For named streams use get_named_stream().
+ */
 const struct hw_stream *get_stream(  struct config_mgr *cm,
                                         const audio_devices_t devices,
                                         const audio_output_flags_t flags,
@@ -117,20 +138,42 @@ const struct hw_stream *get_stream(  struct config_mgr *cm,
 const struct hw_stream *get_named_stream(struct config_mgr *cm,
                                    const char *name);
 
+/** Return the value of a constant defined by a <set> element as a string
+ * @return      0 on success
+ * @return      -ENOSYS if the constant does not exist
+ */
+int get_stream_constant_string(const struct hw_stream *stream,
+                                const char *name, char const **value);
+
+/** Return the value of a constant defined by a <set> element as an unsigned
+ * 32-bit integer
+ * @return      0 on success
+ * @return      -ENOSYS if the constant does not exist
+ * @return      -EINVAL if the constant cannot be interpreted as an integer
+ */
+int get_stream_constant_uint32(const struct hw_stream *stream,
+                               const char *name, uint32_t *value);
+
+/** Return the value of a constant defined by a <set> element as a signed
+ * 32-bit integer
+ * @return      0 on success
+ * @return      -ENOSYS if the constant does not exist
+ * @return      -EINVAL if the constant cannot be interpreted as an integer
+ */
+int get_stream_constant_int32(const struct hw_stream *stream,
+                              const char *name, int32_t *value);
+
 /** Test whether a named custom stream is defined */
 bool is_named_stream_defined(struct config_mgr *cm, const char *name);
 
 /** Release stream */
 void release_stream( const struct hw_stream *stream );
 
-/** Get currently connected routes */
+/** Get bitmask of devices currently connected to this stream */
 uint32_t get_current_routes( const struct hw_stream *stream );
 
 /** Apply new device routing to a stream */
 void apply_route( const struct hw_stream *stream, uint32_t devices );
-
-/** Get bitmask of devices currently connected to this stream */
-uint32_t get_routed_devices( const struct hw_stream *stream );
 
 /** Apply hardware volume */
 int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc);
@@ -143,4 +186,9 @@ int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc);
 int apply_use_case( const struct hw_stream* stream,
                     const char *setting,
                     const char *case_name);
+
+#if defined(__cplusplus)
+}  /* extern "C" */
+#endif
+
 #endif  /* ifndef AUDIO_CONFIG_H */
