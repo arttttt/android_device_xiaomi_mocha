@@ -4,20 +4,6 @@
 	     0). Streams below inherit this card. -->
 	<mixer name="tegrart5671">
 		<init>
-            <ctl name="Left Spk Reg Addr" val="0x40"/>
-            <ctl name="Left Spk Reg Value" val="0x5a6b"/>
-            <ctl name="Left Spk Reg Addr" val="0x59"/>
-            <ctl name="Left Spk Reg Value" val="0x05cf"/>
-            <ctl name="Left Spk Reg Addr" val="0x40"/>
-            <ctl name="Left Spk Reg Value" val="0x0000"/>
-
-            <ctl name="Right Spk Reg Addr" val="0x40"/>
-            <ctl name="Right Spk Reg Value" val="0x5a6b"/>
-            <ctl name="Right Spk Reg Addr" val="0x59"/>
-            <ctl name="Right Spk Reg Value" val="0x05cf"/>
-            <ctl name="Right Spk Reg Addr" val="0x40"/>
-            <ctl name="Right Spk Reg Value" val="0x0000"/>
-
             <ctl name="Left Spk Safeguard Threshold" val="3.53V"/>
             <ctl name="Right Spk Safeguard Threshold" val="3.53V"/>
             <ctl name="Left Spk Safeguard Bypass" val="0"/>
