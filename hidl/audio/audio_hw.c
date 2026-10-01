@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -515,12 +516,14 @@ static int out_remove_audio_effect(const struct audio_stream *stream, effect_han
     return 0;
 }
 
+/* Not supported. -ENOSYS is the answer the HIDL wrapper takes as "not
+ * supported" without logging it as a failure; anything else it reports. */
 static int out_get_next_write_timestamp(const struct audio_stream_out *stream,
                                         int64_t *timestamp)
 {
     (void)stream;
     (void)timestamp;
-    return -EINVAL;
+    return -ENOSYS;
 }
 
 #ifdef TINYHAL_COMPRESS_PLAYBACK
@@ -740,6 +743,7 @@ static int start_output_pcm(struct stream_out_pcm *out)
     if (out->pcm && !pcm_is_ready(out->pcm)) {
         ALOGE("pcm_open(out) failed: %s", pcm_get_error(out->pcm));
         pcm_close(out->pcm);
+        out->pcm = NULL;
         return -ENOMEM;
     }
 
@@ -791,23 +795,46 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void* buffer
     ret = pcm_writei(out->pcm, buffer, pcm_bytes_to_frames(out->pcm, bytes));
     if (ret >= 0) {
         out->frames_written += pcm_bytes_to_frames(out->pcm, bytes);
-        ret = bytes;
+    } else {
+        ALOGE("out_pcm_write: %s", pcm_get_error(out->pcm));
+        /* Close it; the next write opens the PCM afresh */
+        do_out_pcm_standby(out);
     }
 
 exit:
     pthread_mutex_unlock(&out->common.lock);
 
-    ALOGV("-out_pcm_write(%p) r=%u", stream, ret);
+    if (ret < 0) {
+        /*
+         * A failed write is not reported. AudioFlinger takes an error as a
+         * write that returned at once and comes straight back with the next
+         * buffer, so a PCM that keeps failing would spin its thread; and it
+         * paces the mixer by how long write() blocks. The buffer is dropped,
+         * but the time it would have taken to play is spent here. Upstream
+         * tinyhal also returns the full count; the wait is what the Qualcomm
+         * HALs do on a failed write.
+         */
+        const size_t frame_size = out->common.frame_size;
+        const uint32_t rate = out->common.sample_rate;
 
-    return ret;
+        if (frame_size != 0 && rate != 0) {
+            usleep((int64_t)(bytes / frame_size) * 1000000 / rate);
+        }
+    }
+
+    ALOGV("-out_pcm_write(%p) r=%d", stream, ret);
+
+    return bytes;
 }
 
+/* Not supported; get_presentation_position is the one AudioFlinger uses.
+ * -ENOSYS for the same reason as out_get_next_write_timestamp. */
 static int out_pcm_get_render_position(const struct audio_stream_out *stream,
                                    uint32_t *dsp_frames)
 {
     (void)stream;
     (void)dsp_frames;
-    return -EINVAL;
+    return -ENOSYS;
 }
 
 /*
