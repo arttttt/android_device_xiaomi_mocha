@@ -279,8 +279,11 @@
         </path>
     </device>
 
-	<!-- Define PCM playback and capture streams @48kHz sample rate -->
-	<stream type="pcm" dir="out" device="0" rate="48000">
+	<!-- Define PCM playback and capture streams @48kHz sample rate.
+	     Playback goes through the DAM mixer: device 5 is its deep buffer
+	     front end (device 6, the fast one, is not used yet). Device 0
+	     takes capture only. -->
+	<stream type="pcm" dir="out" device="5" rate="48000">
 
 		<!-- Custom path to apply in device entries when this
 		stream is routed to or unrouted from that device -->
