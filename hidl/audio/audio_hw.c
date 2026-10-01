@@ -156,8 +156,14 @@ struct stream_out_pcm {
 
     uint32_t hw_sample_rate;    /* Actual sample rate of hardware */
     int hw_channel_count;       /* Actual number of output channels */
-    unsigned int frames_written;
-    struct timespec timestamp;
+
+    /* For get_presentation_position: frames handed to the PCM since the
+     * stream was opened (standby does not reset it), and the last answer
+     * given, so that one is repeated while there is no running PCM to ask. */
+    uint64_t frames_written;
+    uint64_t presented_frames;
+    struct timespec presented_time;
+    bool presented_valid;
 };
 
 #ifdef TINYHAL_COMPRESS_PLAYBACK
@@ -851,7 +857,6 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
     ALOGV_IF(ret < 0, "out_pcm_write: pcm_write failed: %d", ret);
     if (ret >= 0) {
         out->frames_written += pcm_bytes_to_frames(out->pcm, bytes);
-        get_pcm_timestamp(out->pcm, out->common.sample_rate, &out->timestamp, true /*is_output*/);
     }
 
 exit:
@@ -870,23 +875,53 @@ static int out_pcm_get_render_position(const struct audio_stream_out *stream,
     return -ENOSYS;
 }
 
+/*
+ * The contract (audio.h) is frames presented, not written, with the time
+ * they were: what is still queued in the PCM is subtracted, and the time is
+ * the PCM's own, taken where hw_ptr was read. Asked while there is no
+ * running PCM (standby, or before the first period has played), the last
+ * answer is repeated; before any, -ENODATA. The count survives standby.
+ */
 static int out_pcm_get_presentation_position(const struct audio_stream_out *stream,
                                              uint64_t *frames, struct timespec *timestamp)
 {
+    struct stream_out_pcm *out = (struct stream_out_pcm *)stream;
+    unsigned int avail;
+    struct timespec now;
+    int ret = -ENODATA;
+
     if (stream == NULL || frames == NULL || timestamp == NULL) {
         return -EINVAL;
     }
-    struct stream_out_pcm *out = (struct stream_out_pcm *)stream;
 
-    ALOGV("+out_pcm_get_presentation_position(%p)", stream);
+    pthread_mutex_lock(&out->common.lock);
 
-    *frames = out->frames_written;
-    *timestamp = out->timestamp;
-    ALOGV("%s: frames: %" PRIu64 ", timestamp (nsec): %" PRIu64, __func__, *frames,
-          audio_utils_ns_from_timespec(timestamp));
+    if (!out->common.standby && out->pcm != NULL &&
+            pcm_get_htimestamp(out->pcm, &avail, &now) == 0) {
+        const unsigned int size = pcm_get_buffer_size(out->pcm);
+        /* avail beyond the buffer is an underrun: nothing left queued */
+        const uint64_t queued = (avail < size) ? size - avail : 0;
+        const uint64_t presented = (out->frames_written > queued)
+                                        ? out->frames_written - queued : 0;
 
-    ALOGV("-out_pcm_get_presentation_position(%p)", stream);
-    return 0;
+        /* never let the count step back, whatever the driver reports */
+        if (!out->presented_valid || presented >= out->presented_frames) {
+            out->presented_frames = presented;
+            out->presented_time = now;
+            out->presented_valid = true;
+        }
+    }
+
+    if (out->presented_valid) {
+        *frames = out->presented_frames;
+        *timestamp = out->presented_time;
+        ret = 0;
+    }
+
+    pthread_mutex_unlock(&out->common.lock);
+
+    ALOGV("%s: %d presented %" PRIu64, __func__, ret, out->presented_frames);
+    return ret;
 }
 
 static void do_close_out_pcm(struct audio_stream_out *stream)
