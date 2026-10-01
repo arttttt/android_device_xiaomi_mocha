@@ -6,7 +6,6 @@ ifdef DEB_HOST_MULTIARCH
 LIBDIR := $(LIBDIR)/$(DEB_HOST_MULTIARCH)
 endif
 
-CROSS_COMPILE =
 CC = $(CROSS_COMPILE)gcc
 AR = $(CROSS_COMPILE)ar
 LD = $(CROSS_COMPILE)gcc
@@ -16,42 +15,55 @@ INCLUDE_DIRS = -I ../include
 override CFLAGS := $(WARNINGS) $(INCLUDE_DIRS) -fPIC $(CFLAGS)
 
 VPATH = ../include/tinyalsa
-OBJECTS = limits.o mixer.o pcm.o
+OBJECTS = limits.o mixer.o pcm.o pcm_plugin.o pcm_hw.o snd_card_plugin.o mixer_plugin.o mixer_hw.o
+
+LIBVERSION_MAJOR = $(TINYALSA_VERSION_MAJOR)
+LIBVERSION = $(TINYALSA_VERSION)
 
 .PHONY: all
 all: libtinyalsa.a libtinyalsa.so
 
-pcm.o: pcm.c pcm.h
+pcm.o: pcm.c limits.h pcm.h pcm_io.h plugin.h snd_card_plugin.h
+
+pcm_plugin.o: pcm_plugin.c asoundlib.h pcm_io.h plugin.h snd_card_plugin.h
+
+pcm_hw.o: pcm_hw.c asoundlib.h pcm_io.h
 
 limits.o: limits.c limits.h
 
-mixer.o: mixer.c mixer.h
+mixer.o: mixer.c mixer.h mixer_io.h plugin.h
+
+snd_card_plugin.o: snd_card_plugin.c plugin.h snd_card_plugin.h
+
+mixer_plugin.o: mixer_plugin.c mixer_io.h plugin.h snd_card_plugin.h
+
+mixer_hw.o: mixer_hw.c mixer_io.h
 
 libtinyalsa.a: $(OBJECTS)
 	$(AR) $(ARFLAGS) $@ $^
 
-libtinyalsa.so: libtinyalsa.so.1
+libtinyalsa.so: libtinyalsa.so.$(LIBVERSION_MAJOR)
 	ln -sf $< $@
 
-libtinyalsa.so.1: libtinyalsa.so.1.1.1
+libtinyalsa.so.$(LIBVERSION_MAJOR): libtinyalsa.so.$(LIBVERSION)
 	ln -sf $< $@
 
-libtinyalsa.so.1.1.1: $(OBJECTS)
-	$(LD) $(LDFLAGS) -shared -Wl,-soname,libtinyalsa.so.1 $^ -o $@
+libtinyalsa.so.$(LIBVERSION): $(OBJECTS)
+	$(LD) $(LDFLAGS) -shared -Wl,-soname,libtinyalsa.so.$(LIBVERSION_MAJOR) $^ -o $@
 
 .PHONY: clean
 clean:
 	rm -f libtinyalsa.a
 	rm -f libtinyalsa.so
-	rm -f libtinyalsa.so.1
-	rm -f libtinyalsa.so.1.1.1
+	rm -f libtinyalsa.so.$(LIBVERSION_MAJOR)
+	rm -f libtinyalsa.so.$(LIBVERSION)
 	rm -f $(OBJECTS)
 
 .PHONY: install
-install: libtinyalsa.a libtinyalsa.so.1
+install: libtinyalsa.a libtinyalsa.so.$(LIBVERSION_MAJOR)
 	install -d $(DESTDIR)$(LIBDIR)/
 	install libtinyalsa.a $(DESTDIR)$(LIBDIR)/
-	install libtinyalsa.so.1.1.1 $(DESTDIR)$(LIBDIR)/
-	ln -sf libtinyalsa.so.1.1.1 $(DESTDIR)$(LIBDIR)/libtinyalsa.so.1
-	ln -sf libtinyalsa.so.1 $(DESTDIR)$(LIBDIR)/libtinyalsa.so
+	install libtinyalsa.so.$(LIBVERSION) $(DESTDIR)$(LIBDIR)/
+	ln -sf libtinyalsa.so.$(LIBVERSION) $(DESTDIR)$(LIBDIR)/libtinyalsa.so.$(LIBVERSION_MAJOR)
+	ln -sf libtinyalsa.so.$(LIBVERSION_MAJOR) $(DESTDIR)$(LIBDIR)/libtinyalsa.so
 

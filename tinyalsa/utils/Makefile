@@ -8,27 +8,41 @@ CC = $(CROSS_COMPILE)gcc
 
 CFLAGS += -Wall -Wextra -Werror -Wfatal-errors
 CFLAGS += -I ../include
-CFLAGS += -L ../src
+CFLAGS += -fPIC
 CFLAGS += -O2
+
+LDFLAGS += -L ../src
+LDFLAGS += -pie
 
 VPATH = ../src:../include/tinyalsa
 
 .PHONY: all
 all: -ltinyalsa tinyplay tinycap tinymix tinypcminfo
 
-tinyplay: tinyplay.c pcm.h mixer.h asoundlib.h libtinyalsa.a
+tinyplay tinycap tinypcminfo tinymix: LDLIBS+=-ldl
 
-tinycap: tinycap.c pcm.h mixer.h asoundlib.h libtinyalsa.a
+tinyplay: tinyplay.o libtinyalsa.a
 
-tinymix: tinymix.c pcm.h mixer.h asoundlib.h libtinyalsa.a
+tinyplay.o: tinyplay.c pcm.h mixer.h asoundlib.h optparse.h
 
-tinypcminfo: tinypcminfo.c pcm.h mixer.h asoundlib.h libtinyalsa.a
+tinycap: tinycap.o libtinyalsa.a
+
+tinycap.o: tinycap.c pcm.h mixer.h asoundlib.h optparse.h
+
+tinymix: tinymix.o libtinyalsa.a
+
+tinymix.o: tinymix.c pcm.h mixer.h asoundlib.h optparse.h
+
+tinypcminfo: tinypcminfo.o libtinyalsa.a
+
+tinypcminfo.o: tinypcminfo.c pcm.h mixer.h asoundlib.h optparse.h
 
 .PHONY: clean
 clean:
-	rm -f tinyplay tinycap
-	rm -f tinymix
-	rm -f tinypcminfo
+	$(RM) tinyplay tinyplay.o
+	$(RM) tinycap tinycap.o
+	$(RM) tinymix tinymix.o
+	$(RM) tinypcminfo tinypcminfo.o
 
 .PHONY: install
 install: tinyplay tinycap tinymix tinypcminfo

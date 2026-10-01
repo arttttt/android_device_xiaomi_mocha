@@ -35,18 +35,35 @@
 #ifndef TINYALSA_MIXER_H
 #define TINYALSA_MIXER_H
 
+#include <sys/time.h>
 #include <stddef.h>
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-/* TLV header size*/
-#define TLV_HEADER_SIZE (2 * sizeof(unsigned int))
-
 struct mixer;
 
 struct mixer_ctl;
+
+// mixer_ctl_event is a mirroring structure of snd_ctl_event
+struct mixer_ctl_event {
+    int type;
+    union {
+        struct {
+            unsigned int mask;
+            struct {
+                unsigned int numid;
+                int iface;
+                unsigned int device;
+                unsigned int subdevice;
+                unsigned char name[44];
+                unsigned int index;
+            } id;
+        } element;
+        unsigned char data[60];
+    } data;
+};
 
 /** Mixer control type.
  * @ingroup libtinyalsa-mixer
@@ -131,11 +148,14 @@ int mixer_ctl_set_array(struct mixer_ctl *ctl, const void *array, size_t count);
 
 int mixer_ctl_set_enum_by_string(struct mixer_ctl *ctl, const char *string);
 
-/* Determe range of integer mixer controls */
+/* Determine range of integer mixer controls */
 int mixer_ctl_get_range_min(const struct mixer_ctl *ctl);
 
 int mixer_ctl_get_range_max(const struct mixer_ctl *ctl);
 
+int mixer_read_event(struct mixer *mixer, struct mixer_ctl_event *event);
+
+int mixer_consume_event(struct mixer *mixer);
 #if defined(__cplusplus)
 }  /* extern "C" */
 #endif

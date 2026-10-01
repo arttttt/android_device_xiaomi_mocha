@@ -35,12 +35,10 @@
 #ifndef TINYALSA_PCM_H
 #define TINYALSA_PCM_H
 
+#include <tinyalsa/attributes.h>
+
 #include <sys/time.h>
 #include <stddef.h>
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
 
 /** A flag that specifies that the PCM is an output.
  * May not be bitwise AND'd with @ref PCM_IN.
@@ -88,7 +86,7 @@ extern "C" {
  */
 #define PCM_MONOTONIC 0x00000008
 
-/** If used with @pcm_open and @pcm_params_get,
+/** If used with @ref pcm_open and @ref pcm_params_get,
  * it will not cause the function to block if
  * the PCM is not available. It will also cause
  * the functions @ref pcm_readi and @ref pcm_writei
@@ -96,6 +94,21 @@ extern "C" {
  * @ingroup libtinyalsa-pcm
  * */
 #define PCM_NONBLOCK 0x00000010
+
+/** Means a PCM is opened
+ * @ingroup libtinyalsa-pcm
+ */
+#define PCM_STATE_OPEN 0x00
+
+/** Means a PCM HW_PARAMS is set
+ * @ingroup libtinyalsa-pcm
+ */
+#define PCM_STATE_SETUP 0x01
+
+/** Means a PCM is prepared
+ * @ingroup libtinyalsa-pcm
+ */
+#define PCM_STATE_PREPARED 0x02
 
 /** For inputs, this means the PCM is recording audio samples.
  * For outputs, this means the PCM is playing audio samples.
@@ -123,6 +136,10 @@ extern "C" {
  */
 #define PCM_STATE_DISCONNECTED 0x08
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 /** Audio sample format of a PCM.
  * The first letter specifiers whether the sample is signed or unsigned.
  * The letter 'S' means signed. The letter 'U' means unsigned.
@@ -134,24 +151,37 @@ extern "C" {
  * @ingroup libtinyalsa-pcm
  */
 enum pcm_format {
-    /** Signed, 8-bit */
-    PCM_FORMAT_S8 = 1,
+
+/* Note: This section must stay in the same
+ * order for binary compatibility with older
+ * versions of TinyALSA. */
+
+    PCM_FORMAT_INVALID = -1,
     /** Signed 16-bit, little endian */
     PCM_FORMAT_S16_LE = 0,
-    /** Signed, 16-bit, big endian */
-    PCM_FORMAT_S16_BE = 2,
-    /** Signed, 24-bit (32-bit in memory), little endian */
-    PCM_FORMAT_S24_LE,
-    /** Signed, 24-bit (32-bit in memory), big endian */
-    PCM_FORMAT_S24_BE,
-    /** Signed, 24-bit, little endian */
-    PCM_FORMAT_S24_3LE,
-    /** Signed, 24-bit, big endian */
-    PCM_FORMAT_S24_3BE,
     /** Signed, 32-bit, little endian */
     PCM_FORMAT_S32_LE,
+    /** Signed, 8-bit */
+    PCM_FORMAT_S8,
+    /** Signed, 24-bit (32-bit in memory), little endian */
+    PCM_FORMAT_S24_LE,
+    /** Signed, 24-bit, little endian */
+    PCM_FORMAT_S24_3LE,
+
+/* End of compatibility section. */
+
+    /** Signed, 16-bit, big endian */
+    PCM_FORMAT_S16_BE,
+    /** Signed, 24-bit (32-bit in memory), big endian */
+    PCM_FORMAT_S24_BE,
+    /** Signed, 24-bit, big endian */
+    PCM_FORMAT_S24_3BE,
     /** Signed, 32-bit, big endian */
     PCM_FORMAT_S32_BE,
+    /** 32-bit float, little endian */
+    PCM_FORMAT_FLOAT_LE,
+    /** 32-bit float, big endian */
+    PCM_FORMAT_FLOAT_BE,
     /** Max of the enumeration list, not an actual format. */
     PCM_FORMAT_MAX
 };
@@ -176,13 +206,15 @@ struct pcm_config {
     unsigned int period_count;
     /** The sample format of a PCM */
     enum pcm_format format;
-    /* Values to use for the ALSA start, stop and silence thresholds.  Setting
-     * any one of these values to 0 will cause the default tinyalsa values to be
-     * used instead.  Tinyalsa defaults are as follows.
+    /* Values to use for the ALSA start, stop and silence thresholds, and
+     * silence size.  Setting any one of these values to 0 will cause the
+     * default tinyalsa values to be used instead.
+     * Tinyalsa defaults are as follows.
      *
      * start_threshold   : period_count * period_size
      * stop_threshold    : period_count * period_size
      * silence_threshold : 0
+     * silence_size      : 0
      */
     /** The minimum number of frames required to start the PCM */
     unsigned int start_threshold;
@@ -190,6 +222,11 @@ struct pcm_config {
     unsigned int stop_threshold;
     /** The minimum number of frames to silence the PCM */
     unsigned int silence_threshold;
+    /** The number of frames to overwrite the playback buffer when the playback underrun is greater
+     * than the silence threshold */
+    unsigned int silence_size;
+
+    unsigned int avail_min;
 };
 
 /** Enumeration of a PCM's hardware parameters.
@@ -238,6 +275,21 @@ unsigned int pcm_params_get_min(const struct pcm_params *pcm_params, enum pcm_pa
 
 unsigned int pcm_params_get_max(const struct pcm_params *pcm_params, enum pcm_param param);
 
+/* Converts the pcm parameters to a human readable string.
+ * The string parameter is a caller allocated buffer of size bytes,
+ * which is then filled up to size - 1 and null terminated,
+ * if size is greater than zero.
+ * The return value is the number of bytes copied to string
+ * (not including null termination) if less than size; otherwise,
+ * the number of bytes required for the buffer.
+ */
+int pcm_params_to_string(struct pcm_params *params, char *string, unsigned int size);
+
+/* Returns 1 if the pcm_format is present (format bit set) in
+ * the pcm_params structure; 0 otherwise, or upon unrecognized format.
+ */
+int pcm_params_format_test(struct pcm_params *params, enum pcm_format format);
+
 struct pcm;
 
 struct pcm *pcm_open(unsigned int card,
@@ -279,31 +331,27 @@ int pcm_get_htimestamp(struct pcm *pcm, unsigned int *avail, struct timespec *ts
 
 unsigned int pcm_get_subdevice(const struct pcm *pcm);
 
-int pcm_writei(struct pcm *pcm, const void *data, unsigned int frame_count);
+int pcm_writei(struct pcm *pcm, const void *data, unsigned int frame_count) TINYALSA_WARN_UNUSED_RESULT;
 
-int pcm_readi(struct pcm *pcm, void *data, unsigned int frame_count);
+int pcm_readi(struct pcm *pcm, void *data, unsigned int frame_count) TINYALSA_WARN_UNUSED_RESULT;
 
-#ifdef __GNUC__
+int pcm_write(struct pcm *pcm, const void *data, unsigned int count) TINYALSA_DEPRECATED;
 
-int pcm_write(struct pcm *pcm, const void *data, unsigned int count) __attribute((deprecated));
+int pcm_read(struct pcm *pcm, void *data, unsigned int count) TINYALSA_DEPRECATED;
 
-int pcm_read(struct pcm *pcm, void *data, unsigned int count) __attribute((deprecated));
+int pcm_mmap_write(struct pcm *pcm, const void *data, unsigned int count) TINYALSA_DEPRECATED;
 
-#else
-
-int pcm_write(struct pcm *pcm, const void *data, unsigned int count);
-
-int pcm_read(struct pcm *pcm, void *data, unsigned int count);
-
-#endif
-
-int pcm_mmap_write(struct pcm *pcm, const void *data, unsigned int count);
-
-int pcm_mmap_read(struct pcm *pcm, void *data, unsigned int count);
+int pcm_mmap_read(struct pcm *pcm, void *data, unsigned int count) TINYALSA_DEPRECATED;
 
 int pcm_mmap_begin(struct pcm *pcm, void **areas, unsigned int *offset, unsigned int *frames);
 
 int pcm_mmap_commit(struct pcm *pcm, unsigned int offset, unsigned int frames);
+
+int pcm_mmap_avail(struct pcm *pcm);
+
+int pcm_mmap_get_hw_ptr(struct pcm* pcm, unsigned int *hw_ptr, struct timespec *tstamp);
+
+int pcm_get_poll_fd(struct pcm *pcm);
 
 int pcm_link(struct pcm *pcm1, struct pcm *pcm2);
 
@@ -318,6 +366,8 @@ int pcm_stop(struct pcm *pcm);
 int pcm_wait(struct pcm *pcm, int timeout);
 
 long pcm_get_delay(struct pcm *pcm);
+
+int pcm_ioctl(struct pcm *pcm, int code, ...) TINYALSA_DEPRECATED;
 
 #if defined(__cplusplus)
 }  /* extern "C" */

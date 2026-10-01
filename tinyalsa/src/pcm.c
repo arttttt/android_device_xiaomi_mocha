@@ -42,18 +42,111 @@
 #include <limits.h>
 
 #include <linux/ioctl.h>
+
+#ifndef __force
 #define __force
+#endif
+
+#ifndef __bitwise
 #define __bitwise
+#endif
+
+#ifndef __user
 #define __user
+#endif
+
 #include <sound/asound.h>
 
 #include <tinyalsa/pcm.h>
 #include <tinyalsa/limits.h>
+#include "pcm_io.h"
+#include "snd_card_plugin.h"
 
+#ifndef PARAM_MAX
 #define PARAM_MAX SNDRV_PCM_HW_PARAM_LAST_INTERVAL
+#endif /* PARAM_MAX */
+
 #ifndef SNDRV_PCM_HW_PARAMS_NO_PERIOD_WAKEUP
 #define SNDRV_PCM_HW_PARAMS_NO_PERIOD_WAKEUP (1<<2)
+#endif /* SNDRV_PCM_HW_PARAMS_NO_PERIOD_WAKEUP */
+
+/* Logs information into a string; follows snprintf() in that
+ * offset may be greater than size, and though no characters are copied
+ * into string, characters are still counted into offset. */
+#define STRLOG(string, offset, size, ...) \
+    do { int temp, clipoffset = offset > size ? size : offset; \
+         temp = snprintf(string + clipoffset, size - clipoffset, __VA_ARGS__); \
+         if (temp > 0) offset += temp; } while (0)
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
+
+/* refer to SNDRV_PCM_ACCESS_##index in sound/asound.h. */
+static const char * const access_lookup[] = {
+        "MMAP_INTERLEAVED",
+        "MMAP_NONINTERLEAVED",
+        "MMAP_COMPLEX",
+        "RW_INTERLEAVED",
+        "RW_NONINTERLEAVED",
+};
+
+/* refer to SNDRV_PCM_FORMAT_##index in sound/asound.h. */
+static const char * const format_lookup[] = {
+        /*[0] =*/ "S8",
+        "U8",
+        "S16_LE",
+        "S16_BE",
+        "U16_LE",
+        "U16_BE",
+        "S24_LE",
+        "S24_BE",
+        "U24_LE",
+        "U24_BE",
+        "S32_LE",
+        "S32_BE",
+        "U32_LE",
+        "U32_BE",
+        "FLOAT_LE",
+        "FLOAT_BE",
+        "FLOAT64_LE",
+        "FLOAT64_BE",
+        "IEC958_SUBFRAME_LE",
+        "IEC958_SUBFRAME_BE",
+        "MU_LAW",
+        "A_LAW",
+        "IMA_ADPCM",
+        "MPEG",
+        /*[24] =*/ "GSM",
+        /* gap */
+        [31] = "SPECIAL",
+        "S24_3LE",
+        "S24_3BE",
+        "U24_3LE",
+        "U24_3BE",
+        "S20_3LE",
+        "S20_3BE",
+        "U20_3LE",
+        "U20_3BE",
+        "S18_3LE",
+        "S18_3BE",
+        "U18_3LE",
+        /*[43] =*/ "U18_3BE",
+#if 0
+        /* recent additions, may not be present on local asound.h */
+        "G723_24",
+        "G723_24_1B",
+        "G723_40",
+        "G723_40_1B",
+        "DSD_U8",
+        "DSD_U16_LE",
+#endif
+};
+
+/* refer to SNDRV_PCM_SUBFORMAT_##index in sound/asound.h. */
+static const char * const subformat_lookup[] = {
+        "STD",
+};
 
 static inline int param_is_mask(int p)
 {
@@ -189,6 +282,11 @@ static unsigned int pcm_format_to_alsa(enum pcm_format format)
         return SNDRV_PCM_FORMAT_S32_LE;
     case PCM_FORMAT_S32_BE:
         return SNDRV_PCM_FORMAT_S32_BE;
+
+    case PCM_FORMAT_FLOAT_LE:
+        return SNDRV_PCM_FORMAT_FLOAT_LE;
+    case PCM_FORMAT_FLOAT_BE:
+        return SNDRV_PCM_FORMAT_FLOAT_BE;
     };
 }
 
@@ -202,12 +300,8 @@ struct pcm {
     int fd;
     /** Flags that were passed to @ref pcm_open */
     unsigned int flags;
-    /** Whether the PCM is running or not */
-    int running:1;
-    /** Whether or not the PCM has been prepared */
-    int prepared:1;
-    /** The number of underruns that have occured */
-    int underruns;
+    /** The number of (under/over)runs that have occured */
+    int xruns;
     /** Size of the buffer */
     unsigned int buffer_size;
     /** The boundary for ring buffer pointers */
@@ -225,6 +319,12 @@ struct pcm {
     long pcm_delay;
     /** The subdevice corresponding to the PCM */
     unsigned int subdevice;
+    /** Pointer to the pcm ops, either hw or plugin */
+    const struct pcm_ops *ops;
+    /** Private data for pcm_hw or pcm_plugin */
+    void *data;
+    /** Pointer to the pcm node from snd card definition */
+    struct snd_node *snd_node;
 };
 
 static int oops(struct pcm *pcm, int e, const char *fmt, ...)
@@ -237,7 +337,7 @@ static int oops(struct pcm *pcm, int e, const char *fmt, ...)
     va_end(ap);
     sz = strlen(pcm->error);
 
-    if (errno)
+    if (e)
         snprintf(pcm->error + sz, PCM_ERROR_MAX - sz,
                  ": %s", strerror(e));
     return -1;
@@ -343,6 +443,7 @@ int pcm_set_config(struct pcm *pcm, const struct pcm_config *config)
         pcm->config.start_threshold = config->period_count * config->period_size;
         pcm->config.stop_threshold = config->period_count * config->period_size;
         pcm->config.silence_threshold = 0;
+        pcm->config.silence_size = 0;
     } else
         pcm->config = *config;
 
@@ -350,13 +451,7 @@ int pcm_set_config(struct pcm *pcm, const struct pcm_config *config)
     param_init(&params);
     param_set_mask(&params, SNDRV_PCM_HW_PARAM_FORMAT,
                    pcm_format_to_alsa(config->format));
-    param_set_mask(&params, SNDRV_PCM_HW_PARAM_SUBFORMAT,
-                   SNDRV_PCM_SUBFORMAT_STD);
     param_set_min(&params, SNDRV_PCM_HW_PARAM_PERIOD_SIZE, config->period_size);
-    param_set_int(&params, SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
-                  pcm_format_to_bits(config->format));
-    param_set_int(&params, SNDRV_PCM_HW_PARAM_FRAME_BITS,
-                  pcm_format_to_bits(config->format) * config->channels);
     param_set_int(&params, SNDRV_PCM_HW_PARAM_CHANNELS,
                   config->channels);
     param_set_int(&params, SNDRV_PCM_HW_PARAM_PERIODS, config->period_count);
@@ -365,7 +460,7 @@ int pcm_set_config(struct pcm *pcm, const struct pcm_config *config)
     if (pcm->flags & PCM_NOIRQ) {
 
         if (!(pcm->flags & PCM_MMAP)) {
-            oops(pcm, -EINVAL, "noirq only currently supported with mmap().");
+            oops(pcm, EINVAL, "noirq only currently supported with mmap().");
             return -EINVAL;
         }
 
@@ -380,9 +475,9 @@ int pcm_set_config(struct pcm *pcm, const struct pcm_config *config)
         param_set_mask(&params, SNDRV_PCM_HW_PARAM_ACCESS,
                    SNDRV_PCM_ACCESS_RW_INTERLEAVED);
 
-    if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_HW_PARAMS, &params)) {
+    if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_HW_PARAMS, &params)) {
         int errno_copy = errno;
-        oops(pcm, -errno, "cannot set hw params");
+        oops(pcm, errno, "cannot set hw params");
         return -errno_copy;
     }
 
@@ -392,11 +487,11 @@ int pcm_set_config(struct pcm *pcm, const struct pcm_config *config)
     pcm->buffer_size = config->period_count * config->period_size;
 
     if (pcm->flags & PCM_MMAP) {
-        pcm->mmap_buffer = mmap(NULL, pcm_frames_to_bytes(pcm, pcm->buffer_size),
-                                PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED, pcm->fd, 0);
+        pcm->mmap_buffer = pcm->ops->mmap(pcm->data, NULL, pcm_frames_to_bytes(pcm, pcm->buffer_size),
+                                PROT_READ | PROT_WRITE, MAP_SHARED, 0);
         if (pcm->mmap_buffer == MAP_FAILED) {
             int errno_copy = errno;
-            oops(pcm, -errno, "failed to mmap buffer %d bytes\n",
+            oops(pcm, errno, "failed to mmap buffer %d bytes\n",
                  pcm_frames_to_bytes(pcm, pcm->buffer_size));
             return -errno_copy;
         }
@@ -406,7 +501,7 @@ int pcm_set_config(struct pcm *pcm, const struct pcm_config *config)
     memset(&sparams, 0, sizeof(sparams));
     sparams.tstamp_mode = SNDRV_PCM_TSTAMP_ENABLE;
     sparams.period_step = 1;
-    sparams.avail_min = 1;
+    sparams.avail_min = config->period_size;
 
     if (!config->start_threshold) {
         if (pcm->flags & PCM_IN)
@@ -430,16 +525,16 @@ int pcm_set_config(struct pcm *pcm, const struct pcm_config *config)
         sparams.stop_threshold = config->stop_threshold;
 
     sparams.xfer_align = config->period_size / 2; /* needed for old kernels */
-    sparams.silence_size = 0;
+    sparams.silence_size = config->silence_size;
     sparams.silence_threshold = config->silence_threshold;
     pcm->boundary = sparams.boundary = pcm->buffer_size;
 
     while (pcm->boundary * 2 <= INT_MAX - pcm->buffer_size)
         pcm->boundary *= 2;
 
-    if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_SW_PARAMS, &sparams)) {
+    if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_SW_PARAMS, &sparams)) {
         int errno_copy = errno;
-        oops(pcm, -errno, "cannot set sw params");
+        oops(pcm, errno, "cannot set sw params");
         return -errno_copy;
     }
 
@@ -466,6 +561,8 @@ unsigned int pcm_format_to_bits(enum pcm_format format)
     case PCM_FORMAT_S32_BE:
     case PCM_FORMAT_S24_LE:
     case PCM_FORMAT_S24_BE:
+    case PCM_FORMAT_FLOAT_LE:
+    case PCM_FORMAT_FLOAT_BE:
         return 32;
     case PCM_FORMAT_S24_3LE:
     case PCM_FORMAT_S24_3BE:
@@ -505,15 +602,35 @@ unsigned int pcm_frames_to_bytes(const struct pcm *pcm, unsigned int frames)
 
 static int pcm_sync_ptr(struct pcm *pcm, int flags)
 {
-    if (pcm->sync_ptr) {
+    if (pcm->sync_ptr == NULL) {
+        /* status and control are mmaped */
+
+        if (flags & SNDRV_PCM_SYNC_PTR_HWSYNC) {
+            if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_HWSYNC) == -1) {
+                oops(pcm, errno, "failed to sync hardware pointer");
+                return -1;
+            }
+        }
+    } else {
         pcm->sync_ptr->flags = flags;
-        if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_SYNC_PTR, pcm->sync_ptr) < 0) {
+        if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_SYNC_PTR,
+                            pcm->sync_ptr) < 0) {
             oops(pcm, errno, "failed to sync mmap ptr");
             return -1;
         }
-        return 0;
     }
-    return -1;
+
+    return 0;
+}
+
+int pcm_state(struct pcm *pcm)
+{
+    // Update the state only. Do not sync HW sync.
+    int err = pcm_sync_ptr(pcm, SNDRV_PCM_SYNC_PTR_APPL | SNDRV_PCM_SYNC_PTR_AVAIL_MIN);
+    if (err < 0)
+        return err;
+
+    return pcm->mmap_status->state;
 }
 
 static int pcm_hw_mmap_status(struct pcm *pcm)
@@ -522,23 +639,22 @@ static int pcm_hw_mmap_status(struct pcm *pcm)
         return 0;
 
     int page_size = sysconf(_SC_PAGE_SIZE);
-    pcm->mmap_status = mmap(NULL, page_size, PROT_READ, MAP_FILE | MAP_SHARED,
-                            pcm->fd, SNDRV_PCM_MMAP_OFFSET_STATUS);
+    pcm->mmap_status = pcm->ops->mmap(pcm->data, NULL, page_size, PROT_READ, MAP_SHARED,
+                            SNDRV_PCM_MMAP_OFFSET_STATUS);
     if (pcm->mmap_status == MAP_FAILED)
         pcm->mmap_status = NULL;
     if (!pcm->mmap_status)
         goto mmap_error;
 
-    pcm->mmap_control = mmap(NULL, page_size, PROT_READ | PROT_WRITE,
-                             MAP_FILE | MAP_SHARED, pcm->fd, SNDRV_PCM_MMAP_OFFSET_CONTROL);
+    pcm->mmap_control = pcm->ops->mmap(pcm->data, NULL, page_size, PROT_READ | PROT_WRITE,
+                             MAP_SHARED, SNDRV_PCM_MMAP_OFFSET_CONTROL);
     if (pcm->mmap_control == MAP_FAILED)
         pcm->mmap_control = NULL;
     if (!pcm->mmap_control) {
-        munmap(pcm->mmap_status, page_size);
+        pcm->ops->munmap(pcm->data, pcm->mmap_status, page_size);
         pcm->mmap_status = NULL;
         goto mmap_error;
     }
-    pcm->mmap_control->avail_min = 1;
 
     return 0;
 
@@ -549,8 +665,6 @@ mmap_error:
         return -ENOMEM;
     pcm->mmap_status = &pcm->sync_ptr->s.status;
     pcm->mmap_control = &pcm->sync_ptr->c.control;
-    pcm->mmap_control->avail_min = 1;
-    pcm_sync_ptr(pcm, 0);
 
     return 0;
 }
@@ -562,236 +676,12 @@ static void pcm_hw_munmap_status(struct pcm *pcm) {
     } else {
         int page_size = sysconf(_SC_PAGE_SIZE);
         if (pcm->mmap_status)
-            munmap(pcm->mmap_status, page_size);
+            pcm->ops->munmap(pcm->data, pcm->mmap_status, page_size);
         if (pcm->mmap_control)
-            munmap(pcm->mmap_control, page_size);
+            pcm->ops->munmap(pcm->data, pcm->mmap_control, page_size);
     }
     pcm->mmap_status = NULL;
     pcm->mmap_control = NULL;
-}
-
-static int pcm_areas_copy(struct pcm *pcm, unsigned int pcm_offset,
-                          char *buf, unsigned int src_offset,
-                          unsigned int frames)
-{
-    int size_bytes = pcm_frames_to_bytes(pcm, frames);
-    int pcm_offset_bytes = pcm_frames_to_bytes(pcm, pcm_offset);
-    int src_offset_bytes = pcm_frames_to_bytes(pcm, src_offset);
-
-    /* interleaved only atm */
-    if (pcm->flags & PCM_IN)
-        memcpy(buf + src_offset_bytes,
-               (char*)pcm->mmap_buffer + pcm_offset_bytes,
-               size_bytes);
-    else
-        memcpy((char*)pcm->mmap_buffer + pcm_offset_bytes,
-               buf + src_offset_bytes,
-               size_bytes);
-    return 0;
-}
-
-static int pcm_mmap_transfer_areas(struct pcm *pcm, char *buf,
-                                unsigned int offset, unsigned int size)
-{
-    void *pcm_areas;
-    int commit;
-    unsigned int pcm_offset, frames, count = 0;
-
-    while (size > 0) {
-        frames = size;
-        pcm_mmap_begin(pcm, &pcm_areas, &pcm_offset, &frames);
-        pcm_areas_copy(pcm, pcm_offset, buf, offset, frames);
-        commit = pcm_mmap_commit(pcm, pcm_offset, frames);
-        if (commit < 0) {
-            oops(pcm, commit, "failed to commit %d frames\n", frames);
-            return commit;
-        }
-
-        offset += commit;
-        count += commit;
-        size -= commit;
-    }
-    return count;
-}
-
-/** Returns available frames in pcm buffer and corresponding time stamp.
- * The clock is CLOCK_MONOTONIC if flag @ref PCM_MONOTONIC was specified in @ref pcm_open,
- * otherwise the clock is CLOCK_REALTIME.
- * For an input stream, frames available are frames ready for the application to read.
- * For an output stream, frames available are the number of empty frames available for the application to write.
- * Only available for PCMs opened with the @ref PCM_MMAP flag.
- * @param pcm A PCM handle.
- * @param avail The number of available frames
- * @param tstamp The timestamp
- * @return On success, zero is returned; on failure, negative one.
- */
-int pcm_get_htimestamp(struct pcm *pcm, unsigned int *avail,
-                       struct timespec *tstamp)
-{
-    int frames;
-    int rc;
-    snd_pcm_uframes_t hw_ptr;
-
-    if (!pcm_is_ready(pcm))
-        return -1;
-
-    rc = pcm_sync_ptr(pcm, SNDRV_PCM_SYNC_PTR_APPL|SNDRV_PCM_SYNC_PTR_HWSYNC);
-    if (rc < 0)
-        return -1;
-
-    if ((pcm->mmap_status->state != PCM_STATE_RUNNING) &&
-            (pcm->mmap_status->state != PCM_STATE_DRAINING))
-        return -1;
-
-    *tstamp = pcm->mmap_status->tstamp;
-    if (tstamp->tv_sec == 0 && tstamp->tv_nsec == 0)
-        return -1;
-
-    hw_ptr = pcm->mmap_status->hw_ptr;
-    if (pcm->flags & PCM_IN)
-        frames = hw_ptr - pcm->mmap_control->appl_ptr;
-    else
-        frames = hw_ptr + pcm->buffer_size - pcm->mmap_control->appl_ptr;
-
-    if (frames < 0)
-        return -1;
-
-    *avail = (unsigned int)frames;
-
-    return 0;
-}
-
-/** Writes audio samples to PCM.
- * If the PCM has not been started, it is started in this function.
- * This function is only valid for PCMs opened with the @ref PCM_OUT flag.
- * This function is not valid for PCMs opened with the @ref PCM_MMAP flag.
- * @param pcm A PCM handle.
- * @param data The audio sample array
- * @param frame_count The number of frames occupied by the sample array.
- *  This value should not be greater than @ref TINYALSA_FRAMES_MAX
- *  or INT_MAX.
- * @return On success, this function returns the number of frames written; otherwise, a negative number.
- * @ingroup libtinyalsa-pcm
- */
-int pcm_writei(struct pcm *pcm, const void *data, unsigned int frame_count)
-{
-    struct snd_xferi x;
-
-    if (pcm->flags & PCM_IN)
-        return -EINVAL;
-#if UINT_MAX > TINYALSA_FRAMES_MAX
-    if (frame_count > TINYALSA_FRAMES_MAX)
-        return -EINVAL;
-#endif
-    if (frame_count > INT_MAX)
-        return -EINVAL;
-
-    x.buf = (void*)data;
-    x.frames = frame_count;
-    x.result = 0;
-    for (;;) {
-        if (!pcm->running) {
-            int prepare_error = pcm_prepare(pcm);
-            if (prepare_error)
-                return prepare_error;
-            if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_WRITEI_FRAMES, &x))
-                return oops(pcm, errno, "cannot write initial data");
-            pcm->running = 1;
-            return 0;
-        }
-        if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_WRITEI_FRAMES, &x)) {
-            pcm->prepared = 0;
-            pcm->running = 0;
-            if (errno == EPIPE) {
-                /* we failed to make our window -- try to restart if we are
-                 * allowed to do so.  Otherwise, simply allow the EPIPE error to
-                 * propagate up to the app level */
-                pcm->underruns++;
-                if (pcm->flags & PCM_NORESTART)
-                    return -EPIPE;
-                continue;
-            }
-            return oops(pcm, errno, "cannot write stream data");
-        }
-        return x.result;
-    }
-}
-
-/** Reads audio samples from PCM.
- * If the PCM has not been started, it is started in this function.
- * This function is only valid for PCMs opened with the @ref PCM_IN flag.
- * This function is not valid for PCMs opened with the @ref PCM_MMAP flag.
- * @param pcm A PCM handle.
- * @param data The audio sample array
- * @param frame_count The number of frames occupied by the sample array.
- *  This value should not be greater than @ref TINYALSA_FRAMES_MAX
- *  or INT_MAX.
- * @return On success, this function returns the number of frames written; otherwise, a negative number.
- * @ingroup libtinyalsa-pcm
- */
-int pcm_readi(struct pcm *pcm, void *data, unsigned int frame_count)
-{
-    struct snd_xferi x;
-
-    if (!(pcm->flags & PCM_IN))
-        return -EINVAL;
-#if UINT_MAX > TINYALSA_FRAMES_MAX
-    if (frame_count > TINYALSA_FRAMES_MAX)
-        return -EINVAL;
-#endif
-    if (frame_count > INT_MAX)
-        return -EINVAL;
-
-    x.buf = data;
-    x.frames = frame_count;
-    x.result = 0;
-    for (;;) {
-        if ((!pcm->running) && (pcm_start(pcm) < 0))
-            return -errno;
-        else if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_READI_FRAMES, &x)) {
-            pcm->prepared = 0;
-            pcm->running = 0;
-            if (errno == EPIPE) {
-                    /* we failed to make our window -- try to restart */
-                pcm->underruns++;
-                continue;
-            }
-            return oops(pcm, errno, "cannot read stream data");
-        }
-        return x.result;
-    }
-}
-
-/** Writes audio samples to PCM.
- * If the PCM has not been started, it is started in this function.
- * This function is only valid for PCMs opened with the @ref PCM_OUT flag.
- * This function is not valid for PCMs opened with the @ref PCM_MMAP flag.
- * @param pcm A PCM handle.
- * @param data The audio sample array
- * @param count The number of bytes occupied by the sample array.
- * @return On success, this function returns zero; otherwise, a negative number.
- * @deprecated
- * @ingroup libtinyalsa-pcm
- */
-int pcm_write(struct pcm *pcm, const void *data, unsigned int count)
-{
-    return pcm_writei(pcm, data, pcm_bytes_to_frames(pcm, count));
-}
-
-/** Reads audio samples from PCM.
- * If the PCM has not been started, it is started in this function.
- * This function is only valid for PCMs opened with the @ref PCM_IN flag.
- * This function is not valid for PCMs opened with the @ref PCM_MMAP flag.
- * @param pcm A PCM handle.
- * @param data The audio sample array
- * @param count The number of bytes occupied by the sample array.
- * @return On success, this function returns zero; otherwise, a negative number.
- * @deprecated
- * @ingroup libtinyalsa-pcm
- */
-int pcm_read(struct pcm *pcm, void *data, unsigned int count)
-{
-    return pcm_readi(pcm, data, pcm_bytes_to_frames(pcm, count));
 }
 
 static struct pcm bad_pcm = {
@@ -814,19 +704,30 @@ struct pcm_params *pcm_params_get(unsigned int card, unsigned int device,
                                   unsigned int flags)
 {
     struct snd_pcm_hw_params *params;
-    char fn[256];
+    void *snd_node = NULL, *data;
+    const struct pcm_ops *ops;
     int fd;
 
-    snprintf(fn, sizeof(fn), "/dev/snd/pcmC%uD%u%c", card, device,
-             flags & PCM_IN ? 'c' : 'p');
+    ops = &hw_ops;
+    fd = ops->open(card, device, flags, &data, snd_node);
 
-    if (flags & PCM_NONBLOCK)
-        fd = open(fn, O_RDWR | O_NONBLOCK);
-    else
-        fd = open(fn, O_RDWR);
-
+#ifdef TINYALSA_USES_PLUGINS
     if (fd < 0) {
-        fprintf(stderr, "cannot open device '%s': %s\n", fn, strerror(errno));
+        int pcm_type;
+        snd_node = snd_utils_open_pcm(card, device);
+        pcm_type = snd_utils_get_node_type(snd_node);
+        if (!snd_node || pcm_type != SND_NODE_TYPE_PLUGIN) {
+            fprintf(stderr, "no device (hw/plugin) for card(%u), device(%u)",
+                 card, device);
+            goto err_open;
+        }
+        ops = &plug_ops;
+        fd = ops->open(card, device, flags, &data, snd_node);
+    }
+#endif
+    if (fd < 0) {
+        fprintf(stderr, "cannot open card(%d) device (%d): %s\n",
+                card, device, strerror(errno));
         goto err_open;
     }
 
@@ -835,19 +736,27 @@ struct pcm_params *pcm_params_get(unsigned int card, unsigned int device,
         goto err_calloc;
 
     param_init(params);
-    if (ioctl(fd, SNDRV_PCM_IOCTL_HW_REFINE, params)) {
+    if (ops->ioctl(data, SNDRV_PCM_IOCTL_HW_REFINE, params)) {
         fprintf(stderr, "SNDRV_PCM_IOCTL_HW_REFINE error (%d)\n", errno);
         goto err_hw_refine;
     }
 
-    close(fd);
+#ifdef TINYALSA_USES_PLUGINS
+    if (snd_node)
+        snd_utils_close_dev_node(snd_node);
+#endif
+    ops->close(data);
 
     return (struct pcm_params *)params;
 
 err_hw_refine:
     free(params);
 err_calloc:
-    close(fd);
+#ifdef TINYALSA_USES_PLUGINS
+    if (snd_node)
+        snd_utils_close_dev_node(snd_node);
+#endif
+    ops->close(data);
 err_open:
     return NULL;
 }
@@ -984,6 +893,87 @@ unsigned int pcm_params_get_max(const struct pcm_params *pcm_params,
     return param_get_max(params, p);
 }
 
+static int pcm_mask_test(const struct pcm_mask *m, unsigned int index)
+{
+    const unsigned int bitshift = 5; /* for 32 bit integer */
+    const unsigned int bitmask = (1 << bitshift) - 1;
+    unsigned int element;
+
+    element = index >> bitshift;
+    if (element >= ARRAY_SIZE(m->bits))
+        return 0; /* for safety, but should never occur */
+    return (m->bits[element] >> (index & bitmask)) & 1;
+}
+
+static int pcm_mask_to_string(const struct pcm_mask *m, char *string, unsigned int size,
+                              char *mask_name,
+                              const char * const *bit_array_name, size_t bit_array_size)
+{
+    unsigned int i;
+    unsigned int offset = 0;
+
+    if (m == NULL)
+        return 0;
+    if (bit_array_size < 32) {
+        STRLOG(string, offset, size, "%12s:\t%#08x\n", mask_name, m->bits[0]);
+    } else { /* spans two or more bitfields, print with an array index */
+        for (i = 0; i < (bit_array_size + 31) >> 5; ++i) {
+            STRLOG(string, offset, size, "%9s[%d]:\t%#08x\n",
+                   mask_name, i, m->bits[i]);
+        }
+    }
+    for (i = 0; i < bit_array_size; ++i) {
+        if (pcm_mask_test(m, i)) {
+            STRLOG(string, offset, size, "%12s \t%s\n", "", bit_array_name[i]);
+        }
+    }
+    return offset;
+}
+
+int pcm_params_to_string(struct pcm_params *params, char *string, unsigned int size)
+{
+    const struct pcm_mask *m;
+    unsigned int min, max;
+    unsigned int clipoffset, offset;
+
+    m = pcm_params_get_mask(params, PCM_PARAM_ACCESS);
+    offset = pcm_mask_to_string(m, string, size,
+                                 "Access", access_lookup, ARRAY_SIZE(access_lookup));
+    m = pcm_params_get_mask(params, PCM_PARAM_FORMAT);
+    clipoffset = offset > size ? size : offset;
+    offset += pcm_mask_to_string(m, string + clipoffset, size - clipoffset,
+                                 "Format", format_lookup, ARRAY_SIZE(format_lookup));
+    m = pcm_params_get_mask(params, PCM_PARAM_SUBFORMAT);
+    clipoffset = offset > size ? size : offset;
+    offset += pcm_mask_to_string(m, string + clipoffset, size - clipoffset,
+                                 "Subformat", subformat_lookup, ARRAY_SIZE(subformat_lookup));
+    min = pcm_params_get_min(params, PCM_PARAM_RATE);
+    max = pcm_params_get_max(params, PCM_PARAM_RATE);
+    STRLOG(string, offset, size, "        Rate:\tmin=%uHz\tmax=%uHz\n", min, max);
+    min = pcm_params_get_min(params, PCM_PARAM_CHANNELS);
+    max = pcm_params_get_max(params, PCM_PARAM_CHANNELS);
+    STRLOG(string, offset, size, "    Channels:\tmin=%u\t\tmax=%u\n", min, max);
+    min = pcm_params_get_min(params, PCM_PARAM_SAMPLE_BITS);
+    max = pcm_params_get_max(params, PCM_PARAM_SAMPLE_BITS);
+    STRLOG(string, offset, size, " Sample bits:\tmin=%u\t\tmax=%u\n", min, max);
+    min = pcm_params_get_min(params, PCM_PARAM_PERIOD_SIZE);
+    max = pcm_params_get_max(params, PCM_PARAM_PERIOD_SIZE);
+    STRLOG(string, offset, size, " Period size:\tmin=%u\t\tmax=%u\n", min, max);
+    min = pcm_params_get_min(params, PCM_PARAM_PERIODS);
+    max = pcm_params_get_max(params, PCM_PARAM_PERIODS);
+    STRLOG(string, offset, size, "Period count:\tmin=%u\t\tmax=%u\n", min, max);
+    return offset;
+}
+
+int pcm_params_format_test(struct pcm_params *params, enum pcm_format format)
+{
+    unsigned int alsa_format = pcm_format_to_alsa(format);
+
+    if (alsa_format == SNDRV_PCM_FORMAT_S16_LE && format != PCM_FORMAT_S16_LE)
+        return 0; /* caution: format not recognized is equivalent to S16_LE */
+    return pcm_mask_test(pcm_params_get_mask(params, PCM_PARAM_FORMAT), alsa_format);
+}
+
 /** Closes a PCM returned by @ref pcm_open.
  * @param pcm A PCM returned by @ref pcm_open.
  *  May not be NULL.
@@ -999,13 +989,11 @@ int pcm_close(struct pcm *pcm)
 
     if (pcm->flags & PCM_MMAP) {
         pcm_stop(pcm);
-        munmap(pcm->mmap_buffer, pcm_frames_to_bytes(pcm, pcm->buffer_size));
+        pcm->ops->munmap(pcm->data, pcm->mmap_buffer, pcm_frames_to_bytes(pcm, pcm->buffer_size));
     }
 
-    if (pcm->fd >= 0)
-        close(pcm->fd);
-    pcm->prepared = 0;
-    pcm->running = 0;
+    snd_utils_close_dev_node(pcm->snd_node);
+    pcm->ops->close(pcm->data);
     pcm->buffer_size = 0;
     pcm->fd = -1;
     free(pcm);
@@ -1024,24 +1012,25 @@ int pcm_close(struct pcm *pcm)
  *   - @ref PCM_MONOTONIC
  * @param config The hardware and software parameters to open the PCM with.
  * @returns A PCM structure.
- *  If an error occurs allocating memory for the PCM, NULL is returned.
- *  Otherwise, client code should check that the PCM opened properly by calling @ref pcm_is_ready.
- *  If @ref pcm_is_ready, check @ref pcm_get_error for more information.
+ *  If an error occurs, the pointer of bad_pcm is returned.
+ *  Otherwise, it returns the pointer of PCM object.
+ *  Client code should check that the PCM opened properly by calling @ref pcm_is_ready.
+ *  If @ref pcm_is_ready returns false, check @ref pcm_get_error for more information.
  * @ingroup libtinyalsa-pcm
  */
 struct pcm *pcm_open_by_name(const char *name,
                              unsigned int flags,
                              const struct pcm_config *config)
 {
-  unsigned int card, device;
-  if ((name[0] != 'h')
-   || (name[1] != 'w')
-   || (name[2] != ':')) {
-    return NULL;
-  } else if (sscanf(&name[3], "%u,%u", &card, &device) != 2) {
-    return NULL;
-  }
-  return pcm_open(card, device, flags, config);
+    unsigned int card, device;
+    if (name[0] != 'h' || name[1] != 'w' || name[2] != ':') {
+        oops(&bad_pcm, 0, "name format is not matched");
+        return &bad_pcm;
+    } else if (sscanf(&name[3], "%u,%u", &card, &device) != 2) {
+        oops(&bad_pcm, 0, "name format is not matched");
+        return &bad_pcm;
+    }
+    return pcm_open(card, device, flags, config);
 }
 
 /** Opens a PCM.
@@ -1058,9 +1047,10 @@ struct pcm *pcm_open_by_name(const char *name,
  *   - @ref PCM_MONOTONIC
  * @param config The hardware and software parameters to open the PCM with.
  * @returns A PCM structure.
- *  If an error occurs allocating memory for the PCM, NULL is returned.
- *  Otherwise, client code should check that the PCM opened properly by calling @ref pcm_is_ready.
- *  If @ref pcm_is_ready, check @ref pcm_get_error for more information.
+ *  If an error occurs, the pointer of bad_pcm is returned.
+ *  Otherwise, it returns the pointer of PCM object.
+ *  Client code should check that the PCM opened properly by calling @ref pcm_is_ready.
+ *  If @ref pcm_is_ready returns false, check @ref pcm_get_error for more information.
  * @ingroup libtinyalsa-pcm
  */
 struct pcm *pcm_open(unsigned int card, unsigned int device,
@@ -1068,30 +1058,42 @@ struct pcm *pcm_open(unsigned int card, unsigned int device,
 {
     struct pcm *pcm;
     struct snd_pcm_info info;
-    char fn[256];
     int rc;
 
     pcm = calloc(1, sizeof(struct pcm));
-    if (!pcm)
+    if (!pcm) {
+        oops(&bad_pcm, ENOMEM, "can't allocate PCM object");
         return &bad_pcm;
+    }
 
-    snprintf(fn, sizeof(fn), "/dev/snd/pcmC%uD%u%c", card, device,
-             flags & PCM_IN ? 'c' : 'p');
+    /* Default to hw_ops, attemp plugin open only if hw (/dev/snd/pcm*) open fails */
+    pcm->ops = &hw_ops;
+    pcm->fd = pcm->ops->open(card, device, flags, &pcm->data, NULL);
+
+#ifdef TINYALSA_USES_PLUGINS
+    if (pcm->fd < 0) {
+        int pcm_type;
+        pcm->snd_node = snd_utils_open_pcm(card, device);
+        pcm_type = snd_utils_get_node_type(pcm->snd_node);
+        if (!pcm->snd_node || pcm_type != SND_NODE_TYPE_PLUGIN) {
+            oops(&bad_pcm, ENODEV, "no device (hw/plugin) for card(%u), device(%u)",
+                 card, device);
+            goto fail_close_dev_node;
+        }
+        pcm->ops = &plug_ops;
+        pcm->fd = pcm->ops->open(card, device, flags, &pcm->data, pcm->snd_node);
+    }
+#endif
+    if (pcm->fd < 0) {
+        oops(&bad_pcm, errno, "cannot open device (%u) for card (%u)",
+             device, card);
+        goto fail_close_dev_node;
+    }
 
     pcm->flags = flags;
 
-    if (flags & PCM_NONBLOCK)
-        pcm->fd = open(fn, O_RDWR | O_NONBLOCK);
-    else
-        pcm->fd = open(fn, O_RDWR);
-
-    if (pcm->fd < 0) {
-        oops(pcm, errno, "cannot open device '%s'", fn);
-        return pcm;
-    }
-
-    if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_INFO, &info)) {
-        oops(pcm, errno, "cannot get info");
+    if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_INFO, &info)) {
+        oops(&bad_pcm, errno, "cannot get info");
         goto fail_close;
     }
     pcm->subdevice = info.subdevice;
@@ -1101,31 +1103,37 @@ struct pcm *pcm_open(unsigned int card, unsigned int device,
 
     rc = pcm_hw_mmap_status(pcm);
     if (rc < 0) {
-        oops(pcm, rc, "mmap status failed");
+        oops(&bad_pcm, errno, "mmap status failed");
         goto fail;
     }
 
 #ifdef SNDRV_PCM_IOCTL_TTSTAMP
     if (pcm->flags & PCM_MONOTONIC) {
         int arg = SNDRV_PCM_TSTAMP_TYPE_MONOTONIC;
-        rc = ioctl(pcm->fd, SNDRV_PCM_IOCTL_TTSTAMP, &arg);
+        rc = pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_TTSTAMP, &arg);
         if (rc < 0) {
-            oops(pcm, rc, "cannot set timestamp type");
+            oops(&bad_pcm, errno, "cannot set timestamp type");
             goto fail;
         }
     }
 #endif
 
-    pcm->underruns = 0;
+    pcm->xruns = 0;
     return pcm;
 
 fail:
+    pcm_hw_munmap_status(pcm);
     if (flags & PCM_MMAP)
-        munmap(pcm->mmap_buffer, pcm_frames_to_bytes(pcm, pcm->buffer_size));
+        pcm->ops->munmap(pcm->data, pcm->mmap_buffer, pcm_frames_to_bytes(pcm, pcm->buffer_size));
 fail_close:
-    close(pcm->fd);
-    pcm->fd = -1;
-    return pcm;
+    pcm->ops->close(pcm->data);
+fail_close_dev_node:
+#ifdef TINYALSA_USES_PLUGINS
+    if (pcm->snd_node)
+        snd_utils_close_dev_node(pcm->snd_node);
+#endif
+    free(pcm);
+    return &bad_pcm;
 }
 
 /** Checks if a PCM file has been opened without error.
@@ -1182,36 +1190,35 @@ int pcm_unlink(struct pcm *pcm)
  */
 int pcm_prepare(struct pcm *pcm)
 {
-    if (pcm->prepared)
-        return 0;
-
-    if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_PREPARE) < 0)
+    if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_PREPARE) < 0)
         return oops(pcm, errno, "cannot prepare channel");
 
-    pcm->prepared = 1;
+    /* get appl_ptr and avail_min from kernel */
+    pcm_sync_ptr(pcm, SNDRV_PCM_SYNC_PTR_APPL|SNDRV_PCM_SYNC_PTR_AVAIL_MIN);
+
     return 0;
 }
 
 /** Starts a PCM.
- * If the PCM has not been prepared,
- * it is prepared in this function.
  * @param pcm A PCM handle.
  * @return On success, zero; on failure, a negative number.
  * @ingroup libtinyalsa-pcm
  */
 int pcm_start(struct pcm *pcm)
 {
-    int prepare_error = pcm_prepare(pcm);
-    if (prepare_error)
-        return prepare_error;
+    if (pcm_state(pcm) == PCM_STATE_SETUP && pcm_prepare(pcm) != 0) {
+        return -1;
+    }
 
-    if (pcm->flags & PCM_MMAP)
-        pcm_sync_ptr(pcm, 0);
+    /* set appl_ptr and avail_min in kernel */
+    if (pcm_sync_ptr(pcm, 0) < 0)
+        return -1;
 
-    if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_START) < 0)
-        return oops(pcm, errno, "cannot start channel");
+    if (pcm->mmap_status->state != PCM_STATE_RUNNING) {
+        if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_START) < 0)
+            return oops(pcm, errno, "cannot start channel");
+    }
 
-    pcm->running = 1;
     return 0;
 }
 
@@ -1222,11 +1229,9 @@ int pcm_start(struct pcm *pcm)
  */
 int pcm_stop(struct pcm *pcm)
 {
-    if (ioctl(pcm->fd, SNDRV_PCM_IOCTL_DROP) < 0)
+    if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_DROP) < 0)
         return oops(pcm, errno, "cannot stop channel");
 
-    pcm->prepared = 0;
-    pcm->running = 0;
     return 0;
 }
 
@@ -1252,7 +1257,7 @@ static inline int pcm_mmap_capture_avail(struct pcm *pcm)
     return avail;
 }
 
-static inline int pcm_mmap_avail(struct pcm *pcm)
+int pcm_mmap_avail(struct pcm *pcm)
 {
     pcm_sync_ptr(pcm, SNDRV_PCM_SYNC_PTR_HWSYNC);
     if (pcm->flags & PCM_IN)
@@ -1299,6 +1304,26 @@ int pcm_mmap_begin(struct pcm *pcm, void **areas, unsigned int *offset,
     return 0;
 }
 
+static int pcm_areas_copy(struct pcm *pcm, unsigned int pcm_offset,
+                          char *buf, unsigned int src_offset,
+                          unsigned int frames)
+{
+    int size_bytes = pcm_frames_to_bytes(pcm, frames);
+    int pcm_offset_bytes = pcm_frames_to_bytes(pcm, pcm_offset);
+    int src_offset_bytes = pcm_frames_to_bytes(pcm, src_offset);
+
+    /* interleaved only atm */
+    if (pcm->flags & PCM_IN)
+        memcpy(buf + src_offset_bytes,
+               (char*)pcm->mmap_buffer + pcm_offset_bytes,
+               size_bytes);
+    else
+        memcpy((char*)pcm->mmap_buffer + pcm_offset_bytes,
+               buf + src_offset_bytes,
+               size_bytes);
+    return 0;
+}
+
 int pcm_mmap_commit(struct pcm *pcm, unsigned int offset, unsigned int frames)
 {
     int ret;
@@ -1317,19 +1342,85 @@ int pcm_mmap_commit(struct pcm *pcm, unsigned int offset, unsigned int frames)
     return frames;
 }
 
+static int pcm_mmap_transfer_areas(struct pcm *pcm, char *buf,
+                                unsigned int offset, unsigned int size)
+{
+    void *pcm_areas;
+    int commit;
+    unsigned int pcm_offset, frames, count = 0;
+
+    while (pcm_mmap_avail(pcm) && size) {
+        frames = size;
+        pcm_mmap_begin(pcm, &pcm_areas, &pcm_offset, &frames);
+        pcm_areas_copy(pcm, pcm_offset, buf, offset, frames);
+        commit = pcm_mmap_commit(pcm, pcm_offset, frames);
+        if (commit < 0) {
+            oops(pcm, commit, "failed to commit %d frames\n", frames);
+            return commit;
+        }
+
+        offset += commit;
+        count += commit;
+        size -= commit;
+    }
+    return count;
+}
+
+int pcm_get_poll_fd(struct pcm *pcm)
+{
+    return pcm->fd;
+}
+
 int pcm_avail_update(struct pcm *pcm)
 {
-    pcm_sync_ptr(pcm, 0);
+    pcm_sync_ptr(pcm, SNDRV_PCM_SYNC_PTR_APPL|SNDRV_PCM_SYNC_PTR_AVAIL_MIN);
     return pcm_mmap_avail(pcm);
 }
 
-int pcm_state(struct pcm *pcm)
+/** Returns available frames in pcm buffer and corresponding time stamp.
+ * The clock is CLOCK_MONOTONIC if flag @ref PCM_MONOTONIC was specified in @ref pcm_open,
+ * otherwise the clock is CLOCK_REALTIME.
+ * For an input stream, frames available are frames ready for the application to read.
+ * For an output stream, frames available are the number of empty frames available for the application to write.
+ * @param pcm A PCM handle.
+ * @param avail The number of available frames
+ * @param tstamp The timestamp
+ * @return On success, zero is returned; on failure, negative one.
+ */
+int pcm_get_htimestamp(struct pcm *pcm, unsigned int *avail,
+                       struct timespec *tstamp)
 {
-    int err = pcm_sync_ptr(pcm, 0);
-    if (err < 0)
-        return err;
+    int checking;
+    int tmp;
 
-    return pcm->mmap_status->state;
+    if (!pcm_is_ready(pcm))
+        return -1;
+
+    checking = 0;
+
+again:
+
+    tmp = pcm_avail_update(pcm);
+    if (tmp < 0)
+        return tmp; /* error */
+
+    if (checking && (unsigned int) tmp == *avail)
+        return 0;
+
+    *avail = (unsigned int) tmp;
+    *tstamp = pcm->mmap_status->tstamp;
+
+    /*
+     * When status is mmaped, get avail again to ensure
+     * valid timestamp.
+     */
+    if (!pcm->sync_ptr) {
+        checking = 1;
+        goto again;
+    }
+
+    /* SYNC_PTR ioctl was used, no need to check avail */
+    return 0;
 }
 
 /** Waits for frames to be available for read or write operations.
@@ -1350,7 +1441,7 @@ int pcm_wait(struct pcm *pcm, int timeout)
 
     do {
         /* let's wait for avail or timeout */
-        err = poll(&pfd, 1, timeout);
+        err = pcm->ops->poll(pcm->data, &pfd, 1, timeout);
         if (err < 0)
             return -errno;
 
@@ -1381,98 +1472,299 @@ int pcm_wait(struct pcm *pcm, int timeout)
     return 1;
 }
 
-int pcm_mmap_transfer(struct pcm *pcm, const void *buffer, unsigned int bytes)
+/*
+ * Transfer data to/from mmaped buffer. This imitates the
+ * behavior of read/write system calls.
+ *
+ * However, this doesn't seems to offer any advantage over
+ * the read/write syscalls. Should it be removed?
+ */
+int pcm_mmap_transfer(struct pcm *pcm, void *buffer, unsigned int frames)
 {
-    int err = 0, frames, avail;
-    unsigned int offset = 0, count;
+    int is_playback;
 
-    if (bytes == 0)
+    int state;
+    unsigned int avail;
+    unsigned int user_offset;
+
+    int err;
+    int tmp;
+
+    is_playback = !(pcm->flags & PCM_IN);
+
+    if (frames == 0)
         return 0;
 
-    count = pcm_bytes_to_frames(pcm, bytes);
+    /* update hardware pointer and get state */
+    err = pcm_sync_ptr(pcm, SNDRV_PCM_SYNC_PTR_HWSYNC |
+                            SNDRV_PCM_SYNC_PTR_APPL |
+                            SNDRV_PCM_SYNC_PTR_AVAIL_MIN);
+    if (err == -1)
+        return -1;
+    state = pcm->mmap_status->state;
 
-    while (count > 0) {
-
-        /* get the available space for writing new frames */
-        avail = pcm_avail_update(pcm);
-        if (avail < 0) {
-            fprintf(stderr, "cannot determine available mmap frames");
-            return err;
-        }
-
-        /* start the audio if we reach the threshold */
-        if (!pcm->running &&
-            (pcm->buffer_size - avail) >= pcm->config.start_threshold) {
-            if (pcm_start(pcm) < 0) {
-               fprintf(stderr, "start error: hw 0x%x app 0x%x avail 0x%x\n",
-                    (unsigned int)pcm->mmap_status->hw_ptr,
-                    (unsigned int)pcm->mmap_control->appl_ptr,
-                    avail);
-                return -errno;
-            }
-        }
-
-        /* sleep until we have space to write new frames */
-        if (pcm->running &&
-            (unsigned int)avail < pcm->mmap_control->avail_min) {
-            int time = -1;
-
-            if (pcm->flags & PCM_NOIRQ)
-                time = (pcm->buffer_size - avail - pcm->mmap_control->avail_min)
-                        / pcm->noirq_frames_per_msec;
-
-            err = pcm_wait(pcm, time);
-            if (err < 0) {
-                pcm->prepared = 0;
-                pcm->running = 0;
-                fprintf(stderr, "wait error: hw 0x%x app 0x%x avail 0x%x\n",
-                    (unsigned int)pcm->mmap_status->hw_ptr,
-                    (unsigned int)pcm->mmap_control->appl_ptr,
-                    avail);
-                pcm->mmap_control->appl_ptr = 0;
-                return err;
-            }
-            continue;
-        }
-
-        frames = count;
-        if (frames > avail)
-            frames = avail;
-
-        if (!frames)
-            break;
-
-        /* copy frames from buffer */
-        frames = pcm_mmap_transfer_areas(pcm, (void *)buffer, offset, frames);
-        if (frames < 0) {
-            fprintf(stderr, "write error: hw 0x%x app 0x%x avail 0x%x\n",
-                    (unsigned int)pcm->mmap_status->hw_ptr,
-                    (unsigned int)pcm->mmap_control->appl_ptr,
-                    avail);
-            return frames;
-        }
-
-        offset += frames;
-        count -= frames;
+    /*
+     * If frames < start_threshold, wait indefinitely.
+     * Another thread may start capture
+     */
+    if (!is_playback && state == PCM_STATE_PREPARED &&
+        frames >= pcm->config.start_threshold) {
+            err = pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_START);
+        if (err == -1)
+            return -1;
+        /* state = PCM_STATE_RUNNING */
     }
 
-    return 0;
+    avail = pcm_mmap_avail(pcm);
+    user_offset = 0;
+
+    while (frames) {
+        if (!avail) {
+            if (pcm->flags & PCM_NONBLOCK) {
+                errno = EAGAIN;
+                break;
+            }
+
+            /* wait for interrupt */
+            err = pcm_wait(pcm, -1);
+            if (err < 0) {
+                errno = -err;
+                break;
+            }
+
+            /* get hardware pointer */
+            avail = pcm_avail_update(pcm);
+        }
+
+        tmp = pcm_mmap_transfer_areas(pcm, buffer, user_offset, frames);
+        if (tmp < 0)
+            break;
+
+        user_offset += tmp;
+        frames -= tmp;
+        avail -= tmp;
+
+        /* start playback if written >= start_threshold */
+        if (is_playback && state == PCM_STATE_PREPARED &&
+            pcm->buffer_size - avail >= pcm->config.start_threshold) {
+            err = pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_START);
+            if (err == -1)
+                break;
+        }
+    }
+
+    return user_offset ? (int) user_offset : -1;
 }
 
 int pcm_mmap_write(struct pcm *pcm, const void *data, unsigned int count)
 {
     if ((~pcm->flags) & (PCM_OUT | PCM_MMAP))
-        return -ENOSYS;
+        return -EINVAL;
 
-    return pcm_mmap_transfer(pcm, (void *)data, count);
+    unsigned int frames = pcm_bytes_to_frames(pcm, count);
+    int res = pcm_writei(pcm, (void *) data, frames);
+
+    if (res < 0) {
+        return res;
+    }
+
+    return (unsigned int) res == frames ? 0 : -EIO;
 }
 
 int pcm_mmap_read(struct pcm *pcm, void *data, unsigned int count)
 {
     if ((~pcm->flags) & (PCM_IN | PCM_MMAP))
-        return -ENOSYS;
+        return -EINVAL;
 
-    return pcm_mmap_transfer(pcm, data, count);
+    unsigned int frames = pcm_bytes_to_frames(pcm, count);
+    int res = pcm_readi(pcm, data, frames);
+
+    if (res < 0) {
+        return res;
+    }
+
+    return (unsigned int) res == frames ? 0 : -EIO;
+}
+
+/* Returns current read/write position in the mmap buffer with associated time stamp. */
+int pcm_mmap_get_hw_ptr(struct pcm* pcm, unsigned int *hw_ptr, struct timespec *tstamp)
+{
+    int rc;
+
+    if (pcm == NULL || hw_ptr == NULL || tstamp == NULL)
+        return oops(pcm, EINVAL, "pcm %p, hw_ptr %p, tstamp %p", pcm, hw_ptr, tstamp);
+
+    if (!pcm_is_ready(pcm))
+        return oops(pcm, errno, "pcm_is_ready failed");
+
+    rc = pcm_sync_ptr(pcm, SNDRV_PCM_SYNC_PTR_HWSYNC);
+    if (rc < 0)
+        return oops(pcm, errno, "pcm_sync_ptr failed");
+
+    if (pcm->mmap_status == NULL)
+        return oops(pcm, EINVAL, "pcm %p, mmap_status is NULL", pcm);
+
+    if ((pcm->mmap_status->state != PCM_STATE_RUNNING) &&
+            (pcm->mmap_status->state != PCM_STATE_DRAINING))
+        return oops(pcm, ENOSYS, "invalid stream state %d", pcm->mmap_status->state);
+
+    *tstamp = pcm->mmap_status->tstamp;
+    if (tstamp->tv_sec == 0 && tstamp->tv_nsec == 0)
+        return oops(pcm, errno, "invalid time stamp");
+
+    *hw_ptr = pcm->mmap_status->hw_ptr;
+
+    return 0;
+}
+
+static int pcm_rw_transfer(struct pcm *pcm, void *data, unsigned int frames)
+{
+    int is_playback;
+
+    struct snd_xferi transfer;
+    int res;
+
+    is_playback = !(pcm->flags & PCM_IN);
+
+    transfer.buf = data;
+    transfer.frames = frames;
+    transfer.result = 0;
+
+    res = pcm->ops->ioctl(pcm->data, is_playback
+                          ? SNDRV_PCM_IOCTL_WRITEI_FRAMES
+                          : SNDRV_PCM_IOCTL_READI_FRAMES, &transfer);
+
+    return res == 0 ? (int) transfer.result : -1;
+}
+
+static int pcm_generic_transfer(struct pcm *pcm, void *data,
+                                unsigned int frames)
+{
+    int res;
+
+#if UINT_MAX > TINYALSA_FRAMES_MAX
+    if (frames > TINYALSA_FRAMES_MAX)
+        return -EINVAL;
+#endif
+    if (frames > INT_MAX)
+        return -EINVAL;
+
+    if (pcm_state(pcm) == PCM_STATE_SETUP && pcm_prepare(pcm) != 0) {
+        return -1;
+    }
+
+again:
+
+    if (pcm->flags & PCM_MMAP)
+        res = pcm_mmap_transfer(pcm, data, frames);
+    else
+        res = pcm_rw_transfer(pcm, data, frames);
+
+    if (res < 0) {
+        switch (errno) {
+        case EPIPE:
+            pcm->xruns++;
+            /* fallthrough */
+        case ESTRPIPE:
+            /*
+             * Try to restart if we are allowed to do so.
+             * Otherwise, return error.
+             */
+            if (pcm->flags & PCM_NORESTART || pcm_prepare(pcm))
+                return -1;
+            goto again;
+        case EAGAIN:
+            if (pcm->flags & PCM_NONBLOCK)
+                return -1;
+            /* fallthrough */
+        default:
+            return oops(pcm, errno, "cannot read/write stream data");
+        }
+    }
+
+    return res;
+}
+
+/** Writes audio samples to PCM.
+ * If the PCM has not been started, it is started in this function.
+ * This function is only valid for PCMs opened with the @ref PCM_OUT flag.
+ * @param pcm A PCM handle.
+ * @param data The audio sample array
+ * @param frame_count The number of frames occupied by the sample array.
+ *  This value should not be greater than @ref TINYALSA_FRAMES_MAX
+ *  or INT_MAX.
+ * @return On success, this function returns the number of frames written; otherwise, a negative number.
+ * @ingroup libtinyalsa-pcm
+ */
+int pcm_writei(struct pcm *pcm, const void *data, unsigned int frame_count)
+{
+    if (pcm->flags & PCM_IN)
+        return -EINVAL;
+
+    return pcm_generic_transfer(pcm, (void*) data, frame_count);
+}
+
+/** Reads audio samples from PCM.
+ * If the PCM has not been started, it is started in this function.
+ * This function is only valid for PCMs opened with the @ref PCM_IN flag.
+ * @param pcm A PCM handle.
+ * @param data The audio sample array
+ * @param frame_count The number of frames occupied by the sample array.
+ *  This value should not be greater than @ref TINYALSA_FRAMES_MAX
+ *  or INT_MAX.
+ * @return On success, this function returns the number of frames written; otherwise, a negative number.
+ * @ingroup libtinyalsa-pcm
+ */
+int pcm_readi(struct pcm *pcm, void *data, unsigned int frame_count)
+{
+    if (!(pcm->flags & PCM_IN))
+        return -EINVAL;
+
+    return pcm_generic_transfer(pcm, data, frame_count);
+}
+
+/** Writes audio samples to PCM.
+ * If the PCM has not been started, it is started in this function.
+ * This function is only valid for PCMs opened with the @ref PCM_OUT flag.
+ * This function is not valid for PCMs opened with the @ref PCM_MMAP flag.
+ * @param pcm A PCM handle.
+ * @param data The audio sample array
+ * @param count The number of bytes occupied by the sample array.
+ * @return On success, this function returns zero; otherwise, a negative number.
+ * @deprecated
+ * @ingroup libtinyalsa-pcm
+ */
+int pcm_write(struct pcm *pcm, const void *data, unsigned int count)
+{
+    unsigned int requested_frames = pcm_bytes_to_frames(pcm, count);
+    int ret = pcm_writei(pcm, data, requested_frames);
+
+    if (ret < 0)
+        return ret;
+
+    return ((unsigned int )ret == requested_frames) ? 0 : -EIO;
+}
+
+/** Reads audio samples from PCM.
+ * If the PCM has not been started, it is started in this function.
+ * This function is only valid for PCMs opened with the @ref PCM_IN flag.
+ * This function is not valid for PCMs opened with the @ref PCM_MMAP flag.
+ * @param pcm A PCM handle.
+ * @param data The audio sample array
+ * @param count The number of bytes occupied by the sample array.
+ * @return On success, this function returns zero; otherwise, a negative number.
+ * @deprecated
+ * @ingroup libtinyalsa-pcm
+ */
+int pcm_read(struct pcm *pcm, void *data, unsigned int count)
+{
+    unsigned int requested_frames = pcm_bytes_to_frames(pcm, count);
+    int ret = pcm_readi(pcm, data, requested_frames);
+
+    if (ret < 0)
+        return ret;
+
+    return ((unsigned int )ret == requested_frames) ? 0 : -EIO;
 }
 
 /** Gets the delay of the PCM, in terms of frames.
@@ -1489,3 +1781,20 @@ long pcm_get_delay(struct pcm *pcm)
     return pcm->pcm_delay;
 }
 
+// TODO: Currently in Android, there are some libraries using this function to control the driver.
+//   We should remove this function as soon as possible.
+int pcm_ioctl(struct pcm *pcm, int request, ...)
+{
+    va_list ap;
+    void * arg;
+
+    if (!pcm_is_ready(pcm))
+        return -1;
+
+    va_start(ap, request);
+    arg = va_arg(ap, void *);
+    va_end(ap);
+
+    // FIXME Does not handle plugins
+    return ioctl(pcm->fd, request, arg);
+}

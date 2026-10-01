@@ -27,11 +27,15 @@
 */
 
 #include <tinyalsa/asoundlib.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
-#include <signal.h>
+
+#define OPTPARSE_IMPLEMENTATION
+#include "optparse.h"
 
 struct cmd {
     const char *filename;
@@ -41,6 +45,7 @@ struct cmd {
     int flags;
     struct pcm_config config;
     unsigned int bits;
+    bool is_float;
 };
 
 void cmd_init(struct cmd *cmd)
@@ -55,98 +60,21 @@ void cmd_init(struct cmd *cmd)
     cmd->config.channels = 2;
     cmd->config.rate = 48000;
     cmd->config.format = PCM_FORMAT_S16_LE;
-    cmd->config.silence_threshold = 1024 * 2;
-    cmd->config.stop_threshold = 1024 * 2;
-    cmd->config.start_threshold = 1024;
+    cmd->config.silence_threshold = cmd->config.period_size * cmd->config.period_count;
+    cmd->config.silence_size = 0;
+    cmd->config.stop_threshold = cmd->config.period_size * cmd->config.period_count;
+    cmd->config.start_threshold = cmd->config.period_size;
     cmd->bits = 16;
-}
-
-int cmd_parse_arg(struct cmd *cmd, int argc, const char **argv)
-{
-    if (argc < 1) {
-        return 0;
-    }
-
-    if ((strcmp(argv[0], "-M") == 0) || (strcmp(argv[0], "--mmap") == 0)) {
-        cmd->flags |= PCM_MMAP;
-        return 1;
-    }
-
-    if (argv[0][0] != '-' || (strcmp(argv[0],"-") == 0)) {
-        cmd->filename = argv[0];
-        return 1;
-    }
-
-    if (argc < 2) {
-        fprintf(stderr, "option '%s' is missing argument\n", argv[0]);
-        return -1;
-    }
-
-    if ((strcmp(argv[0], "-D") == 0) || (strcmp(argv[0], "--card") == 0)) {
-        if (sscanf(argv[1], "%u", &cmd->card) != 1) {
-            fprintf(stderr, "failed parsing card number '%s'\n", argv[1]);
-            return -1;
-        }
-    } else if ((strcmp(argv[0], "-d") == 0) || (strcmp(argv[0], "--device") == 0)) {
-        if (sscanf(argv[1], "%u", &cmd->device) != 1) {
-            fprintf(stderr, "failed parsing device number '%s'\n", argv[1]);
-            return -1;
-        }
-    } else if ((strcmp(argv[0], "-p") == 0) || (strcmp(argv[0], "--period-size") == 0)) {
-        if (sscanf(argv[1], "%u", &cmd->config.period_size) != 1) {
-            fprintf(stderr, "failed parsing period size '%s'\n", argv[1]);
-            return -1;
-        }
-    } else if ((strcmp(argv[0], "-n") == 0) || (strcmp(argv[0], "--period-count") == 0)) {
-        if (sscanf(argv[1], "%u", &cmd->config.period_count) != 1) {
-            fprintf(stderr, "failed parsing period count '%s'\n", argv[1]);
-            return -1;
-        }
-    } else if ((strcmp(argv[0], "-c") == 0) || (strcmp(argv[0], "--channels") == 0)) {
-        if (sscanf(argv[1], "%u", &cmd->config.channels) != 1) {
-            fprintf(stderr, "failed parsing channel count '%s'\n", argv[1]);
-            return -1;
-        }
-    } else if ((strcmp(argv[0], "-r") == 0) || (strcmp(argv[0], "--rate") == 0)) {
-        if (sscanf(argv[1], "%u", &cmd->config.rate) != 1) {
-            fprintf(stderr, "failed parsing rate '%s'\n", argv[1]);
-            return -1;
-        }
-    } else if ((strcmp(argv[0], "-i") == 0) || (strcmp(argv[0], "--file-type") == 0)) {
-        cmd->filetype = argv[1];
-    } else {
-        fprintf(stderr, "unknown option '%s'\n", argv[0]);
-        return -1;
-    }
-    return 2;
-}
-
-int cmd_parse_args(struct cmd *cmd, int argc, const char **argv)
-{
-    int i = 0;
-    while (i < argc) {
-        int j = cmd_parse_arg(cmd, argc - i, &argv[i]);
-        if (j < 0){
-            break;
-        }
-        i += j;
-    }
-
-    if ((cmd->filename != NULL)
-     && (cmd->filetype == NULL)) {
-        cmd->filetype = strrchr(cmd->filename, '.');
-        if (cmd->filetype != NULL) {
-            cmd->filetype++;
-        }
-    }
-
-    return i;
+    cmd->is_float = false;
 }
 
 #define ID_RIFF 0x46464952
 #define ID_WAVE 0x45564157
 #define ID_FMT  0x20746d66
 #define ID_DATA 0x61746164
+
+#define WAVE_FORMAT_PCM 0x0001
+#define WAVE_FORMAT_IEEE_FLOAT 0x0003
 
 struct riff_wave_header {
     uint32_t riff_id;
@@ -178,26 +106,49 @@ struct ctx {
     FILE *file;
 };
 
-int ctx_init(struct ctx* ctx, const struct cmd *cmd)
+static bool is_wave_file(const char *filetype)
+{
+    return filetype != NULL && strcmp(filetype, "wav") == 0;
+}
+
+static bool signed_pcm_bits_to_format(int bits)
+{
+    switch (bits) {
+    case 8:
+        return PCM_FORMAT_S8;
+    case 16:
+        return PCM_FORMAT_S16_LE;
+    case 24:
+        return PCM_FORMAT_S24_3LE;
+    case 32:
+        return PCM_FORMAT_S32_LE;
+    default:
+        return -1;
+    }
+}
+
+static int ctx_init(struct ctx* ctx, struct cmd *cmd)
 {
     unsigned int bits = cmd->bits;
-    struct pcm_config config = cmd->config;
+    struct pcm_config *config = &cmd->config;
+    bool is_float = cmd->is_float;
 
     if (cmd->filename == NULL) {
         fprintf(stderr, "filename not specified\n");
         return -1;
     }
     if (strcmp(cmd->filename, "-") == 0) {
-	    ctx->file = stdin;
+        ctx->file = stdin;
     } else {
-	    ctx->file = fopen(cmd->filename, "rb");
-	}
+        ctx->file = fopen(cmd->filename, "rb");
+    }
+
     if (ctx->file == NULL) {
         fprintf(stderr, "failed to open '%s'\n", cmd->filename);
         return -1;
     }
 
-    if ((cmd->filetype != NULL) && (strcmp(cmd->filetype, "wav") == 0)) {
+    if (is_wave_file(cmd->filetype)) {
         if (fread(&ctx->wave_header, sizeof(ctx->wave_header), 1, ctx->file) != 1){
             fprintf(stderr, "error: '%s' does not contain a riff/wave header\n", cmd->filename);
             fclose(ctx->file);
@@ -209,7 +160,7 @@ int ctx_init(struct ctx* ctx, const struct cmd *cmd)
             fclose(ctx->file);
             return -1;
         }
-	unsigned int more_chunks = 1;
+        unsigned int more_chunks = 1;
         do {
             if (fread(&ctx->chunk_header, sizeof(ctx->chunk_header), 1, ctx->file) != 1){
                 fprintf(stderr, "error: '%s' does not contain a data chunk\n", cmd->filename);
@@ -236,35 +187,31 @@ int ctx_init(struct ctx* ctx, const struct cmd *cmd)
                 fseek(ctx->file, ctx->chunk_header.sz, SEEK_CUR);
             }
         } while (more_chunks);
-        config.channels = ctx->chunk_fmt.num_channels;
-        config.rate = ctx->chunk_fmt.sample_rate;
+        config->channels = ctx->chunk_fmt.num_channels;
+        config->rate = ctx->chunk_fmt.sample_rate;
         bits = ctx->chunk_fmt.bits_per_sample;
+        is_float = ctx->chunk_fmt.audio_format == WAVE_FORMAT_IEEE_FLOAT;
     }
 
-    if (bits == 8) {
-        config.format = PCM_FORMAT_S8;
-    } else if (bits == 16) {
-        config.format = PCM_FORMAT_S16_LE;
-    } else if (bits == 24) {
-        config.format = PCM_FORMAT_S24_3LE;
-    } else if (bits == 32) {
-        config.format = PCM_FORMAT_S32_LE;
+    if (is_float) {
+        config->format = PCM_FORMAT_FLOAT_LE;
     } else {
-        fprintf(stderr, "bit count '%u' not supported\n", bits);
-        fclose(ctx->file);
-        return -1;
+        config->format = signed_pcm_bits_to_format(bits);
+        if (config->format == -1) {
+            fprintf(stderr, "bit count '%u' not supported\n", bits);
+            fclose(ctx->file);
+            return -1;
+        }
     }
 
     ctx->pcm = pcm_open(cmd->card,
                         cmd->device,
                         cmd->flags,
-                        &config);
-    if (ctx->pcm == NULL) {
-        fprintf(stderr, "failed to allocate memory for pcm\n");
-        fclose(ctx->file);
-        return -1;
-    } else if (!pcm_is_ready(ctx->pcm)) {
-        fprintf(stderr, "failed to open for pcm %u,%u\n", cmd->card, cmd->device);
+                        config);
+    if (!pcm_is_ready(ctx->pcm)) {
+        fprintf(stderr, "failed to open for pcm %u,%u. %s\n",
+                cmd->card, cmd->device,
+                pcm_get_error(ctx->pcm));
         fclose(ctx->file);
         pcm_close(ctx->pcm);
         return -1;
@@ -301,21 +248,38 @@ void print_usage(const char *argv0)
 {
     fprintf(stderr, "usage: %s file.wav [options]\n", argv0);
     fprintf(stderr, "options:\n");
-    fprintf(stderr, "-D | --card   <card number>    The device to receive the audio\n");
-    fprintf(stderr, "-d | --device <device number>  The card to receive the audio\n");
+    fprintf(stderr, "-D | --card   <card number>    The card to receive the audio\n");
+    fprintf(stderr, "-d | --device <device number>  The device to receive the audio\n");
     fprintf(stderr, "-p | --period-size <size>      The size of the PCM's period\n");
     fprintf(stderr, "-n | --period-count <count>    The number of PCM periods\n");
-    fprintf(stderr, "-i | --file-type <file-type >  The type of file to read (raw or wav)\n");
+    fprintf(stderr, "-i | --file-type <file-type>   The type of file to read (raw or wav)\n");
     fprintf(stderr, "-c | --channels <count>        The amount of channels per frame\n");
     fprintf(stderr, "-r | --rate <rate>             The amount of frames per second\n");
     fprintf(stderr, "-b | --bits <bit-count>        The number of bits in one sample\n");
+    fprintf(stderr, "-f | --float                   The frames are in floating-point PCM\n");
     fprintf(stderr, "-M | --mmap                    Use memory mapped IO to play audio\n");
 }
 
-int main(int argc, const char **argv)
+int main(int argc, char **argv)
 {
+    int c;
     struct cmd cmd;
     struct ctx ctx;
+    struct optparse opts;
+    struct optparse_long long_options[] = {
+        { "card",         'D', OPTPARSE_REQUIRED },
+        { "device",       'd', OPTPARSE_REQUIRED },
+        { "period-size",  'p', OPTPARSE_REQUIRED },
+        { "period-count", 'n', OPTPARSE_REQUIRED },
+        { "file-type",    'i', OPTPARSE_REQUIRED },
+        { "channels",     'c', OPTPARSE_REQUIRED },
+        { "rate",         'r', OPTPARSE_REQUIRED },
+        { "bits",         'b', OPTPARSE_REQUIRED },
+        { "float",        'f', OPTPARSE_NONE     },
+        { "mmap",         'M', OPTPARSE_NONE     },
+        { "help",         'h', OPTPARSE_NONE     },
+        { 0, 0, 0 }
+    };
 
     if (argc < 2) {
         print_usage(argv[0]);
@@ -323,20 +287,90 @@ int main(int argc, const char **argv)
     }
 
     cmd_init(&cmd);
-    if (cmd_parse_args(&cmd, argc - 1, &argv[1]) < 0) {
-        return EXIT_FAILURE;
+    optparse_init(&opts, argv);
+    while ((c = optparse_long(&opts, long_options, NULL)) != -1) {
+        switch (c) {
+        case 'D':
+            if (sscanf(opts.optarg, "%u", &cmd.card) != 1) {
+                fprintf(stderr, "failed parsing card number '%s'\n", argv[1]);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'd':
+            if (sscanf(opts.optarg, "%u", &cmd.device) != 1) {
+                fprintf(stderr, "failed parsing device number '%s'\n", argv[1]);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'p':
+            if (sscanf(opts.optarg, "%u", &cmd.config.period_size) != 1) {
+                fprintf(stderr, "failed parsing period size '%s'\n", argv[1]);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'n':
+            if (sscanf(opts.optarg, "%u", &cmd.config.period_count) != 1) {
+                fprintf(stderr, "failed parsing period count '%s'\n", argv[1]);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'c':
+            if (sscanf(opts.optarg, "%u", &cmd.config.channels) != 1) {
+                fprintf(stderr, "failed parsing channel count '%s'\n", argv[1]);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'r':
+            if (sscanf(opts.optarg, "%u", &cmd.config.rate) != 1) {
+                fprintf(stderr, "failed parsing rate '%s'\n", argv[1]);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'i':
+            cmd.filetype = opts.optarg;
+            break;
+        case 'b':
+            if (sscanf(opts.optarg, "%u", &cmd.bits) != 1) {
+                fprintf(stderr, "failed parsing bits per one sample '%s'\n", argv[1]);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'f':
+            cmd.is_float = true;
+            break;
+        case 'M':
+            cmd.flags |= PCM_MMAP;
+            break;
+        case 'h':
+            print_usage(argv[0]);
+            return EXIT_SUCCESS;
+        case '?':
+            fprintf(stderr, "%s\n", opts.errmsg);
+            return EXIT_FAILURE;
+        }
     }
+    cmd.filename = optparse_arg(&opts);
+
+    if (cmd.filename != NULL && cmd.filetype == NULL &&
+        (cmd.filetype = strrchr(cmd.filename, '.')) != NULL) {
+        cmd.filetype++;
+    }
+
+    cmd.config.silence_threshold = cmd.config.period_size * cmd.config.period_count;
+    cmd.config.stop_threshold = cmd.config.period_size * cmd.config.period_count;
+    cmd.config.start_threshold = cmd.config.period_size;
 
     if (ctx_init(&ctx, &cmd) < 0) {
         return EXIT_FAILURE;
     }
 
-    /* TODO get parameters from context */
-    printf("playing '%s': %u ch, %u hz, %u bit\n",
-           cmd.filename,
-           cmd.config.channels,
-           cmd.config.rate,
-           cmd.bits);
+    printf("playing '%s': %u ch, %u hz, %u-bit ", cmd.filename, cmd.config.channels,
+            cmd.config.rate, pcm_format_to_bits(cmd.config.format));
+    if (cmd.config.format == PCM_FORMAT_FLOAT_LE) {
+        printf("floating-point PCM\n");
+    } else {
+        printf("signed PCM\n");
+    }
 
     if (play_sample(&ctx) < 0) {
         ctx_free(&ctx);
@@ -385,8 +419,10 @@ int sample_is_playable(const struct cmd *cmd)
     can_play = check_param(params, PCM_PARAM_RATE, cmd->config.rate, "sample rate", "hz");
     can_play &= check_param(params, PCM_PARAM_CHANNELS, cmd->config.channels, "sample", " channels");
     can_play &= check_param(params, PCM_PARAM_SAMPLE_BITS, cmd->bits, "bits", " bits");
-    can_play &= check_param(params, PCM_PARAM_PERIOD_SIZE, cmd->config.period_size, "period size", "");
-    can_play &= check_param(params, PCM_PARAM_PERIODS, cmd->config.period_count, "period count", "");
+    can_play &= check_param(params, PCM_PARAM_PERIOD_SIZE, cmd->config.period_size, "period size",
+                            " frames");
+    can_play &= check_param(params, PCM_PARAM_PERIODS, cmd->config.period_count, "period count",
+                            " frames");
 
     pcm_params_free(params);
 
@@ -396,13 +432,22 @@ int sample_is_playable(const struct cmd *cmd)
 int play_sample(struct ctx *ctx)
 {
     char *buffer;
-    int size;
-    int num_read;
+    size_t buffer_size = 0;
+    size_t num_read = 0;
+    size_t remaining_data_size = ctx->chunk_header.sz;
+    size_t played_data_size = 0;
+    size_t read_size = 0;
+    const struct pcm_config *config = pcm_get_config(ctx->pcm);
 
-    size = pcm_frames_to_bytes(ctx->pcm, pcm_get_buffer_size(ctx->pcm));
-    buffer = malloc(size);
+    if (config == NULL) {
+        fprintf(stderr, "unable to get pcm config\n");
+        return -1;
+    }
+
+    buffer_size = pcm_frames_to_bytes(ctx->pcm, config->period_size);
+    buffer = malloc(buffer_size);
     if (!buffer) {
-        fprintf(stderr, "unable to allocate %d bytes\n", size);
+        fprintf(stderr, "unable to allocate %zu bytes\n", buffer_size);
         return -1;
     }
 
@@ -410,15 +455,22 @@ int play_sample(struct ctx *ctx)
     signal(SIGINT, stream_close);
 
     do {
-        num_read = fread(buffer, 1, size, ctx->file);
+        read_size = remaining_data_size > buffer_size ? buffer_size : remaining_data_size;
+        num_read = fread(buffer, 1, read_size, ctx->file);
         if (num_read > 0) {
-		if (pcm_writei(ctx->pcm, buffer,
-			pcm_bytes_to_frames(ctx->pcm, num_read)) < 0) {
-                fprintf(stderr, "error playing sample\n");
+            int written_frames = pcm_writei(ctx->pcm, buffer,
+                    pcm_bytes_to_frames(ctx->pcm, num_read));
+            if (written_frames < 0) {
+                fprintf(stderr, "error playing sample. %s\n", pcm_get_error(ctx->pcm));
                 break;
             }
+            remaining_data_size -= num_read;
+            played_data_size += pcm_frames_to_bytes(ctx->pcm, written_frames);
         }
-    } while (!close && num_read > 0);
+    } while (!close && num_read > 0 && remaining_data_size > 0);
+
+    printf("Played %zu bytes. Remains %zu bytes.\n", played_data_size, remaining_data_size);
+    pcm_wait(ctx->pcm, -1);
 
     free(buffer);
     return 0;

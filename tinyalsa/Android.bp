@@ -1,10 +1,45 @@
+package {
+    default_applicable_licenses: ["external_tinyalsa_new_license"],
+}
+
+// Added automatically by a large-scale-change that took the approach of
+// 'apply every license found to every target'. While this makes sure we respect
+// every license restriction, it may not be entirely correct.
+//
+// e.g. GPL in an MIT project might only apply to the contrib/ directory.
+//
+// Please consider splitting the single license below into multiple licenses,
+// taking care not to lose any license_kind information, and overriding the
+// default license using the 'licenses: [...]' property on targets as needed.
+//
+// For unused files, consider creating a 'fileGroup' with "//visibility:private"
+// to attach the license to, and including a comment whether the files may be
+// used in the current project.
+// See: http://go/android-license-faq
+license {
+    name: "external_tinyalsa_new_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-Unlicense",
+    ],
+    license_text: [
+        "NOTICE",
+    ],
+}
+
 cc_library {
-    name: "libtinyalsa_mocha",
+    name: "libtinyalsav2",
     host_supported: true,
     vendor_available: true,
     srcs: [
         "src/mixer.c",
+        "src/mixer_hw.c",
+        "src/mixer_plugin.c",
         "src/pcm.c",
+        "src/pcm_hw.c",
+        "src/pcm_plugin.c",
+        "src/snd_card_plugin.c",
     ],
     cflags: ["-Werror", "-Wno-macro-redefined"],
     export_include_dirs: ["include"],
@@ -15,13 +50,24 @@ cc_library {
             enabled: false,
         },
     },
+
+    system_shared_libs: ["libc", "libdl"],
+
+    sanitize: {
+        integer_overflow: true,
+        misc_undefined: ["bounds"],
+        diag: {
+            integer_overflow: true,
+            misc_undefined: ["bounds"],
+        },
+    },
 }
 
 cc_binary {
-    name: "tinyplay_mocha",
+    name: "tinyplay2",
     host_supported: true,
     srcs: ["utils/tinyplay.c"],
-    shared_libs: ["libtinyalsa_mocha"],
+    static_libs: ["libtinyalsav2"],
     cflags: ["-Werror"],
     target: {
         darwin: {
@@ -31,22 +77,22 @@ cc_binary {
 }
 
 cc_binary {
-    name: "tinycap_mocha",
+    name: "tinycap2",
     srcs: ["utils/tinycap.c"],
-    shared_libs: ["libtinyalsa_mocha"],
+    static_libs: ["libtinyalsav2"],
     cflags: ["-Werror"],
 }
 
 cc_binary {
-    name: "tinymix_mocha",
+    name: "tinymix2",
     srcs: ["utils/tinymix.c"],
-    shared_libs: ["libtinyalsa_mocha"],
+    static_libs: ["libtinyalsav2"],
     cflags: ["-Werror", "-Wall"],
 }
 
 cc_binary {
-    name: "tinypcminfo_mocha",
+    name: "tinypcminfo2",
     srcs: ["utils/tinypcminfo.c"],
-    shared_libs: ["libtinyalsa_mocha"],
+    static_libs: ["libtinyalsav2"],
     cflags: ["-Werror"],
 }

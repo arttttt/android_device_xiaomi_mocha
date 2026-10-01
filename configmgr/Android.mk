@@ -41,7 +41,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libdl	\
 	liblog	\
 	libexpat	\
-	libtinyalsa_mocha	\
+	libtinyalsav2	\
 
 include $(BUILD_SHARED_LIBRARY)
 

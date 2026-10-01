@@ -52,7 +52,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libdl	\
 	liblog	\
 	libhardware_legacy \
-	libtinyalsa_mocha	\
+	libtinyalsav2	\
 	libtinycompress	\
 	libaudiohalcm \
 	libaudioutils \
