@@ -539,7 +539,11 @@ static int out_set_callback(struct audio_stream_out *stream,
     async_common_t *async = &out->async_common;
 
     async->exit = false;
-    async->callback = NULL;
+    async->mode = ASYNC_NONE;
+    /* the thread reads these as soon as it runs: set them before it does */
+    async->stream = stream;
+    async->callback = callback;
+    async->callback_param = cookie;
 
     int rv = pthread_cond_init(&(async->cv), NULL);
     if (rv != 0) {
@@ -562,9 +566,6 @@ static int out_set_callback(struct audio_stream_out *stream,
         return rv;
     }
 
-    async->stream = stream;
-    async->callback = callback;
-    async->callback_param = cookie;
     out->use_async = true;
     return 0;
 }
@@ -598,6 +599,8 @@ static void do_close_out_common(struct audio_stream_out *stream)
         pthread_mutex_unlock(&(out->async_common.mutex));
         // Wait for thread to exit
         pthread_join(out->async_common.thread, NULL);
+        pthread_mutex_destroy(&(out->async_common.mutex));
+        pthread_cond_destroy(&(out->async_common.cv));
     }
 #endif /* TINYHAL_COMPRESS_PLAYBACK */
 
@@ -1222,12 +1225,17 @@ static void *out_compress_async_fn(void *arg)
     struct stream_out_compress *out = (struct stream_out_compress *)pW->stream;
     enum async_mode mode;
 
-    while(!pW->exit) {
+    for (;;) {
         pthread_mutex_lock(&(pW->mutex));
         ALOGV("async fn wait for work");
-        pthread_cond_wait(&(pW->cv), &(pW->mutex));
+        /* A request may be posted before the wait starts, and a wakeup
+         * may be spurious: wait on the state, not on the signal */
+        while (pW->mode == ASYNC_NONE && !pW->exit) {
+            pthread_cond_wait(&(pW->cv), &(pW->mutex));
+        }
 
         if (pW->exit) {
+            pthread_mutex_unlock(&(pW->mutex));
             break;
         }
 
