@@ -229,9 +229,6 @@ struct stream_in_common {
     int input_source;
 
     nsecs_t last_read_ns;
-
-    struct timespec timestamp;
-    unsigned int frames_read;
 };
 
 struct stream_in_pcm {
@@ -244,6 +241,14 @@ struct stream_in_pcm {
     uint32_t period_size;       /* ... of PCM input */
 
     struct in_resampler resampler;
+
+    /* For get_capture_position: frames handed to AudioFlinger since the
+     * stream was opened (standby does not reset it), in its rate, and the
+     * last answer given, repeated while there is no running PCM to ask. */
+    uint64_t frames_read;
+    uint64_t captured_frames;
+    int64_t captured_time_ns;
+    bool captured_valid;
 };
 
 static uint32_t out_get_sample_rate(const struct audio_stream *stream);
@@ -783,51 +788,6 @@ static int out_pcm_standby(struct audio_stream *stream)
     pthread_mutex_unlock(&out->common.lock);
 
     return 0;
-}
-
-static void timestamp_adjust(struct timespec* ts, ssize_t frames, uint32_t sampling_rate) {
-    /* This function assumes the adjustment (in nsec) is less than the max value of long,
-     * which for 32-bit long this is 2^31 * 1e-9 seconds, slightly over 2 seconds.
-     * For 64-bit long it is  9e+9 seconds. */
-    long adj_nsec = (frames / (float) sampling_rate) * 1E9L;
-
-    ts->tv_nsec += adj_nsec;
-
-    while (ts->tv_nsec > 1E9L) {
-        ts->tv_sec++;
-        ts->tv_nsec -= 1E9L;
-    }
-
-    if (ts->tv_nsec < 0) {
-        ts->tv_sec--;
-        ts->tv_nsec += 1E9L;
-    }
-}
-
-/* Helper function to get PCM hardware timestamp.
- * Only the field 'timestamp' of argument 'ts' is updated. */
-static int get_pcm_timestamp(struct pcm* pcm, uint32_t sample_rate,
-                             struct timespec *timestamp, bool is_output) {
-    int ret = 0;
-    unsigned int available;
-    ssize_t frames;
-
-    if (pcm_get_htimestamp(pcm, &available, timestamp) < 0) {
-        ALOGE("Error getting PCM timestamp!");
-        timestamp->tv_sec = 0;
-        timestamp->tv_nsec = 0;
-        return -EINVAL;
-    }
-
-    if (is_output) {
-        frames = pcm_get_buffer_size(pcm) - available;
-    } else {
-        frames = -available; /* rewind timestamp */
-    }
-
-    timestamp_adjust(timestamp, frames, sample_rate);
-
-    return ret;
 }
 
 static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer,
@@ -1514,22 +1474,6 @@ static uint32_t in_get_input_frames_lost(struct audio_stream_in *stream)
     return 0;
 }
 
-static int in_get_capture_position(const struct audio_stream_in* stream, int64_t* frames,
-                                   int64_t* time) {
-    if (stream == NULL || frames == NULL || time == NULL) {
-        return -EINVAL;
-    }
-    struct stream_in_common *in = (struct stream_in_common *)stream;
-    ALOGV("+in_get_capture_position(%p)", stream);
-
-    *frames = in->frames_read;
-    *time = audio_utils_ns_from_timespec(&in->timestamp);
-    ALOGV("%s: frames_read: %" PRIu64 ", timestamp (nsec): %" PRIu64, __func__, *frames, *time);
-
-    ALOGV("-in_get_capture_position(%p)", stream);
-    return 0;
-}
-
 static int in_add_audio_effect(const struct audio_stream *stream,
                                effect_handle_t effect)
 {
@@ -1623,7 +1567,6 @@ static int do_init_in_common(struct stream_in_common *in,
     in->stream.common.remove_audio_effect = in_remove_audio_effect;
     in->stream.set_gain = in_set_gain;
     in->stream.get_input_frames_lost = in_get_input_frames_lost;
-    in->stream.get_capture_position = in_get_capture_position;
 
     /* Init requested stream config */
     in->format = config->format;
@@ -2033,8 +1976,7 @@ static ssize_t do_in_pcm_read(struct audio_stream_in *stream, void *buffer,
     }
 
     if (ret >= 0) {
-        in->common.frames_read += frames_rq;
-        get_pcm_timestamp(in->pcm, in->common.sample_rate, &in->common.timestamp, false /*is_output*/);
+        in->frames_read += frames_rq;
     }
 
     /* Assume any non-negative return is a successful read */
@@ -2175,6 +2117,57 @@ static void do_close_in_pcm(struct audio_stream *stream)
     do_close_in_common(stream);
 }
 
+/*
+ * audio.h: the total of frames received and the CLOCK_MONOTONIC time they
+ * were, taken as early in the capture pipeline as possible. So the count
+ * is the frames AudioFlinger has read plus those the PCM has captured and
+ * not yet handed over, and the time is the PCM's own, taken where hw_ptr
+ * was read. Frames still held by the resampler are left out; they are a
+ * fraction of a period. With no running PCM the last answer is repeated;
+ * before any, -ENOSYS, which the HIDL wrapper takes as "not yet" quietly.
+ */
+static int in_pcm_get_capture_position(const struct audio_stream_in *stream,
+                                       int64_t *frames, int64_t *time)
+{
+    struct stream_in_pcm *in = (struct stream_in_pcm *)stream;
+    unsigned int avail;
+    struct timespec now;
+    int ret = -ENOSYS;
+
+    if (stream == NULL || frames == NULL || time == NULL) {
+        return -EINVAL;
+    }
+
+    pthread_mutex_lock(&in->common.lock);
+
+    if (!in->common.standby && in->pcm != NULL &&
+            pcm_get_htimestamp(in->pcm, &avail, &now) == 0) {
+        /* avail is in the PCM's frames; the count is in AudioFlinger's */
+        const uint64_t pending = (in->hw_sample_rate != 0)
+                ? (uint64_t)avail * in->common.sample_rate / in->hw_sample_rate
+                : avail;
+        const uint64_t captured = in->frames_read + pending;
+
+        /* never let the count step back, whatever the driver reports */
+        if (!in->captured_valid || captured >= in->captured_frames) {
+            in->captured_frames = captured;
+            in->captured_time_ns = audio_utils_ns_from_timespec(&now);
+            in->captured_valid = true;
+        }
+    }
+
+    if (in->captured_valid) {
+        *frames = in->captured_frames;
+        *time = in->captured_time_ns;
+        ret = 0;
+    }
+
+    pthread_mutex_unlock(&in->common.lock);
+
+    ALOGV("%s: %d captured %" PRIu64, __func__, ret, in->captured_frames);
+    return ret;
+}
+
 static int do_init_in_pcm(struct stream_in_pcm *in,
                           struct audio_config *config)
 {
@@ -2182,6 +2175,7 @@ static int do_init_in_pcm(struct stream_in_pcm *in,
     in->common.stream.common.standby = in_pcm_standby;
     in->common.stream.common.set_parameters = in_pcm_set_parameters;
     in->common.stream.read = in_pcm_read;
+    in->common.stream.get_capture_position = in_pcm_get_capture_position;
 
     /*
      * Although AudioFlinger has not yet told us the input_source for
