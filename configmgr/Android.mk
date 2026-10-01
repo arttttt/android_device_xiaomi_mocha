@@ -25,9 +25,11 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_CFLAGS += -Werror -Wno-error=unused-parameter -Wno-unused-parameter
 
+# audio.mocha.xml is a vendor file; upstream tinyhal defaults to /system/etc
+LOCAL_CFLAGS += -DETC_PATH=\"/vendor/etc\"
+
 LOCAL_C_INCLUDES += \
 	external/tinycompress/include \
-	external/tinyhal/include \
 	device/xiaomi/mocha/tinyalsa/include \
 	external/expat/lib \
 	$(call include-path-for, audio-utils)
