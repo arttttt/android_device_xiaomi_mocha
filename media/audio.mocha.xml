@@ -1,5 +1,8 @@
 <audiohal>
-	<mixer card="1">
+	<!-- The card by its ALSA id, not its number: the number depends on
+	     which cards registered first (the HDMI card, while it exists, takes
+	     0). Streams below inherit this card. -->
+	<mixer name="tegrart5671">
 		<init>
             <ctl name="Left Spk Reg Addr" val="0x40"/>
             <ctl name="Left Spk Reg Value" val="0x5a6b"/>
@@ -291,7 +294,7 @@
     </device>
 
 	<!-- Define PCM playback and capture streams @48kHz sample rate -->
-	<stream type="pcm" dir="out" card="1" device="0" rate="48000">
+	<stream type="pcm" dir="out" device="0" rate="48000">
 
 		<!-- Custom path to apply in device entries when this
 		stream is routed to or unrouted from that device -->
@@ -299,7 +302,7 @@
         <disable path="off_pcm"/>
 	</stream>
 
-	<stream type="pcm" dir="in" card="1" device="0" rate="48000">
+	<stream type="pcm" dir="in" device="0" rate="48000">
         <enable path="on_pcm_rec"/>
         <disable path="off_pcm_rec"/>
 	</stream>

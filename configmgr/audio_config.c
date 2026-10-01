@@ -25,6 +25,9 @@
 #include <cutils/properties.h>
 #include <cutils/compiler.h>
 #include <ctype.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <system/audio.h>
 
@@ -41,9 +44,7 @@ typedef struct effect_interface_s **effect_handle_t;
 #include <tinyhal/audio_config.h>
 
 #define MIXER_CARD_DEFAULT 0
-#define PCM_CARD_DEFAULT 0
 #define PCM_DEVICE_DEFAULT 0
-#define COMPRESS_CARD_DEFAULT 0
 #define COMPRESS_DEVICE_DEFAULT 0
 
 /* The dynamic arrays are extended in multiples of this number of objects */
@@ -229,6 +230,7 @@ enum attrib_index {
     e_attrib_min,
     e_attrib_max,
     e_attrib_file,
+    e_attrib_cardname,
 
     e_attrib_count
 };
@@ -270,7 +272,7 @@ struct parse_state {
     char                read_buf[256];
     int                 parse_error; /* value >0 aborts without error */
     int                 error_line;
-    int                 mixer_card_number;
+    uint32_t            mixer_card_number;
 
     struct {
         const char      *value[e_attrib_count];
@@ -941,6 +943,7 @@ static const struct parse_element elem_table[e_elem_count] = {
         .name = "stream",
         .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_type)
                             | BIT(e_attrib_dir) | BIT(e_attrib_card)
+                            | BIT(e_attrib_cardname)
                             | BIT(e_attrib_device) | BIT(e_attrib_instances)
                             | BIT(e_attrib_rate) | BIT(e_attrib_period_size)
                             | BIT(e_attrib_period_count),
@@ -1010,7 +1013,7 @@ static const struct parse_element elem_table[e_elem_count] = {
 
     [e_elem_mixer] =    {
         .name = "mixer",
-        .valid_attribs = BIT(e_attrib_card),
+        .valid_attribs = BIT(e_attrib_card) | BIT(e_attrib_name),
         .required_attribs = 0,
         .valid_subelem = BIT(e_elem_init),
         .start_fn = parse_mixer_start,
@@ -1061,7 +1064,8 @@ static const struct parse_attrib attrib_table[e_attrib_count] = {
     [e_attrib_period_count] = {"period_count"},
     [e_attrib_min] = {"min"},
     [e_attrib_max] = {"max"},
-    [e_attrib_file] = {"file"}
+    [e_attrib_file] = {"file"},
+    [e_attrib_cardname] = {"cardname"}
  };
 
 static const struct parse_device device_table[] = {
@@ -1929,6 +1933,8 @@ static int parse_stream_ctl_start(struct parse_state *state)
     return 0;
 }
 
+static int get_card_number_for_id(const char *id, uint32_t *number);
+
 static int parse_stream_start(struct parse_state *state)
 {
     const char *type = state->attribs.value[e_attrib_type];
@@ -1936,7 +1942,7 @@ static int parse_stream_start(struct parse_state *state)
     const char *name = state->attribs.value[e_attrib_name];
     bool out;
     bool global;
-    uint32_t card;
+    uint32_t card = state->mixer_card_number;
     uint32_t device;
     uint32_t maxref = INT_MAX;
     struct stream *s;
@@ -1990,18 +1996,29 @@ static int parse_stream_start(struct parse_state *state)
         s->info.type = out ? e_stream_out_hw : e_stream_in_hw;
     } else if (0 == strcmp(type, "pcm")) {
         s->info.type = out ? e_stream_out_pcm : e_stream_in_pcm;
-        card = PCM_CARD_DEFAULT;
         device = PCM_DEVICE_DEFAULT;
     } else if (0 == strcmp(type, "compress")) {
         s->info.type = out ? e_stream_out_compress : e_stream_in_compress;
-        card = COMPRESS_CARD_DEFAULT;
         device = COMPRESS_DEVICE_DEFAULT;
     } else {
         ALOGE("'%s' not a valid stream type", type);
         return -EINVAL;
     }
 
+    /* A stream lives on the mixer's card unless it names another one */
+    if (state->attribs.value[e_attrib_card] != NULL &&
+            state->attribs.value[e_attrib_cardname] != NULL) {
+        ALOGE("Stream takes 'card' or 'cardname', not both");
+        return -EINVAL;
+    }
+
     if (attrib_to_uint(&card, state, e_attrib_card) == -EINVAL) {
+        return -EINVAL;
+    }
+
+    if (state->attribs.value[e_attrib_cardname] != NULL &&
+            get_card_number_for_id(state->attribs.value[e_attrib_cardname],
+                                   &card) != 0) {
         return -EINVAL;
     }
 
@@ -2104,13 +2121,88 @@ static int parse_device_end(struct parse_state *state)
     return 0;
 }
 
+/*
+ * The id ALSA gives a card ("tegrart5671") is fixed by its driver, while
+ * the number depends on which cards registered first, so a card is better
+ * named than counted. /proc/asound/cardN/id holds that id.
+ */
+static int get_card_id_for_number(uint32_t number, char *id, size_t len)
+{
+    char path[32];
+    FILE *fp;
+    int ret = 0;
+
+    snprintf(path, sizeof(path), "/proc/asound/card%u/id", number);
+
+    fp = fopen(path, "r");
+    if (fp == NULL) {
+        return -ENOENT;
+    }
+
+    if (fgets(id, len, fp) == NULL) {
+        ret = -EINVAL;
+    } else {
+        id[strcspn(id, "\n")] = '\0';
+    }
+
+    fclose(fp);
+    return ret;
+}
+
+static int get_card_number_for_id(const char *id, uint32_t *number)
+{
+    DIR *dir;
+    struct dirent *entry;
+    int ret = -ENOENT;
+
+    dir = opendir("/proc/asound");
+    if (dir == NULL) {
+        ALOGE("Cannot open /proc/asound to look for card '%s'", id);
+        return -ENOENT;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        unsigned int n;
+        char found[64];
+
+        if (sscanf(entry->d_name, "card%u", &n) != 1) {
+            continue;
+        }
+
+        if (get_card_id_for_number(n, found, sizeof(found)) == 0 &&
+                strcmp(found, id) == 0) {
+            *number = n;
+            ret = 0;
+            break;
+        }
+    }
+
+    closedir(dir);
+
+    if (ret != 0) {
+        ALOGE("No sound card with id '%s'", id);
+    }
+
+    return ret;
+}
+
 static int parse_mixer_start(struct parse_state *state)
 {
     uint32_t card = MIXER_CARD_DEFAULT;
+    const char *id = state->attribs.value[e_attrib_name];
 
     ALOGV("parse_mixer_start");
 
+    if (id != NULL && state->attribs.value[e_attrib_card] != NULL) {
+        ALOGE("Mixer takes 'card' or 'name', not both");
+        return -EINVAL;
+    }
+
     if (attrib_to_uint(&card, state, e_attrib_card) == -EINVAL) {
+        return -EINVAL;
+    }
+
+    if (id != NULL && get_card_number_for_id(id, &card) != 0) {
         return -EINVAL;
     }
 
@@ -2122,6 +2214,8 @@ static int parse_mixer_start(struct parse_state *state)
         ALOGE("Failed to open mixer card %u", card);
         return -EINVAL;
     }
+
+    state->mixer_card_number = card;
 
     /* Now we can allow all other root elements but not another <mixer> */
     state->stack.entry[state->stack.index - 1].valid_subelem =
