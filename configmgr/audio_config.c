@@ -160,10 +160,18 @@ struct codec_probe {
     struct dyn_array codec_case_array;
 };
 
+/* Streams holding one stream path (enable_path of struct stream) */
+struct path_use {
+    int id;
+    int count;
+};
+
 struct device {
     uint32_t    type;               /* 0 is reserved for the global device */
     int         use_count;          /* counts total streams using this device */
     struct dyn_array path_array;
+    struct path_use *path_uses;     /* per stream path, see apply_stream_paths_l */
+    int         path_use_count;
 };
 
 struct scase {
@@ -673,16 +681,93 @@ static void apply_paths_by_id_l(struct config_mgr *cm, struct device *pdev,
     }
 }
 
-static void apply_paths_to_devices_l(struct config_mgr *cm, uint32_t devices,
-                                    int first_id, int second_id)
+/*
+ * Count the streams holding a stream path on a device and return the count
+ * after the change. Returns -ENOMEM when a first user cannot be recorded.
+ */
+static int device_path_use_l(struct device *pdev, int id, int delta)
+{
+    struct path_use *uses;
+    int i;
+
+    for (i = 0; i < pdev->path_use_count; ++i) {
+        if (pdev->path_uses[i].id == id) {
+            pdev->path_uses[i].count += delta;
+            if (pdev->path_uses[i].count < 0) {
+                pdev->path_uses[i].count = 0;
+            }
+            return pdev->path_uses[i].count;
+        }
+    }
+
+    if (delta <= 0) {
+        return 0;
+    }
+
+    uses = realloc(pdev->path_uses,
+                   (pdev->path_use_count + 1) * sizeof(*uses));
+    if (!uses) {
+        return -ENOMEM;
+    }
+    uses[pdev->path_use_count].id = id;
+    uses[pdev->path_use_count].count = delta;
+    pdev->path_uses = uses;
+    ++pdev->path_use_count;
+    return delta;
+}
+
+/*
+ * A stream's enable/disable paths may be named by several streams at once
+ * (two outputs on the speaker both use on_pcm/off_pcm). Like a device's
+ * on/off, apply the enable path for the first stream holding it on this
+ * device and the disable path after the last, so that one stream leaving a
+ * device cannot switch it off under another. The pair is counted under the
+ * enable path's id, or the disable path's when there is no enable path.
+ */
+static void apply_stream_paths_l(struct config_mgr *cm, struct device *pdev,
+                                 const struct stream *s, bool enable)
+{
+    const int key = (s->enable_path >= 0) ? s->enable_path : s->disable_path;
+    int count;
+    int id;
+
+    if (key < 0) {
+        return;
+    }
+
+    count = device_path_use_l(pdev, key, enable ? 1 : -1);
+    if (enable ? (count > 1) : (count > 0)) {
+        ALOGV("Stream path %d still in use on device 0x%x", key, pdev->type);
+        return;
+    }
+
+    id = enable ? s->enable_path : s->disable_path;
+    apply_paths_by_id_l(cm, pdev, id, id);
+}
+
+static void apply_stream_to_device_l(struct config_mgr *cm,
+                                     struct device *pdev,
+                                     const struct stream *s, bool enable)
+{
+    if (enable) {
+        apply_paths_by_id_l(cm, pdev, e_path_id_on, e_path_id_on);
+        apply_stream_paths_l(cm, pdev, s, true);
+    } else {
+        apply_stream_paths_l(cm, pdev, s, false);
+        apply_paths_by_id_l(cm, pdev, e_path_id_off, e_path_id_off);
+    }
+}
+
+static void apply_stream_to_devices_l(struct config_mgr *cm, uint32_t devices,
+                                      const struct stream *s, bool enable)
 {
     struct device *pdev = cm->device_array.devices;
     int dev_count = cm->device_array.count;
     const uint32_t input_flag = devices & AUDIO_DEVICE_BIT_IN;
 
-    /* invoke path path_id on all struct device matching devices */
-    ALOGV("Apply paths [first=%u second=%u] to devices in 0x%x",
-            first_id, second_id, devices);
+    /* invoke the stream's paths on all struct device matching devices */
+    ALOGV("%s stream %p on devices 0x%x", enable ? "Enable" : "Disable",
+            s, devices);
 
     devices &= ~AUDIO_DEVICE_BIT_IN;
 
@@ -690,7 +775,7 @@ static void apply_paths_to_devices_l(struct config_mgr *cm, uint32_t devices,
         if (((pdev->type & input_flag) == input_flag)
                     && ((pdev->type & devices) != 0)) {
             devices &= ~pdev->type;
-            apply_paths_by_id_l(cm, pdev, first_id, second_id);
+            apply_stream_to_device_l(cm, pdev, s, enable);
         }
 
         --dev_count;
@@ -698,17 +783,17 @@ static void apply_paths_to_devices_l(struct config_mgr *cm, uint32_t devices,
     }
 }
 
-static void apply_paths_to_global_l(struct config_mgr *cm,
-                                    int first_id, int second_id)
+static void apply_stream_to_global_l(struct config_mgr *cm,
+                                     const struct stream *s, bool enable)
 {
     struct device *pdev = cm->device_array.devices;
     struct device * const pend = pdev + cm->device_array.count;
 
-    ALOGV("Apply global paths [first=%u second=%u]", first_id, second_id);
+    ALOGV("%s stream %p on global", enable ? "Enable" : "Disable", s);
 
     while (pdev < pend) {
         if (pdev->type == 0) {
-            apply_paths_by_id_l(cm, pdev, first_id, second_id);
+            apply_stream_to_device_l(cm, pdev, s, enable);
             break;
         }
         ++pdev;
@@ -759,8 +844,8 @@ void apply_route( const struct hw_stream *stream, uint32_t devices )
     enabling |= devices & AUDIO_DEVICE_BIT_IN;
     disabling |= devices & AUDIO_DEVICE_BIT_IN;
 
-    apply_paths_to_devices_l(cm, disabling, s->disable_path, e_path_id_off);
-    apply_paths_to_devices_l(cm, enabling, e_path_id_on, s->enable_path);
+    apply_stream_to_devices_l(cm, disabling, s, false);
+    apply_stream_to_devices_l(cm, enabling, s, true);
 
     /* Save new set of devices for this stream */
     s->current_devices = devices;
@@ -858,7 +943,7 @@ static bool open_stream_l(struct config_mgr *cm, struct stream *s)
     if (s->ref_count < s->max_ref_count) {
         ++s->ref_count;
         if (s->ref_count == 1) {
-            apply_paths_to_global_l(cm, e_path_id_on, s->enable_path);
+            apply_stream_to_global_l(cm, s, true);
         }
         return true;
     } else {
@@ -986,9 +1071,8 @@ void release_stream( const struct hw_stream* stream )
         pthread_mutex_lock(&s->cm->lock);
         if (--s->ref_count == 0) {
             /* Ensure all paths it was using are disabled */
-            apply_paths_to_devices_l(s->cm, s->current_devices,
-                                    e_path_id_off, s->disable_path);
-            apply_paths_to_global_l(s->cm, s->disable_path, e_path_id_off);
+            apply_stream_to_devices_l(s->cm, s->current_devices, s, false);
+            apply_stream_to_global_l(s->cm, s, false);
             s->current_devices = 0;
         }
         pthread_mutex_unlock(&s->cm->lock);
@@ -3264,6 +3348,7 @@ void free_audio_config( struct config_mgr *cm )
             }
 
             dyn_array_free(path_array);
+            free(cm->device_array.devices[dev_idx].path_uses);
         }
 
         dyn_array_free(&cm->device_array);
