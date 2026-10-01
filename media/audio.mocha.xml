@@ -279,14 +279,35 @@
         </path>
     </device>
 
-	<!-- Define PCM playback and capture streams @48kHz sample rate.
-	     Playback goes through the DAM mixer: device 5 is its deep buffer
-	     front end (device 6, the fast one, is not used yet). Device 0
-	     takes capture only. -->
-	<stream type="pcm" dir="out" device="5" rate="48000">
+	<!-- PCM playback and capture streams @48kHz sample rate.
+
+	     Playback goes through the DAM, which mixes two front ends in
+	     hardware; device 0 takes capture only.
+
+	     Primary: everything that is not music, on device 6 (DAM CH1).
+	     256 x 4 frames, 5.3 ms a period, short enough for AudioFlinger to
+	     run its FastMixer on it.
+
+	     Deep buffer: music and video, on device 5 (DAM CH0, the input with
+	     the sample rate converter). 960 x 4 frames, 20 ms a period, so the
+	     mixer thread and the DMA wake four times less often and a late
+	     period costs nothing audible.
+
+	     Both name on_pcm/off_pcm; those are counted per device, so either
+	     stream may leave a device while the other plays on it. -->
+	<stream type="pcm" dir="out" device="6" rate="48000"
+	        flags="primary" instances="1"
+	        period_size="256" period_count="4">
 
 		<!-- Custom path to apply in device entries when this
 		stream is routed to or unrouted from that device -->
+		<enable path="on_pcm"/>
+        <disable path="off_pcm"/>
+	</stream>
+
+	<stream type="pcm" dir="out" device="5" rate="48000"
+	        flags="deep_buffer" instances="1"
+	        period_size="960" period_count="4">
 		<enable path="on_pcm"/>
         <disable path="off_pcm"/>
 	</stream>

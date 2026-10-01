@@ -1,3 +1,12 @@
+# Audio
+#
+# Music and video go to the deep buffer output: AudioPolicyManager gives
+# STREAM_MUSIC the deep buffer flag only when this is set. That output has
+# 20 ms periods on its own DAM input, so playback no longer shares the
+# primary output's short periods with every other sound.
+PRODUCT_PROPERTY_OVERRIDES += \
+    audio.deep_buffer.media=true
+
 # DRM
 PRODUCT_PROPERTY_OVERRIDES += \
     drm.service.enabled=true
