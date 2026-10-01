@@ -55,10 +55,6 @@
 
 #include <math.h>
 
-#ifdef ENABLE_STHAL_STREAMS
-#include <vendor/cirrus/scchal/scc_audio.h>
-#endif
-
 /* These values are defined in _frames_ (not bytes) to match the ALSA API */
 #define OUT_PERIOD_SIZE_DEFAULT 256
 #define OUT_PERIOD_COUNT_DEFAULT 4
@@ -2246,14 +2242,6 @@ static int adev_open_input_stream_v3(struct audio_hw_device *dev,
           config->format, config->channel_mask, config->sample_rate,
           flags, source);
 
-#ifdef ENABLE_STHAL_STREAMS
-    if (source == AUDIO_SOURCE_HOTWORD ||
-        source == AUDIO_SOURCE_VOICE_RECOGNITION) {
-            return cirrus_scc_open_stream(dev, handle, devices, config, stream_in,
-                                          flags, address, source);
-    }
-#endif
-
     *stream_in = NULL;
 
     devices &= AUDIO_DEVICE_IN_ALL;
@@ -2330,14 +2318,6 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
 {
     struct stream_in_common *in = (struct stream_in_common *)stream;
     ALOGV("adev_close_input_stream(%p)", stream);
-
-#ifdef ENABLE_STHAL_STREAMS
-    if (cirrus_is_scc_stream(stream)) {
-        ALOGV("adev_close_input_stream: closing scc stream\n");
-        cirrus_scc_close_stream(dev, stream);
-        return;
-    }
-#endif
 
     (in->close)(&stream->common);
 }
@@ -2485,13 +2465,6 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->global_stream = get_named_stream(adev->cm, "global");
 
     *device = &adev->hw_device.common;
-
-#ifdef ENABLE_STHAL_STREAMS
-    ret = cirrus_scc_init();
-    if (ret !=0) {
-        return ret;
-    }
-#endif
 
     return 0;
 
