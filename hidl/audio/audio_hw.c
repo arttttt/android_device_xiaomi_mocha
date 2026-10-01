@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include <cutils/log.h>
 #include <cutils/properties.h>
@@ -760,6 +761,7 @@ static int start_output_pcm(struct stream_out_pcm *out)
     if (out->pcm && !pcm_is_ready(out->pcm)) {
         ALOGE("pcm_open(out) failed: %s", pcm_get_error(out->pcm));
         pcm_close(out->pcm);
+        out->pcm = NULL;
         return -ENOMEM;
     }
 
@@ -854,17 +856,35 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
     }
 
     ret = pcm_write(out->pcm, buffer, bytes);
-    ALOGV_IF(ret < 0, "out_pcm_write: pcm_write failed: %d", ret);
     if (ret >= 0) {
         out->frames_written += pcm_bytes_to_frames(out->pcm, bytes);
+    } else {
+        ALOGE("out_pcm_write: %s", pcm_get_error(out->pcm));
+        /* Close it; the next write opens the PCM afresh */
+        do_out_pcm_standby(out);
     }
 
 exit:
     pthread_mutex_unlock(&out->common.lock);
 
-    ALOGV("-out_pcm_write(%p)", stream);
+    /*
+     * AudioFlinger doesn't like errors, so a failed write still reports
+     * every byte. But it also paces the mixer by how long a write blocks:
+     * one that fails at once would bring the next buffer straight back and
+     * spin the thread while the PCM keeps failing. The buffer is dropped
+     * and the time it would have played is spent here, as the Qualcomm
+     * HALs do on a failed write.
+     */
+    if (ret < 0) {
+        const size_t frame_size = out->common.frame_size;
+        const uint32_t rate = out->common.sample_rate;
 
-    // AudioFlinger doesn't like errors so always pretend we wrote all the bytes
+        if (frame_size != 0 && rate != 0) {
+            usleep((int64_t)(bytes / frame_size) * 1000000 / rate);
+        }
+    }
+
+    ALOGV("-out_pcm_write(%p) %d", stream, ret);
 
     return bytes;
 }
