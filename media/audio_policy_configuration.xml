@@ -5,7 +5,14 @@
     <globalConfiguration speaker_drc_enabled="true"/>
 
     <modules>
-        <!-- Primary Audio HAL: tinyhal-backed, speaker/headset/HDMI/BT-SCO/FM -->
+        <!-- Primary Audio HAL: tinyhal, one PCM out and one PCM in on the
+             tegrart5671 card; speaker, headset, BT SCO, FM.
+
+             Only what that HAL can open is declared. The multichannel,
+             passthrough (AC3/E-AC3/DTS), ulp_output (MP3/AAC) and dual_audio
+             outputs and the HDMI port came with the Shield Tablet's
+             configuration, written for NVIDIA's HAL and HDMI; this board has
+             no HDMI and tinyhal has no such streams. -->
         <module name="primary" halVersion="2.0">
             <attachedDevices>
                 <item>Speaker</item>
@@ -19,35 +26,6 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="48000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </mixPort>
-                <mixPort name="multichannel output" role="source" flags="AUDIO_OUTPUT_FLAG_DIRECT">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000,64000,88200,96000,128000,176400,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
-                </mixPort>
-                <mixPort name="passthrough output" role="source" flags="AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD">
-                    <profile name="" format="AUDIO_FORMAT_AC3"
-                             samplingRates="44100,48000,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
-                    <profile name="" format="AUDIO_FORMAT_E_AC3"
-                             samplingRates="44100,48000,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
-                    <profile name="" format="AUDIO_FORMAT_DTS"
-                             samplingRates="44100,48000,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
-                </mixPort>
-                <mixPort name="ulp_output" role="source" flags="AUDIO_OUTPUT_FLAG_DIRECT">
-                    <profile name="" format="AUDIO_FORMAT_MP3"
-                             samplingRates="44100,48000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                    <profile name="" format="AUDIO_FORMAT_AAC"
-                             samplingRates="44100,48000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </mixPort>
-                <mixPort name="dual_audio" role="source" flags="AUDIO_OUTPUT_FLAG_DIRECT">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000,64000,88200,96000,128000,176400,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
                 </mixPort>
                 <mixPort name="primary input" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
@@ -71,20 +49,6 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="48000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </devicePort>
-                <devicePort tagName="HDMI Out" type="AUDIO_DEVICE_OUT_AUX_DIGITAL" role="sink">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="44100,48000,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
-                    <profile name="" format="AUDIO_FORMAT_AC3"
-                             samplingRates="44100,48000,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
-                    <profile name="" format="AUDIO_FORMAT_E_AC3"
-                             samplingRates="44100,48000,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
-                    <profile name="" format="AUDIO_FORMAT_DTS"
-                             samplingRates="44100,48000,192000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO,AUDIO_CHANNEL_OUT_QUAD,AUDIO_CHANNEL_OUT_SURROUND,AUDIO_CHANNEL_OUT_5POINT1,AUDIO_CHANNEL_OUT_7POINT1"/>
                 </devicePort>
                 <devicePort tagName="BT SCO Out" type="AUDIO_DEVICE_OUT_ALL_SCO" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
@@ -120,11 +84,10 @@
             </devicePorts>
 
             <routes>
-                <route type="mix" sink="Speaker"         sources="primary output,multichannel output,ulp_output,dual_audio"/>
-                <route type="mix" sink="Wired Headset"   sources="primary output,multichannel output,ulp_output,dual_audio"/>
-                <route type="mix" sink="Wired Headphone" sources="primary output,multichannel output,ulp_output,dual_audio"/>
-                <route type="mix" sink="HDMI Out"        sources="primary output,multichannel output,passthrough output,dual_audio"/>
-                <route type="mix" sink="BT SCO Out"      sources="primary output,multichannel output,dual_audio"/>
+                <route type="mix" sink="Speaker"         sources="primary output"/>
+                <route type="mix" sink="Wired Headset"   sources="primary output"/>
+                <route type="mix" sink="Wired Headphone" sources="primary output"/>
+                <route type="mix" sink="BT SCO Out"      sources="primary output"/>
                 <route type="mix" sink="FM Out"          sources="primary output"/>
                 <route type="mix" sink="primary input"   sources="Built-In Mic,BT SCO Headset Mic,Wired Headset Mic,FM In"/>
             </routes>
