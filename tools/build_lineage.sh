@@ -436,14 +436,18 @@ do_installclean() {
     echo "==> installclean OK"
 }
 
-do_build() {
-    echo "==> brunch $DEVICE ($VER)"
+check_kernel_toolchain() {
     echo "    KERNEL_TOOLCHAIN = $KERNEL_TOOLCHAIN"
     echo "    KERNEL_PREFIX    = $TARGET_KERNEL_CROSS_COMPILE_PREFIX"
     if [ ! -x "$KERNEL_TOOLCHAIN/${TARGET_KERNEL_CROSS_COMPILE_PREFIX}gcc" ]; then
         echo "==> ERROR: kernel gcc not found at $KERNEL_TOOLCHAIN/${TARGET_KERNEL_CROSS_COMPILE_PREFIX}gcc" >&2
         return 1
     fi
+}
+
+do_build() {
+    echo "==> brunch $DEVICE ($VER)"
+    check_kernel_toolchain || return 1
     cd "$BUILD_DIR"
     source build/envsetup.sh
 
@@ -461,6 +465,71 @@ do_build() {
         echo "==> build reported success but produced no zip" >&2
         return 1
     fi
+}
+
+# The kernel and ramdisk only, for a kernel change: minutes where brunch
+# spends most of its time packing system into a zip nobody flashes. Built
+# through the same lunch and toolchain as the full build, so the image is
+# the one brunch would have put in the zip.
+do_bootimage() {
+    echo "==> m bootimage ($VER)"
+    check_kernel_toolchain || return 1
+    cd "$BUILD_DIR"
+    source build/envsetup.sh
+    lunch "lineage_${DEVICE}-userdebug" || return 1
+
+    local OUT="$BUILD_DIR/out/target/product/$DEVICE"
+    local stamp
+    stamp=$(mktemp)
+    trap 'rm -f "$stamp"' RETURN
+
+    m bootimage || return 1
+
+    # As with the zip: success is a boot.img written by this run, not one
+    # left over from an earlier one
+    if [ "$OUT/boot.img" -nt "$stamp" ]; then
+        echo "==> boot.img: $(ls -lh "$OUT/boot.img" | awk '{print $5, $NF}')"
+        strings "$OUT/kernel" 2>/dev/null | grep -m1 '^Linux version' | sed 's/^/    /'
+    else
+        echo "==> build reported success but did not write boot.img" >&2
+        return 1
+    fi
+}
+
+# Modules by directory, for a change that lives in a few of them (the audio
+# HAL is device/xiaomi/mocha/hidl/audio and, for libaudiohalcm,
+# device/xiaomi/mocha/configmgr). mmm builds what those directories define
+# and installs it into out/; it does not repack any image, and files a
+# product copies (PRODUCT_COPY_FILES, such as the audio XMLs) are not its
+# business. What it installed is listed at the end, as the files to push.
+do_mmm() {
+    if [ $# -eq 0 ]; then
+        echo "==> mmm needs at least one directory, relative to $BUILD_DIR" >&2
+        return 1
+    fi
+    echo "==> mmm $* ($VER)"
+    cd "$BUILD_DIR"
+    local d
+    for d in "$@"; do
+        if [ ! -d "$d" ]; then
+            echo "==> ERROR: no directory $BUILD_DIR/$d" >&2
+            return 1
+        fi
+    done
+    source build/envsetup.sh
+    lunch "lineage_${DEVICE}-userdebug" || return 1
+
+    local OUT="$BUILD_DIR/out/target/product/$DEVICE"
+    local stamp
+    stamp=$(mktemp)
+    trap 'rm -f "$stamp"' RETURN
+
+    mmm "$@" || return 1
+
+    echo "==> installed by this run:"
+    find "$OUT/system" "$OUT/vendor" "$OUT/root" "$OUT/recovery/root" \
+         -newer "$stamp" -type f 2>/dev/null \
+        | sed "s|^$OUT/|    |" | sort
 }
 
 do_status() {
@@ -489,7 +558,7 @@ usage: $(basename "$0") [<version> <action>]
 
   version   17.1 | 18.1
   action    manifest | sync | post-sync | clean | installclean | build
-            | vintf | full | status
+            | bootimage | mmm <dir>... | vintf | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
                        (sync does this first, so it is only needed on its own
                        when adding a repo without a full sync)
@@ -500,6 +569,11 @@ usage: $(basename "$0") [<version> <action>]
             vintf    = check the assembled device manifest against the
                        framework matrices of the last build. The build does
                        not do this for us here; see do_vintf for why
+            bootimage = the kernel and boot.img only, no zip
+            mmm      = build and install the modules of the given
+                       directories (relative to the tree), and list what
+                       was installed. The audio HAL is
+                       device/xiaomi/mocha/hidl/audio device/xiaomi/mocha/configmgr
             full     = sync -> post-sync -> build
 
 Without arguments the interactive menus below are shown, so this stays usable
@@ -523,7 +597,9 @@ do_full() {
 # Single dispatch point for both the argument form and the menu, so the
 # error-file behaviour is identical however the script was started.
 run_action() {
-    case "$1" in
+    local action="$1"
+    shift
+    case "$action" in
         manifest)  do_manifest ;;
         sync)      do_sync ;;
         post-sync) do_post_sync ;;
@@ -531,9 +607,11 @@ run_action() {
         installclean) do_installclean ;;
         vintf)     do_vintf ;;
         build)     do_build ;;
+        bootimage) do_bootimage ;;
+        mmm)       do_mmm "$@" ;;
         full)      do_full ;;
         status)    do_status ;;
-        *) echo "unknown action: $1" >&2; return 1 ;;
+        *) echo "unknown action: $action" >&2; return 1 ;;
     esac
 }
 
@@ -542,12 +620,13 @@ case "${1:-}" in
 esac
 
 if [ $# -gt 0 ]; then
-    if [ $# -ne 2 ]; then
+    # Only mmm takes more than the action: its directories
+    if [ $# -lt 2 ] || { [ $# -gt 2 ] && [ "$2" != mmm ]; }; then
         usage >&2
         exit 1
     fi
     select_version "$1" || exit 1
-    run_action "$2"
+    run_action "${@:2}"
     exit $?
 fi
 
@@ -579,6 +658,8 @@ cat <<EOF
   7) status (last ROM)
   8) install local manifest only
   9) verify VINTF manifest
+ 10) boot.img only (m bootimage)
+ 11) modules by directory (mmm)
   q) quit
 ==========================================================
 EOF
@@ -593,6 +674,9 @@ case "$ans" in
     7) run_action status ;;
     8) run_action manifest ;;
     9) run_action vintf ;;
+    10) run_action bootimage ;;
+    11) read -p "directories: " -a dirs
+        run_action mmm "${dirs[@]}" ;;
     q|Q|"") echo "bye" ;;
     *) echo "unknown: $ans"; exit 1 ;;
 esac
