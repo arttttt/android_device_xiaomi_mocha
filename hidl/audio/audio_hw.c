@@ -532,9 +532,14 @@ static int volume_to_percent(float volume)
     float decibels;
     float percent;
 
-    /* Converting back to a decibel scale */
+    /* Converting back to a decibel scale. Below the maximum attenuation
+     * of 58 dB the percent would go negative, which set_hw_volume()
+     * rejects, leaving the last volume set; take it as the maximum. */
     if (volume > 0) {
         decibels = log(volume) / 0.115129f;
+        if (decibels < -58) {
+            decibels = -58;
+        }
     } else {
         /* Use the maximum attenuation value 58 */
         decibels = -58;
