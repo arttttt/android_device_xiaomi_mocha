@@ -40,6 +40,24 @@
                              samplingRates="48000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                 </mixPort>
+                <!-- Hi-res: a DIRECT output that plays the track at its own
+                     rate and format, bypassing AudioFlinger's mixer. Only
+                     clients that ask for DIRECT get it (Android 11 keeps
+                     stereo PCM on the mixer otherwise). The profiles are
+                     the hifi PCM's, listed in full: dynamic ones are only
+                     filled in for devices that connect, never for the
+                     attached headphones. -->
+                <mixPort name="hifi" role="source" flags="AUDIO_OUTPUT_FLAG_DIRECT">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="44100,48000,88200,96000"
+                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                    <profile name="" format="AUDIO_FORMAT_PCM_8_24_BIT"
+                             samplingRates="44100,48000,88200,96000"
+                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                    <profile name="" format="AUDIO_FORMAT_PCM_24_BIT_PACKED"
+                             samplingRates="44100,48000,88200,96000"
+                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </mixPort>
                 <!-- Capture is what the hardware gives: 48 kHz stereo 24-bit (I2S0
                      and AIF1 keep one word length for both directions, and
                      playback is 24-bit). AudioFlinger converts rate, channels
@@ -63,18 +81,24 @@
                 </devicePort>
                 <devicePort tagName="Wired Headset" type="AUDIO_DEVICE_OUT_WIRED_HEADSET" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000"
+                             samplingRates="44100,48000,88200,96000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                     <profile name="" format="AUDIO_FORMAT_PCM_8_24_BIT"
-                             samplingRates="48000"
+                             samplingRates="44100,48000,88200,96000"
+                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                    <profile name="" format="AUDIO_FORMAT_PCM_24_BIT_PACKED"
+                             samplingRates="44100,48000,88200,96000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                 </devicePort>
                 <devicePort tagName="Wired Headphone" type="AUDIO_DEVICE_OUT_WIRED_HEADPHONE" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000"
+                             samplingRates="44100,48000,88200,96000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                     <profile name="" format="AUDIO_FORMAT_PCM_8_24_BIT"
-                             samplingRates="48000"
+                             samplingRates="44100,48000,88200,96000"
+                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                    <profile name="" format="AUDIO_FORMAT_PCM_24_BIT_PACKED"
+                             samplingRates="44100,48000,88200,96000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                 </devicePort>
                 <devicePort tagName="BT SCO Out" type="AUDIO_DEVICE_OUT_ALL_SCO" role="sink">
@@ -121,8 +145,8 @@
 
             <routes>
                 <route type="mix" sink="Speaker"         sources="primary output,deep_buffer"/>
-                <route type="mix" sink="Wired Headset"   sources="primary output,deep_buffer"/>
-                <route type="mix" sink="Wired Headphone" sources="primary output,deep_buffer"/>
+                <route type="mix" sink="Wired Headset"   sources="primary output,deep_buffer,hifi"/>
+                <route type="mix" sink="Wired Headphone" sources="primary output,deep_buffer,hifi"/>
                 <route type="mix" sink="BT SCO Out"      sources="primary output"/>
                 <route type="mix" sink="FM Out"          sources="primary output"/>
                 <route type="mix" sink="primary input"   sources="Built-In Mic,BT SCO Headset Mic,Wired Headset Mic,FM In"/>
