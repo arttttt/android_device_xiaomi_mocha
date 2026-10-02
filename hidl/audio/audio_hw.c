@@ -181,10 +181,16 @@ struct stream_out_pcm {
     bool follows_track;
     struct out_pcm_caps caps;
 
-    /* 24-bit packed samples are written to the PCM as S24_LE, through
-     * this buffer */
-    int32_t *conv_buf;
-    size_t conv_buf_frames;
+    /* What is written to the PCM when it isn't the track's data as is:
+     * 24-bit packed unpacked to S24_LE, or silence */
+    void *scratch;
+    size_t scratch_size;
+
+    /* The volume AudioFlinger set, which it does not send again: kept to
+     * be put on the stream's volume controls each time its PCM opens */
+    int vol_left_pc;
+    int vol_right_pc;
+    bool muted;
 
     uint32_t hw_sample_rate;    /* Actual sample rate of hardware */
     int hw_channel_count;       /* Actual number of output channels */
@@ -550,6 +556,9 @@ static int volume_to_percent(float volume)
     return (int)percent;
 }
 
+static int out_pcm_set_volume(struct stream_out_common *common,
+                              int l_pc, int r_pc, bool muted);
+
 static int out_set_volume(struct audio_stream_out *stream, float left, float right)
 {
     struct stream_out_common *out = (struct stream_out_common *)stream;
@@ -557,6 +566,10 @@ static int out_set_volume(struct audio_stream_out *stream, float left, float rig
     int r_pc = volume_to_percent(right);
 
     ALOGV("out_set_volume (%f,%f) -> (%d%%,%d%%)", left, right, l_pc, r_pc);
+
+    if (out->hw->type == e_stream_out_pcm) {
+        return out_pcm_set_volume(out, l_pc, r_pc, left <= 0 && right <= 0);
+    }
 
     return set_hw_volume(out->hw, l_pc, r_pc);
 }
@@ -878,6 +891,12 @@ static void do_out_pcm_standby(struct stream_out_pcm *out)
         pcm_close(out->pcm);
         out->pcm = NULL;
         out->common.standby = true;
+
+        /* The volume controls are the codec's, shared with every other
+         * output: give them back at full scale */
+        if (out->follows_track) {
+            set_hw_volume(out->common.hw, 100, 100);
+        }
     }
 
     ALOGV("-do_out_standby(%p)", out);
@@ -948,6 +967,10 @@ static int start_output_pcm(struct stream_out_pcm *out)
 
     out_pcm_fill_params(out, &config);
 
+    if (out->follows_track) {
+        set_hw_volume(out->common.hw, out->vol_left_pc, out->vol_right_pc);
+    }
+
     ALOGV("-start_output_stream(%p)", out);
     return 0;
 }
@@ -963,26 +986,70 @@ static int out_pcm_standby(struct audio_stream *stream)
     return 0;
 }
 
-/* Unpack 24-bit packed samples into the S24_LE words the PCM takes */
-static int out_pcm_write_p24(struct stream_out_pcm *out, const void *buffer,
-                             size_t bytes)
+/*
+ * A stream's volume, for one whose volume AudioFlinger leaves to the HAL
+ * (a DIRECT output): it goes on the stream's volume controls, the
+ * codec's analogue gain, so the samples reach the DAC as they are. Muted,
+ * the stream writes silence instead, as the gain does not go to zero.
+ */
+static int out_pcm_set_volume(struct stream_out_common *common,
+                              int l_pc, int r_pc, bool muted)
 {
-    const size_t frames = bytes / out->common.frame_size;
-    const size_t samples = frames * out->common.channel_count;
-    int ret;
+    struct stream_out_pcm *out = (struct stream_out_pcm *)common;
+    int ret = 0;
 
-    if (frames > out->conv_buf_frames) {
-        int32_t *buf = realloc(out->conv_buf, samples * sizeof(int32_t));
-
-        if (!buf) {
-            return -ENOMEM;
-        }
-        out->conv_buf = buf;
-        out->conv_buf_frames = frames;
+    if (!out->follows_track) {
+        return set_hw_volume(common->hw, l_pc, r_pc);
     }
 
-    memcpy_to_q8_23_from_p24(out->conv_buf, buffer, samples);
-    ret = pcm_write(out->pcm, out->conv_buf, samples * sizeof(int32_t));
+    pthread_mutex_lock(&common->lock);
+    out->vol_left_pc = l_pc;
+    out->vol_right_pc = r_pc;
+    out->muted = muted;
+    if (!common->standby) {
+        ret = set_hw_volume(common->hw, l_pc, r_pc);
+    }
+    pthread_mutex_unlock(&common->lock);
+
+    return ret;
+}
+
+/*
+ * Write a buffer of the track's frames. 24-bit packed is unpacked into the
+ * S24_LE words the PCM takes; a muted stream writes as much silence.
+ */
+static int out_pcm_write_frames(struct stream_out_pcm *out, const void *buffer,
+                                size_t bytes)
+{
+    const size_t frames = bytes / out->common.frame_size;
+    const bool p24 = out->common.format == AUDIO_FORMAT_PCM_24_BIT_PACKED;
+    const void *data = buffer;
+    size_t len = bytes;
+    int ret;
+
+    if (p24 || out->muted) {
+        if (p24) {
+            len = frames * out->common.channel_count * sizeof(int32_t);
+        }
+        if (len > out->scratch_size) {
+            void *buf = realloc(out->scratch, len);
+
+            if (!buf) {
+                return -ENOMEM;
+            }
+            out->scratch = buf;
+            out->scratch_size = len;
+        }
+        if (out->muted) {
+            memset(out->scratch, 0, len);
+        } else {
+            memcpy_to_q8_23_from_p24(out->scratch, buffer,
+                                     frames * out->common.channel_count);
+        }
+        data = out->scratch;
+    }
+
+    ret = pcm_write(out->pcm, data, len);
     if (ret >= 0) {
         out->frames_written += frames;
     }
@@ -1071,14 +1138,7 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
         out->common.standby = false;
     }
 
-    if (out->common.format == AUDIO_FORMAT_PCM_24_BIT_PACKED) {
-        ret = out_pcm_write_p24(out, buffer, bytes);
-    } else {
-        ret = pcm_write(out->pcm, buffer, bytes);
-        if (ret >= 0) {
-            out->frames_written += pcm_bytes_to_frames(out->pcm, bytes);
-        }
-    }
+    ret = out_pcm_write_frames(out, buffer, bytes);
     if (ret < 0) {
         ALOGE("out_pcm_write: %s", pcm_get_error(out->pcm));
         /* Close it; the next write opens the PCM afresh */
@@ -1174,7 +1234,7 @@ static void do_close_out_pcm(struct audio_stream_out *stream)
     pthread_mutex_unlock(&out->common.dev->lock);
 
     out_pcm_standby(&stream->common);
-    free(((struct stream_out_pcm *)stream)->conv_buf);
+    free(out->scratch);
     do_close_out_common(stream);
 }
 
@@ -1182,6 +1242,8 @@ static int do_init_out_pcm(struct stream_out_pcm *out,
                            const struct audio_config *config)
 {
     out->common.close = do_close_out_pcm;
+    out->vol_left_pc = 100;
+    out->vol_right_pc = 100;
     out->common.stream.common.standby = out_pcm_standby;
     out->common.stream.write = out_pcm_write;
     out->common.stream.get_render_position = out_pcm_get_render_position;

@@ -884,6 +884,14 @@ static int set_vol_ctl(struct stream *stream,
         break;
     }
 
+    /* The config may stretch min/max past the control's ends, to line a
+     * percent up with the control's dB steps; set what the control takes */
+    if (val < mixer_ctl_get_range_min(ctl)) {
+        val = mixer_ctl_get_range_min(ctl);
+    } else if (val > mixer_ctl_get_range_max(ctl)) {
+        val = mixer_ctl_get_range_max(ctl);
+    }
+
     mixer_ctl_set_value(ctl, volctl->index, val);
     return 0;
 }
