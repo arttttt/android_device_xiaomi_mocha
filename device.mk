@@ -26,10 +26,16 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/media/audio_effects.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.xml \
     $(LOCAL_PATH)/media/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml \
     frameworks/av/services/audiopolicy/config/audio_policy_volumes.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_volumes.xml \
+    frameworks/av/services/audiopolicy/config/bluetooth_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth_audio_policy_configuration.xml \
     frameworks/av/services/audiopolicy/config/default_volume_tables.xml:$(TARGET_COPY_OUT_VENDOR)/etc/default_volume_tables.xml
     
+# A2DP goes through the Bluetooth Audio HAL (its provider is in
+# hidl/hidl.mk): audio.bluetooth.default takes the PCM at the rate and
+# width the stack agreed with the headphones' codec. The legacy
+# audio.a2dp.default took 16-bit 44.1 kHz only, and the stack fell back
+# to that whatever the codec could do.
 PRODUCT_PACKAGES += \
-    audio.a2dp.default \
+    audio.bluetooth.default \
     audio.usb.default \
     audio.r_submix.default \
     libaudio-resampler \

@@ -11,10 +11,16 @@
 # wrapper still opens a legacy audio_hw_device through libhardware and only
 # refuses one older than AUDIO_DEVICE_API_VERSION_MIN, which is 2.0 --
 # audio.primary.tegra declares exactly that, so it goes on working unchanged.
+#
+# android.hardware.bluetooth.audio@2.0-impl is the Bluetooth Audio HAL's
+# provider. The same service registers it as an optional interface when it
+# is installed; the Bluetooth stack then streams A2DP through it to
+# audio.bluetooth.default (device.mk).
 PRODUCT_PACKAGES += \
     android.hardware.audio@5.0-impl \
     android.hardware.audio@2.0-service \
     android.hardware.audio.effect@5.0-impl \
+    android.hardware.bluetooth.audio@2.0-impl \
 
 # Bluetooth
 PRODUCT_PACKAGES += \
