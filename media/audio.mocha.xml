@@ -53,19 +53,17 @@
 	<!--
 	  Speakers: the DAC2 pair goes into the mono DAC mixers, loops back
 	  through the mono ADC, and leaves on AIF2 for the two TFA9890s.
+	  The mono filters' ASRC clocks are left to the kernel, which moves
+	  them onto the I2S trackers when AIF1 runs above 48 kHz.
 	-->
 	<device name="speaker">
         <path name="on">
-          <ctl name="DA MONOL ASRC Switch" val="clk_sysy_div_out"/>
-          <ctl name="DA MONOR ASRC Switch" val="clk_sysy_div_out"/>
           <ctl name="Mono DAC MIXL DAC L2 Switch" val="1"/>
           <ctl name="Mono DAC MIXR DAC L2 Switch" val="0"/>
           <ctl name="Mono DAC MIXR DAC R2 Switch" val="1"/>
 
           <ctl name="Mono ADC L1 Mux" val="Mono DAC MIXL"/>
           <ctl name="Mono ADC R1 Mux" val="Mono DAC MIXR"/>
-          <ctl name="AD MONOL ASRC Switch" val="clk_sysy_div_out"/>
-          <ctl name="AD MONOR ASRC Switch" val="clk_sysy_div_out"/>
           <ctl name="Mono ADC MIXL ADC1 Switch" val="1"/>
           <ctl name="Mono ADC MIXR ADC1 Switch" val="1"/>
           <ctl name="IF2 ADC Mux" val="IF_ADC2"/>
