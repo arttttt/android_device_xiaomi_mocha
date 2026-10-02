@@ -30,6 +30,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <cutils/list.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
 #include <cutils/str_parms.h>
@@ -113,6 +114,9 @@ struct audio_device {
     struct config_mgr *cm;
 
     const struct hw_stream *global_stream;
+
+    /* Open PCM output streams, under lock */
+    struct listnode pcm_outputs;
 };
 
 
@@ -169,6 +173,8 @@ struct stream_out_pcm {
     struct stream_out_common common;
 
     struct pcm *pcm;
+
+    struct listnode node;   /* in audio_device.pcm_outputs */
 
     /* Set when the config gives the stream no rate: the PCM then runs at
      * the rate, and in the format, it was opened with */
@@ -978,6 +984,57 @@ static int out_pcm_write_p24(struct stream_out_pcm *out, const void *buffer,
     return ret;
 }
 
+/*
+ * The outputs share one back end, and the kernel sets its rate from the
+ * first PCM to open it; while another output plays it refuses any other
+ * rate. A stream at its track's rate that is refused puts the other
+ * outputs in standby, holding their locks so none reopens first, and
+ * tries again. They reopen on their next write, at the rate the back
+ * end then runs, which the DAMs convert them to.
+ *
+ * Called with out's lock held; takes the device lock, then the others'.
+ * No other path takes an output lock under the device lock.
+ */
+static int start_output_pcm_alone(struct stream_out_pcm *out, int err)
+{
+    struct audio_device *adev = out->common.dev;
+    struct listnode *node;
+    bool stopped = false;
+    int ret = err;
+
+    pthread_mutex_lock(&adev->lock);
+
+    list_for_each(node, &adev->pcm_outputs) {
+        struct stream_out_pcm *o = node_to_item(node, struct stream_out_pcm, node);
+
+        if (o == out) {
+            continue;
+        }
+        pthread_mutex_lock(&o->common.lock);
+        if (!o->common.standby) {
+            do_out_pcm_standby(o);
+            stopped = true;
+        }
+    }
+
+    if (stopped) {
+        ALOGI("Outputs put in standby for a %u Hz stream", out->common.sample_rate);
+        ret = start_output_pcm(out);
+    }
+
+    list_for_each(node, &adev->pcm_outputs) {
+        struct stream_out_pcm *o = node_to_item(node, struct stream_out_pcm, node);
+
+        if (o != out) {
+            pthread_mutex_unlock(&o->common.lock);
+        }
+    }
+
+    pthread_mutex_unlock(&adev->lock);
+
+    return ret;
+}
+
 static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer,
                              size_t bytes)
 {
@@ -1000,6 +1057,9 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
     pthread_mutex_lock(&out->common.lock);
     if (out->common.standby) {
         ret = start_output_pcm(out);
+        if (ret != 0 && out->follows_track) {
+            ret = start_output_pcm_alone(out, ret);
+        }
         if (ret != 0) {
             goto exit;
         }
@@ -1102,6 +1162,12 @@ static int out_pcm_get_presentation_position(const struct audio_stream_out *stre
 
 static void do_close_out_pcm(struct audio_stream_out *stream)
 {
+    struct stream_out_pcm *out = (struct stream_out_pcm *)stream;
+
+    pthread_mutex_lock(&out->common.dev->lock);
+    list_remove(&out->node);
+    pthread_mutex_unlock(&out->common.dev->lock);
+
     out_pcm_standby(&stream->common);
     free(((struct stream_out_pcm *)stream)->conv_buf);
     do_close_out_common(stream);
@@ -2471,6 +2537,12 @@ static int adev_open_output_stream_v3(struct audio_hw_device *dev,
         goto err_open;
     }
 
+    if (hw->type == e_stream_out_pcm) {
+        pthread_mutex_lock(&adev->lock);
+        list_add_tail(&adev->pcm_outputs, &out.pcm->node);
+        pthread_mutex_unlock(&adev->lock);
+    }
+
     /* Update config with initial stream settings */
     config->format = out.common->format;
     config->channel_mask = out.common->channel_mask;
@@ -2739,6 +2811,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     if (!adev) {
         return -ENOMEM;
     }
+
+    list_init(&adev->pcm_outputs);
 
     adev->hw_device.common.tag = HARDWARE_DEVICE_TAG;
     adev->hw_device.common.version = AUDIO_DEVICE_API_VERSION_2_0;
