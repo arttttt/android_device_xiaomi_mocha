@@ -50,6 +50,7 @@
 #endif
 
 #include <audio_utils/clock.h>
+#include <audio_utils/primitives.h>
 #include <audio_utils/resampler.h>
 
 #include <tinyhal/audio_config.h>
@@ -150,10 +151,34 @@ struct stream_out_common {
 #endif
 };
 
+/*
+ * What the PCM of an output stream that plays at its track's rate takes,
+ * as read from ALSA when the stream is opened: the standard rates within
+ * its rate range, and its sample formats.
+ */
+#define OUT_PCM_CAPS_MAX_RATES 6
+
+struct out_pcm_caps {
+    uint32_t rates[OUT_PCM_CAPS_MAX_RATES];
+    int num_rates;
+    bool s16;
+    bool s24;
+};
+
 struct stream_out_pcm {
     struct stream_out_common common;
 
     struct pcm *pcm;
+
+    /* Set when the config gives the stream no rate: the PCM then runs at
+     * the rate, and in the format, it was opened with */
+    bool follows_track;
+    struct out_pcm_caps caps;
+
+    /* 24-bit packed samples are written to the PCM as S24_LE, through
+     * this buffer */
+    int32_t *conv_buf;
+    size_t conv_buf_frames;
 
     uint32_t hw_sample_rate;    /* Actual sample rate of hardware */
     int hw_channel_count;       /* Actual number of output channels */
@@ -461,6 +486,9 @@ static void get_audio_format(struct str_parms *str_parms,
     str_parms_add_str(str_parms, AUDIO_PARAMETER_STREAM_SUP_FORMATS, format);
 }
 
+static void out_pcm_caps_reply(struct str_parms *query, struct str_parms *reply,
+                               const struct out_pcm_caps *caps);
+
 static char *out_get_parameters(const struct audio_stream *stream,
                                 const char *keys)
 {
@@ -471,7 +499,10 @@ static char *out_get_parameters(const struct audio_stream *stream,
     struct str_parms *reply = str_parms_create();
     char *str;
 
-    if (str_parms_has_key(query, AUDIO_PARAMETER_STREAM_SUP_FORMATS)) {
+    if (out->hw->type == e_stream_out_pcm &&
+            ((struct stream_out_pcm *)out)->follows_track) {
+        out_pcm_caps_reply(query, reply, &((struct stream_out_pcm *)out)->caps);
+    } else if (str_parms_has_key(query, AUDIO_PARAMETER_STREAM_SUP_FORMATS)) {
         get_audio_format(reply, out->format);
     }
 
@@ -684,6 +715,8 @@ static unsigned int out_pcm_cfg_rate(struct stream_out_pcm *out)
 {
     if (out->common.hw->rate != 0) {
         return out->common.hw->rate;
+    } else if (out->follows_track) {
+        return out->common.sample_rate;
     } else {
         return OUT_RATE_DEFAULT;
     }
@@ -695,6 +728,133 @@ static unsigned int out_pcm_cfg_channel_count(struct stream_out_pcm *out)
         return out->common.channel_count;
     } else {
         return OUT_CHANNEL_COUNT_DEFAULT;
+    }
+}
+
+/* The rates AudioFlinger's profiles know, of which a PCM's range is cut */
+static const uint32_t out_pcm_std_rates[OUT_PCM_CAPS_MAX_RATES] = {
+    44100, 48000, 88200, 96000, 176400, 192000
+};
+
+static int out_pcm_read_caps(const struct hw_stream *hw, struct out_pcm_caps *caps)
+{
+    struct pcm_params *params;
+    unsigned int min, max;
+    int i;
+
+    params = pcm_params_get(hw->card_number, hw->device_number, PCM_OUT);
+    if (!params) {
+        ALOGE("Can't read the parameters of PCM %u:%u",
+              hw->card_number, hw->device_number);
+        return -ENODEV;
+    }
+
+    memset(caps, 0, sizeof(*caps));
+    min = pcm_params_get_min(params, PCM_PARAM_RATE);
+    max = pcm_params_get_max(params, PCM_PARAM_RATE);
+    for (i = 0; i < OUT_PCM_CAPS_MAX_RATES; ++i) {
+        if (out_pcm_std_rates[i] >= min && out_pcm_std_rates[i] <= max) {
+            caps->rates[caps->num_rates++] = out_pcm_std_rates[i];
+        }
+    }
+    caps->s16 = pcm_params_format_test(params, PCM_FORMAT_S16_LE);
+    caps->s24 = pcm_params_format_test(params, PCM_FORMAT_S24_LE);
+
+    /* Only stereo is offered; a PCM that can't take it has nothing to offer */
+    if (pcm_params_get_min(params, PCM_PARAM_CHANNELS) > 2 ||
+            pcm_params_get_max(params, PCM_PARAM_CHANNELS) < 2) {
+        caps->num_rates = 0;
+    }
+    pcm_params_free(params);
+
+    ALOGV("PCM %u:%u rates %u-%u (%d standard) s16=%d s24=%d",
+          hw->card_number, hw->device_number, min, max,
+          caps->num_rates, caps->s16, caps->s24);
+
+    return caps->num_rates > 0 && (caps->s16 || caps->s24) ? 0 : -ENODEV;
+}
+
+static bool out_pcm_caps_rate(const struct out_pcm_caps *caps, uint32_t rate)
+{
+    int i;
+
+    for (i = 0; i < caps->num_rates; ++i) {
+        if (caps->rates[i] == rate) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* 24-bit packed goes to the PCM as S24_LE, unpacked on the way */
+static bool out_pcm_caps_format(const struct out_pcm_caps *caps,
+                                audio_format_t format)
+{
+    switch (format) {
+    case AUDIO_FORMAT_PCM_16_BIT:
+        return caps->s16;
+    case AUDIO_FORMAT_PCM_8_24_BIT:
+    case AUDIO_FORMAT_PCM_24_BIT_PACKED:
+        return caps->s24;
+    default:
+        return false;
+    }
+}
+
+/*
+ * Check a requested config against the PCM. On a mismatch the config is
+ * changed to the nearest one the PCM takes, as audio.h asks of a failed
+ * open, and false is returned.
+ */
+static bool out_pcm_caps_fit(const struct out_pcm_caps *caps,
+                             struct audio_config *config)
+{
+    bool fit = true;
+
+    if (!out_pcm_caps_rate(caps, config->sample_rate)) {
+        config->sample_rate = out_pcm_caps_rate(caps, 48000)
+                                ? 48000 : caps->rates[0];
+        fit = false;
+    }
+    if (!out_pcm_caps_format(caps, config->format)) {
+        config->format = caps->s24 ? AUDIO_FORMAT_PCM_8_24_BIT
+                                   : AUDIO_FORMAT_PCM_16_BIT;
+        fit = false;
+    }
+    if (config->channel_mask != AUDIO_CHANNEL_OUT_STEREO) {
+        config->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+        fit = false;
+    }
+    return fit;
+}
+
+static void out_pcm_caps_reply(struct str_parms *query, struct str_parms *reply,
+                               const struct out_pcm_caps *caps)
+{
+    char list[160];
+    size_t len = 0;
+    int i;
+
+    if (str_parms_has_key(query, AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES)) {
+        list[0] = '\0';
+        for (i = 0; i < caps->num_rates; ++i) {
+            len += snprintf(list + len, sizeof(list) - len, "%s%u",
+                            i ? "|" : "", caps->rates[i]);
+        }
+        str_parms_add_str(reply, AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES, list);
+    }
+
+    if (str_parms_has_key(query, AUDIO_PARAMETER_STREAM_SUP_FORMATS)) {
+        snprintf(list, sizeof(list), "%s%s%s",
+                 caps->s16 ? "AUDIO_FORMAT_PCM_16_BIT" : "",
+                 caps->s16 && caps->s24 ? "|" : "",
+                 caps->s24 ? "AUDIO_FORMAT_PCM_8_24_BIT|AUDIO_FORMAT_PCM_24_BIT_PACKED" : "");
+        str_parms_add_str(reply, AUDIO_PARAMETER_STREAM_SUP_FORMATS, list);
+    }
+
+    if (str_parms_has_key(query, AUDIO_PARAMETER_STREAM_SUP_CHANNELS)) {
+        str_parms_add_str(reply, AUDIO_PARAMETER_STREAM_SUP_CHANNELS,
+                          "AUDIO_CHANNEL_OUT_STEREO");
     }
 }
 
@@ -753,7 +913,9 @@ static int start_output_pcm(struct stream_out_pcm *out)
         .rate = out_pcm_cfg_rate(out),
         .period_size = out_pcm_cfg_period_size(out),
         .period_count = out_pcm_cfg_period_count(out),
-        .format = pcm_format_from_android_format(out->common.format),
+        .format = out->common.format == AUDIO_FORMAT_PCM_24_BIT_PACKED
+                    ? PCM_FORMAT_S24_LE
+                    : pcm_format_from_android_format(out->common.format),
         .start_threshold = 0,
         .stop_threshold = 0,
         .silence_threshold = 0
@@ -790,6 +952,32 @@ static int out_pcm_standby(struct audio_stream *stream)
     return 0;
 }
 
+/* Unpack 24-bit packed samples into the S24_LE words the PCM takes */
+static int out_pcm_write_p24(struct stream_out_pcm *out, const void *buffer,
+                             size_t bytes)
+{
+    const size_t frames = bytes / out->common.frame_size;
+    const size_t samples = frames * out->common.channel_count;
+    int ret;
+
+    if (frames > out->conv_buf_frames) {
+        int32_t *buf = realloc(out->conv_buf, samples * sizeof(int32_t));
+
+        if (!buf) {
+            return -ENOMEM;
+        }
+        out->conv_buf = buf;
+        out->conv_buf_frames = frames;
+    }
+
+    memcpy_to_q8_23_from_p24(out->conv_buf, buffer, samples);
+    ret = pcm_write(out->pcm, out->conv_buf, samples * sizeof(int32_t));
+    if (ret >= 0) {
+        out->frames_written += frames;
+    }
+    return ret;
+}
+
 static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer,
                              size_t bytes)
 {
@@ -818,10 +1006,15 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
         out->common.standby = false;
     }
 
-    ret = pcm_write(out->pcm, buffer, bytes);
-    if (ret >= 0) {
-        out->frames_written += pcm_bytes_to_frames(out->pcm, bytes);
+    if (out->common.format == AUDIO_FORMAT_PCM_24_BIT_PACKED) {
+        ret = out_pcm_write_p24(out, buffer, bytes);
     } else {
+        ret = pcm_write(out->pcm, buffer, bytes);
+        if (ret >= 0) {
+            out->frames_written += pcm_bytes_to_frames(out->pcm, bytes);
+        }
+    }
+    if (ret < 0) {
         ALOGE("out_pcm_write: %s", pcm_get_error(out->pcm));
         /* Close it; the next write opens the PCM afresh */
         do_out_pcm_standby(out);
@@ -910,6 +1103,7 @@ static int out_pcm_get_presentation_position(const struct audio_stream_out *stre
 static void do_close_out_pcm(struct audio_stream_out *stream)
 {
     out_pcm_standby(&stream->common);
+    free(((struct stream_out_pcm *)stream)->conv_buf);
     do_close_out_common(stream);
 }
 
@@ -2220,6 +2414,25 @@ static int adev_open_output_stream_v3(struct audio_hw_device *dev,
         goto err_fail;
     }
 
+    /* A PCM stream with no rate in the config plays at its track's rate,
+     * so the track has to be one its PCM takes */
+    struct out_pcm_caps caps;
+    const bool follows_track = hw->type == e_stream_out_pcm && hw->rate == 0;
+
+    if (follows_track) {
+        ret = out_pcm_read_caps(hw, &caps);
+        if (ret == 0 && !out_pcm_caps_fit(&caps, config)) {
+            ALOGW("PCM %u:%u can't play rate %u format 0x%x mask 0x%x as is",
+                  hw->card_number, hw->device_number, config->sample_rate,
+                  config->format, config->channel_mask);
+            ret = -EINVAL;
+        }
+        if (ret != 0) {
+            release_stream(hw);
+            goto err_fail;
+        }
+    }
+
 #ifdef TINYHAL_COMPRESS_PLAYBACK
     out.common = calloc(1, hw->type == e_stream_out_pcm
                             ? sizeof(struct stream_out_pcm)
@@ -2241,6 +2454,10 @@ static int adev_open_output_stream_v3(struct audio_hw_device *dev,
     }
 
     if (hw->type == e_stream_out_pcm) {
+        out.pcm->follows_track = follows_track;
+        if (follows_track) {
+            out.pcm->caps = caps;
+        }
         ret = do_init_out_pcm(out.pcm, config);
     } else {
 #ifdef TINYHAL_COMPRESS_PLAYBACK
