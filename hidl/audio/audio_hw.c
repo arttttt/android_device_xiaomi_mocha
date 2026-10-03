@@ -891,7 +891,7 @@ static void out_pcm_caps_reply(struct str_parms *query, struct str_parms *reply,
     }
 }
 
-/* Must be called with hw device and output stream mutexes locked */
+/* Called with the stream's lock held; the device lock is not needed */
 static void do_out_pcm_standby(struct stream_out_pcm *out)
 {
     ALOGV("+do_out_standby(%p)", out);
@@ -942,7 +942,7 @@ static void out_pcm_fill_params(struct stream_out_pcm *out,
                            config->period_count * 1000) / config->rate;
 }
 
-/* Must be called with hw device and output stream mutexes locked */
+/* Called with the stream's lock held; the device lock is not needed */
 static int start_output_pcm(struct stream_out_pcm *out)
 {
     int ret;
@@ -2091,7 +2091,7 @@ static unsigned int in_pcm_cfg_channel_count(struct stream_in_pcm *in)
     }
 }
 
-/* Must be called with hw device and input stream mutexes locked */
+/* Called with the stream's lock held; the device lock is not needed */
 static void do_in_pcm_standby(struct stream_in_pcm *in)
 {
     ALOGV("+do_in_pcm_standby");
@@ -2127,7 +2127,7 @@ static void in_pcm_fill_params(struct stream_in_pcm *in,
 
 }
 
-/* Must be called with hw device and input stream mutexes locked */
+/* Called with the stream's lock held; the device lock is not needed */
 static int do_open_pcm_input(struct stream_in_pcm *in)
 {
     struct pcm_config config;
@@ -2187,7 +2187,7 @@ exit:
     return ret;
 }
 
-/* Must be called with hw device and input stream mutexes locked */
+/* Called with the stream's lock held; the device lock is not needed */
 static int start_pcm_input_stream(struct stream_in_pcm *in)
 {
     int ret = 0;
