@@ -697,11 +697,7 @@ static int do_init_out_common(struct stream_out_common *out,
     out->channel_count = audio_channel_count_from_out_mask(out->channel_mask);
 
     /* Default settings */
-#ifdef AUDIO_DEVICE_API_VERSION_3_0
     out->frame_size = audio_stream_out_frame_size(&out->stream);
-#else
-    out->frame_size = audio_stream_frame_size(&out->stream.common);
-#endif
     /* Apply initial route */
     apply_route(out->hw, devices);
 
@@ -1896,11 +1892,7 @@ static int do_init_in_common(struct stream_in_common *in,
     in->channel_mask = config->channel_mask;
     in->channel_count = audio_channel_count_from_in_mask(in->channel_mask);
 
-#ifdef AUDIO_DEVICE_API_VERSION_3_0
     in->frame_size = audio_stream_in_frame_size(&in->stream);
-#else
-    in->frame_size = audio_stream_frame_size(&in->stream.common);
-#endif
     /* The route itself is put on by the stream's first audio patch */
     in->devices = devices;
 
@@ -2486,13 +2478,13 @@ static int do_init_in_pcm(struct stream_in_pcm *in,
 /*********************************************************************
  * Stream open and close
  *********************************************************************/
-static int adev_open_output_stream_v3(struct audio_hw_device *dev,
-                                      audio_io_handle_t handle,
-                                      audio_devices_t devices,
-                                      audio_output_flags_t flags,
-                                      struct audio_config *config,
-                                      struct audio_stream_out **stream_out,
-                                      const char *address)
+static int adev_open_output_stream(struct audio_hw_device *dev,
+                                   audio_io_handle_t handle,
+                                   audio_devices_t devices,
+                                   audio_output_flags_t flags,
+                                   struct audio_config *config,
+                                   struct audio_stream_out **stream_out,
+                                   const char *address)
 {
     struct audio_device *adev = (struct audio_device *)dev;
     union {
@@ -2615,14 +2607,14 @@ static void adev_close_output_stream(struct audio_hw_device *dev,
     (out->close)(stream);
 }
 
-static int adev_open_input_stream_v3(struct audio_hw_device *dev,
-                                     audio_io_handle_t handle,
-                                     audio_devices_t devices,
-                                     struct audio_config *config,
-                                     struct audio_stream_in **stream_in,
-                                     audio_input_flags_t flags,
-                                     const char *address,
-                                     audio_source_t source)
+static int adev_open_input_stream(struct audio_hw_device *dev,
+                                  audio_io_handle_t handle,
+                                  audio_devices_t devices,
+                                  struct audio_config *config,
+                                  struct audio_stream_in **stream_in,
+                                  audio_input_flags_t flags,
+                                  const char *address,
+                                  audio_source_t source)
 {
     struct audio_device *adev = (struct audio_device *)dev;
     struct stream_in_pcm *in = NULL;
@@ -2691,31 +2683,6 @@ fail:
     return ret;
 }
 
-#ifdef AUDIO_DEVICE_API_VERSION_3_0
-#   define adev_open_output_stream  adev_open_output_stream_v3
-#   define adev_open_input_stream   adev_open_input_stream_v3
-#else
-static int adev_open_output_stream(struct audio_hw_device *dev,
-                                   audio_io_handle_t handle,
-                                   audio_devices_t devices,
-                                   audio_output_flags_t flags,
-                                   struct audio_config *config,
-                                   struct audio_stream_out **stream_out)
-
-{
-    adev_open_output_stream_v3(dev, handle, devices, flags, config, stream_out, NULL);
-}
-
-static int adev_open_input_stream(struct audio_hw_device *dev,
-                                  audio_io_handle_t handle,
-                                  audio_devices_t devices,
-                                  struct audio_config *config,
-                                  struct audio_stream_in **stream_in)
-
-{
-    adev_open_input_stream_v3(dev, handle, devices, config, stream_in, 0, NULL, 0);
-}
-#endif
 
 
 static void adev_close_input_stream(struct audio_hw_device *dev,
