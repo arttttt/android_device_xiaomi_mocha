@@ -178,6 +178,22 @@ void apply_route( const struct hw_stream *stream, uint32_t devices );
 /** Apply hardware volume */
 int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc);
 
+/** Apply hardware volume as gains in mB (1/100 dB), on the dB scale the
+ * driver gives the volume controls. Gains outside it give its ends.
+ * @return      0 on success
+ * @return      -ENOSYS if the stream has no volume control
+ * @return      -ENXIO if a volume control has no dB scale
+ */
+int set_hw_volume_mb( const struct hw_stream *stream, long left_mb, long right_mb);
+
+/** Get the gains, in mB, of the ends of a stream's volume control scale
+ * (the left channel's, if it has two controls)
+ * @return      0 on success
+ * @return      -ENOSYS if the stream has no volume control
+ * @return      -ENXIO if the volume control has no dB scale
+ */
+int get_hw_volume_mb_range( const struct hw_stream *stream, long *min_mb, long *max_mb);
+
 /** Apply a custom use-case
  *
  * @return      0 on success

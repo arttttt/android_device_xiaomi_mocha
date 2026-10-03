@@ -929,6 +929,71 @@ int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc)
     return ret;
 }
 
+/*
+ * A gain on a volume control, by the dB scale its driver gives it. The
+ * config's min and max, which line percents up with the control, play no
+ * part: the value is the one nearest the gain on the control's own scale.
+ */
+static int set_vol_ctl_mb(struct stream *stream,
+                          const struct stream_control *volctl,
+                          long gain_mb)
+{
+    struct mixer_ctl *ctl = ctl_get_ptr(stream->cm, &volctl->ref);
+    int val;
+    int ret;
+
+    ret = mixer_ctl_get_value_for_db(ctl, gain_mb, &val);
+    if (ret < 0) {
+        ALOGE("%s: no dB scale for '%s' (%d)", __func__,
+              mixer_ctl_get_name(ctl), ret);
+        return ret;
+    }
+
+    return mixer_ctl_set_value(ctl, volctl->index, val);
+}
+
+int set_hw_volume_mb( const struct hw_stream *stream, long left_mb, long right_mb)
+{
+    struct stream *s = (struct stream *)stream;
+    int ret = -ENOSYS;
+
+    if (ctl_ref_valid(&s->controls.volume_left.ref)) {
+        if (!ctl_ref_valid(&s->controls.volume_right.ref)) {
+            /* Control is mono so average left and right */
+            left_mb = (left_mb + right_mb) / 2;
+        }
+
+        ret = set_vol_ctl_mb(s, &s->controls.volume_left, left_mb);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    if (ctl_ref_valid(&s->controls.volume_right.ref)) {
+        ret = set_vol_ctl_mb(s, &s->controls.volume_right, right_mb);
+    }
+
+    ALOGV_IF(ret == 0, "set_hw_volume_mb: L=%ld R=%ld mB", left_mb, right_mb);
+
+    return ret;
+}
+
+int get_hw_volume_mb_range( const struct hw_stream *stream, long *min_mb, long *max_mb)
+{
+    struct stream *s = (struct stream *)stream;
+    const struct stream_control *volctl;
+
+    if (ctl_ref_valid(&s->controls.volume_left.ref)) {
+        volctl = &s->controls.volume_left;
+    } else if (ctl_ref_valid(&s->controls.volume_right.ref)) {
+        volctl = &s->controls.volume_right;
+    } else {
+        return -ENOSYS;
+    }
+
+    return mixer_ctl_get_db_range(ctl_get_ptr(s->cm, &volctl->ref), min_mb, max_mb);
+}
+
 static struct stream *find_named_stream(struct config_mgr *cm,
                                    const char *name)
 {
