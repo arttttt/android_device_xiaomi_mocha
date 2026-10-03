@@ -45,9 +45,12 @@
 
 	<!--
 	  Device paths: "on"/"off" run for the first stream to use a device and
-	  after the last one leaves it; "on_pcm"/"off_pcm" (_rec for capture) run
-	  per stream. Every mixer switch an "on" closes, its "off" opens again,
-	  so a device that leaves does not keep a DAPM branch connected.
+	  after the last one leaves it, whichever streams those are: PCM or the
+	  FM radio's. A path a stream names (<enable>/<disable>) runs for the
+	  first and last stream naming it on the device: "on_pcm_rec" for
+	  capture, "on_fm" for what only the FM radio takes from a device.
+	  Every mixer switch an "on" closes, its "off" opens again, so a device
+	  that leaves does not keep a DAPM branch connected.
 	-->
 
 	<!--
@@ -89,21 +92,28 @@
           <ctl name="Right Spk Output Interface Mux" val="DSP"/>
           <ctl name="Left Spk Gain Channel Mux" val="Right"/>
           <ctl name="Right Spk Gain Channel Mux" val="Left"/>
+
+          <ctl name="Int Left Spk Switch" val="1"/>
+          <ctl name="Int Right Spk Switch" val="1"/>
 		</path>
         <path name="off">
+          <ctl name="Int Left Spk Switch" val="0"/>
+          <ctl name="Int Right Spk Switch" val="0"/>
+
           <ctl name="Mono DAC MIXL DAC L2 Switch" val="0"/>
           <ctl name="Mono DAC MIXR DAC R2 Switch" val="0"/>
           <ctl name="Mono ADC MIXL ADC1 Switch" val="0"/>
           <ctl name="Mono ADC MIXR ADC1 Switch" val="0"/>
         </path>
 
-        <path name="on_pcm">
-            <ctl name="Int Left Spk Switch" val="1"/>
-            <ctl name="Int Right Spk Switch" val="1"/>
+        <!-- FM, from DAC1 (see the fm device), into the same mono mixers -->
+        <path name="on_fm">
+            <ctl name="Mono DAC MIXL DAC L1 Switch" val="1"/>
+            <ctl name="Mono DAC MIXR DAC R1 Switch" val="1"/>
 		</path>
-        <path name="off_pcm">
-            <ctl name="Int Left Spk Switch" val="0"/>
-            <ctl name="Int Right Spk Switch" val="0"/>
+        <path name="off_fm">
+            <ctl name="Mono DAC MIXL DAC L1 Switch" val="0"/>
+            <ctl name="Mono DAC MIXR DAC R1 Switch" val="0"/>
 		</path>
 	</device>
 
@@ -117,19 +127,14 @@
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="1"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="1"/>
             <ctl name="HPO MIX DAC1 Switch" val="1"/>
+            <ctl name="Headphone Jack Switch" val="1"/>
 		</path>
         <path name="off">
+            <ctl name="Headphone Jack Switch" val="0"/>
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="0"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="0"/>
             <ctl name="HPO MIX DAC1 Switch" val="0"/>
         </path>
-
-        <path name="on_pcm">
-            <ctl name="Headphone Jack Switch" val="1"/>
-		</path>
-        <path name="off_pcm">
-            <ctl name="Headphone Jack Switch" val="0"/>
-		</path>
 	</device>
 
 	<device name="headset">
@@ -137,19 +142,14 @@
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="1"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="1"/>
             <ctl name="HPO MIX DAC1 Switch" val="1"/>
+            <ctl name="Headphone Jack Switch" val="1"/>
 		</path>
         <path name="off">
+            <ctl name="Headphone Jack Switch" val="0"/>
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="0"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="0"/>
             <ctl name="HPO MIX DAC1 Switch" val="0"/>
         </path>
-
-        <path name="on_pcm">
-            <ctl name="Headphone Jack Switch" val="1"/>
-		</path>
-        <path name="off_pcm">
-            <ctl name="Headphone Jack Switch" val="0"/>
-		</path>
 	</device>
 
 	<!--
@@ -233,16 +233,23 @@
 		</path>
     </device>
 
+    <!--
+      The FM radio's own chain, for whichever stream needs it: the patch
+      that plays FM on a device, or a capture from the tuner (see the fm
+      streams below). Mirrors the stock NV nvaudio_conf.xml fm-tx path:
+      BCM4354 FM I2S -> RT5671 AIF4 (IF4) -> DAC1 -> stereo DAC mixer.
+      The BCM4354 masters that I2S from its own 37.4 MHz crystal (48 kHz,
+      1.536 MHz BCLK; CYW4354 datasheet), unrelated to the codec's clock,
+      so the stereo DAC filter tracks I2S4 through the ASRC while FM is on,
+      and goes back to the system clock with it: the AIF1 playback it
+      serves otherwise is synchronous.
+
+      The stereo DAC mixer feeds both the headphones and the capture of
+      FM (ADC 1_2 takes it, see fm_in), so FM reaches the headphones
+      whenever they are on with this chain; the speakers take it only
+      through their on_fm path, for the patch.
+    -->
     <device name="fm">
-        <!-- Mirrors the stock NV nvaudio_conf.xml fm-tx playback path:
-             BCM4354 FM I2S → RT5671 AIF4 (IF4) → DAC1 mixer.
-             The BCM4354 masters that I2S from its own 37.4 MHz crystal
-             (48 kHz, 1.536 MHz BCLK; CYW4354 datasheet), unrelated to the
-             codec's clock, so the stereo DAC filter tracks I2S4 through the
-             ASRC while FM plays, and goes back to the system clock with it:
-             the AIF1 playback it serves otherwise is synchronous.
-             HP / speaker output enable is the responsibility of whichever
-             output device is selected alongside fm in the policy mask. -->
         <path name="on">
             <ctl name="DAC1 L Mux" val="IF4 DAC"/>
             <ctl name="DAC1 R Mux" val="IF4 DAC"/>
@@ -251,33 +258,28 @@
             <ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
             <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
             <ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
-            <ctl name="Mono DAC MIXL DAC L1 Switch" val="1"/>
-            <ctl name="Mono DAC MIXR DAC R1 Switch" val="1"/>
             <ctl name="FM Switch" val="1"/>
         </path>
         <path name="off">
             <ctl name="FM Switch" val="0"/>
+            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
+            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="0"/>
+            <ctl name="DAC1 MIXL DAC1 Switch" val="0"/>
+            <ctl name="DAC1 MIXR DAC1 Switch" val="0"/>
             <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
             <ctl name="DAC1 L Mux" val="IF1 DAC"/>
             <ctl name="DAC1 R Mux" val="IF1 DAC"/>
         </path>
     </device>
 
+    <!--
+      Capture from the FM tuner, after stock NV nvaudio_conf.xml fm-rx: the
+      ADC path takes the stereo DAC mixer, which the fm chain feeds; the
+      HAL holds that chain for as long as the tuner is captured. Like the
+      microphones, it sets its whole chain, muxes included, and its off
+      opens only the switches its on closed.
+    -->
     <device name="fm_in">
-        <!-- Capture chain mirrors stock NV nvaudio_conf.xml fm-rx:
-             RT5671 ADC1 chain feeding the IF1 ADC mux for FM record.
-
-             Playback chain (DAC1 L/R Mux=IF4 DAC down to Mono mix) is
-             attached here as well: BCM4354's FM I2S → AIF4 → IF4 DAC →
-             DAC1 → Mono DAC mix → TFA9890 speakers. This belongs in a
-             proper FM AudioPatch (source=FM_TUNER, sink=SPEAKER/HP) but
-             the in-tree tinyhal is API 2.0 and has no create_audio_patch
-             yet. Hooking it under the input device makes the codec
-             auto-route as soon as FmService opens AudioRecord(RADIO_TUNER).
-
-             Capture side has no "off" by stock convention — the next
-             capture stream rewrites the ADC mux. The playback ctls we
-             added DO need a tear-down; that lives in <path name="off">. -->
         <path name="on">
             <ctl name="IF1 ADC Mux" val="IF1_ADC1"/>
             <ctl name="IF1 ADC1 IN2 Mux" val="IF1_ADC1_IN1"/>
@@ -289,29 +291,10 @@
             <ctl name="Stereo1 ADC1 Mux" val="ADC"/>
             <ctl name="Stereo1 ADC Mux" val="ADC1L ADC2R"/>
             <ctl name="ADC 1_2" val="Stereo DAC"/>
-
-            <ctl name="DAC1 L Mux" val="IF4 DAC"/>
-            <ctl name="DAC1 R Mux" val="IF4 DAC"/>
-            <ctl name="DA STO ASRC Switch" val="clk_i2s4_track"/>
-            <ctl name="DAC1 MIXL DAC1 Switch" val="1"/>
-            <ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
-            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
-            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
-            <ctl name="Mono DAC MIXL DAC L1 Switch" val="1"/>
-            <ctl name="Mono DAC MIXR DAC R1 Switch" val="1"/>
-            <ctl name="FM Switch" val="1"/>
         </path>
         <path name="off">
-            <ctl name="FM Switch" val="0"/>
-            <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
-            <ctl name="DAC1 L Mux" val="IF1 DAC"/>
-            <ctl name="DAC1 R Mux" val="IF1 DAC"/>
-            <ctl name="Mono DAC MIXL DAC L1 Switch" val="0"/>
-            <ctl name="Mono DAC MIXR DAC R1 Switch" val="0"/>
-            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
-            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="0"/>
-            <ctl name="DAC1 MIXL DAC1 Switch" val="0"/>
-            <ctl name="DAC1 MIXR DAC1 Switch" val="0"/>
+            <ctl name="Sto1 ADC MIXL ADC1 Switch" val="0"/>
+            <ctl name="Sto1 ADC MIXR ADC1 Switch" val="0"/>
         </path>
     </device>
 
@@ -341,23 +324,17 @@
 	     and tops out at 29, the level the init path sets for every other
 	     stream.
 
-	     All name on_pcm/off_pcm; those are counted per device, so any
-	     stream may leave a device while another plays on it. -->
+	     What a stream needs of its devices is in their on/off paths,
+	     counted per device, so any stream may leave a device while
+	     another plays on it. -->
 	<stream type="pcm" dir="out" device="6" rate="48000"
 	        flags="primary" instances="1"
 	        period_size="256" period_count="4">
-
-		<!-- Custom path to apply in device entries when this
-		stream is routed to or unrouted from that device -->
-		<enable path="on_pcm"/>
-        <disable path="off_pcm"/>
 	</stream>
 
 	<stream type="pcm" dir="out" device="5" rate="48000"
 	        flags="deep_buffer" instances="1"
 	        period_size="960" period_count="4">
-		<enable path="on_pcm"/>
-        <disable path="off_pcm"/>
 	</stream>
 
 	<stream type="pcm" dir="out" device="7"
@@ -365,8 +342,6 @@
 	        period_size="1024" period_count="4">
 		<ctl function="leftvol"  name="HP Playback Volume" index="0" min="-10" max="29"/>
 		<ctl function="rightvol" name="HP Playback Volume" index="1" min="-10" max="29"/>
-		<enable path="on_pcm"/>
-        <disable path="off_pcm"/>
 	</stream>
 
 	<stream type="pcm" dir="in" device="0" rate="48000">
@@ -375,22 +350,40 @@
 	</stream>
 
 	<!--
-	  Named "hw" stream that only exists to host the FM volume control.
-	  No PCM device is opened; the stream is looked up by name from
-	  audio_hw.c::adev_set_parameters() when a "fm_volume=<float>" key
-	  arrives, and set_hw_volume() rewrites the codec mixer ctls below.
-	  FM audio goes BCM4354 -> AIF4 -> IF4 DAC -> DAC1 -> speaker as a
-	  pure codec-internal path, so the only place to attenuate it from
-	  Android is to scale DAC1 Playback Volume on the codec.
+	  The FM radio, played: a "hw" stream with no PCM, which the HAL routes
+	  for an audio patch from the tuner to devices: to those devices and
+	  to the fm chain. It takes from the speakers only their on_fm path.
+
+	  Its volume is DAC1's, which only FM goes through: the patch's gain
+	  in mB, set on the control's own dB scale by set_audio_port_config,
+	  or a percentage from the older fm_volume parameter.
+	  DAC1 Playback Volume is one control with two channels, so left and
+	  right are its index 0 and 1. A gain below the control's scale mutes:
+	  DAC1's mixer switches, which the fm chain closes, open again.
 	-->
-	<stream name="fm_volume" type="hw" dir="out">
-		<!-- DAC1 Playback Volume is a 2-channel mixer ctl on RT5671.
-		     set_vol_ctl() in audio_config.c writes a single channel by
-		     index, so we have to declare left and right separately or
-		     the right speaker stays pinned at default while the left
-		     follows STREAM_MUSIC. -->
+	<stream name="fm" type="hw" dir="out">
 		<ctl function="leftvol"  name="DAC1 Playback Volume" index="0" min="0" max="175"/>
 		<ctl function="rightvol" name="DAC1 Playback Volume" index="1" min="0" max="175"/>
+		<usecase name="mute">
+			<case name="on">
+				<ctl name="DAC1 MIXL DAC1 Switch" val="0"/>
+				<ctl name="DAC1 MIXR DAC1 Switch" val="0"/>
+			</case>
+			<case name="off">
+				<ctl name="DAC1 MIXL DAC1 Switch" val="1"/>
+				<ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
+			</case>
+		</usecase>
+		<enable path="on_fm"/>
+		<disable path="off_fm"/>
+	</stream>
+
+	<!--
+	  The fm chain held for a capture from the tuner, which takes FM from
+	  the stereo DAC mixer: the HAL routes this one to the fm chain alone
+	  while an input stream is on the tuner.
+	-->
+	<stream name="fm capture" type="hw" dir="out">
 	</stream>
 
 </audiohal>

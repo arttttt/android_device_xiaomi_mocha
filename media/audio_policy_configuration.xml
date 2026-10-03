@@ -140,13 +140,24 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_8_24_BIT"
                              samplingRates="48000"
                              channelMasks="AUDIO_CHANNEL_IN_STEREO"/>
+                    <!-- FM's volume, set on the patch from the tuner: DAC1's
+                         scale, -65.62..0 dB, the HAL setting the nearest
+                         step; below it, -66 dB, mutes. -->
+                    <gains>
+                        <gain name="fm_volume" mode="AUDIO_GAIN_MODE_JOINT"
+                              minValueMB="-6600" maxValueMB="0"
+                              defaultValueMB="0" stepValueMB="1"/>
+                    </gains>
                 </devicePort>
             </devicePorts>
 
+            <!-- FM In to the speaker and the headphones: the FM radio plays
+                 there as a patch from the tuner, inside the codec, rather
+                 than through a capture and a playback. -->
             <routes>
-                <route type="mix" sink="Speaker"         sources="primary output,deep_buffer"/>
-                <route type="mix" sink="Wired Headset"   sources="primary output,deep_buffer,hifi"/>
-                <route type="mix" sink="Wired Headphone" sources="primary output,deep_buffer,hifi"/>
+                <route type="mix" sink="Speaker"         sources="primary output,deep_buffer,FM In"/>
+                <route type="mix" sink="Wired Headset"   sources="primary output,deep_buffer,hifi,FM In"/>
+                <route type="mix" sink="Wired Headphone" sources="primary output,deep_buffer,hifi,FM In"/>
                 <route type="mix" sink="BT SCO Out"      sources="primary output"/>
                 <route type="mix" sink="FM Out"          sources="primary output"/>
                 <route type="mix" sink="primary input"   sources="Built-In Mic,BT SCO Headset Mic,Wired Headset Mic,FM In"/>

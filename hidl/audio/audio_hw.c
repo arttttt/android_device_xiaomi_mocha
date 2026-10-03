@@ -24,6 +24,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -124,6 +125,21 @@ struct audio_device {
 
     /* The last audio patch handle given out, under lock */
     audio_patch_handle_t last_patch_handle;
+
+    /*
+     * The FM radio, see "FM radio" below; under lock. The named streams
+     * of the config that route it, the patch that plays it and the
+     * devices it plays on, the inputs on the tuner, and the gain the patch
+     * last took, with the bottom of DAC1's scale, below which FM mutes.
+     */
+    const struct hw_stream *fm_stream;
+    const struct hw_stream *fm_capture_stream;
+    audio_patch_handle_t fm_patch_handle;
+    uint32_t fm_devices;
+    int fm_captures;
+    bool fm_gain_set;
+    long fm_gain_mb;
+    long fm_min_mb;
 };
 
 
@@ -262,11 +278,13 @@ struct stream_in_common {
 
     bool standby;
 
-    /* In audio_device.inputs. The io handle and the handle of the patch
-     * that routes the stream are under the device lock */
+    /* In audio_device.inputs. The io handle, the handle of the patch
+     * that routes the stream and whether that is from the FM tuner are
+     * under the device lock */
     struct listnode node;
     audio_io_handle_t io_handle;
     audio_patch_handle_t patch_handle;
+    bool on_tuner;
 
     /*
      * Stream parameters as seen by AudioFlinger
@@ -2685,6 +2703,9 @@ fail:
 
 
 
+static void fm_set_tuner_input_l(struct audio_device *adev,
+                                 struct stream_in_common *in, bool on);
+
 static void adev_close_input_stream(struct audio_hw_device *dev,
                                     struct audio_stream_in *stream)
 {
@@ -2692,12 +2713,93 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
     struct stream_in_common *in = (struct stream_in_common *)stream;
     ALOGV("adev_close_input_stream(%p)", stream);
 
-    /* Its patch, if still there, goes with it */
+    /* Its patch, if still there, goes with it, and its hold on FM */
     pthread_mutex_lock(&adev->lock);
     list_remove(&in->node);
+    fm_set_tuner_input_l(adev, in, false);
     pthread_mutex_unlock(&adev->lock);
 
     (in->close)(&stream->common);
+}
+
+/*********************************************************************
+ * FM radio
+ *
+ * FM never passes through a PCM: the BCM4354 plays it into the codec's
+ * AIF4, and the codec takes it on to the speakers or headphones, or to
+ * its ADC path for a capture from the tuner. Two named "hw" streams of
+ * the config route it. "fm" plays it, for the audio patch from the tuner
+ * to devices: it goes to those devices and to the fm chain. "fm capture"
+ * goes to the fm chain alone, for as long as an input stream captures
+ * the tuner, which takes FM from that chain. The config manager counts
+ * the streams on the chain, so the patch and a capture can come and go
+ * in any order.
+ *
+ * Its volume is DAC1's, which only FM goes through: the gain the patch's
+ * source port is given, in mB, set on the control's own dB scale. A gain
+ * below that scale mutes, with DAC1's mixer switches; the chain closes
+ * them when it comes on, so the mute is put back each time it is routed.
+ * All of it is under the device lock.
+ *********************************************************************/
+
+/* The sinks an FM patch can play on: those the fm stream's paths serve */
+#define FM_PATCH_SINKS  (AUDIO_DEVICE_OUT_SPEAKER | \
+                         AUDIO_DEVICE_OUT_WIRED_HEADSET | \
+                         AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+
+static bool fm_chain_on_l(const struct audio_device *adev)
+{
+    return adev->fm_patch_handle != AUDIO_PATCH_HANDLE_NONE ||
+           adev->fm_captures > 0;
+}
+
+static void fm_apply_gain_l(struct audio_device *adev)
+{
+    bool muted;
+
+    if (!adev->fm_gain_set) {
+        return;
+    }
+
+    muted = adev->fm_gain_mb < adev->fm_min_mb;
+    if (!muted) {
+        set_hw_volume_mb(adev->fm_stream, adev->fm_gain_mb, adev->fm_gain_mb);
+    }
+
+    /* Only on the chain: its switches stay open while it is off */
+    if (fm_chain_on_l(adev)) {
+        apply_use_case(adev->fm_stream, "mute", muted ? "on" : "off");
+    }
+}
+
+static void fm_apply_routes_l(struct audio_device *adev)
+{
+    const uint32_t play = (adev->fm_patch_handle != AUDIO_PATCH_HANDLE_NONE)
+                          ? adev->fm_devices | AUDIO_DEVICE_OUT_FM : 0;
+    const uint32_t capture = (adev->fm_captures > 0) ? AUDIO_DEVICE_OUT_FM : 0;
+
+    apply_route(adev->fm_stream, play);
+    apply_route(adev->fm_capture_stream, capture);
+    fm_apply_gain_l(adev);
+}
+
+static void fm_set_tuner_input_l(struct audio_device *adev,
+                                 struct stream_in_common *in, bool on)
+{
+    if (in->on_tuner == on || adev->fm_capture_stream == NULL) {
+        return;
+    }
+
+    in->on_tuner = on;
+    adev->fm_captures += on ? 1 : -1;
+    fm_apply_routes_l(adev);
+}
+
+static void fm_release_patch_l(struct audio_device *adev)
+{
+    adev->fm_patch_handle = AUDIO_PATCH_HANDLE_NONE;
+    adev->fm_devices = 0;
+    fm_apply_routes_l(adev);
 }
 
 /*********************************************************************
@@ -2709,13 +2811,14 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
  * a stream captures from to its mix, carrying the input source. A new
  * route for the stream comes as a patch with the handle of the one it
  * replaces, and the release of a patch takes the stream off its devices,
- * as "routing=0" did.
+ * as "routing=0" did. The one patch from a device to devices is FM's,
+ * from the tuner (see "FM radio" above).
  *
- * A stream holds the handle of the patch that routes it; nothing else
- * keeps patches. The handles and the stream lists are under the device
- * lock, which is taken before an input's lock and never under one.
- * AudioFlinger waits for these calls from the stream's thread, so they
- * neither sleep nor touch the PCM.
+ * A stream holds the handle of the patch that routes it, the device the
+ * FM patch's; nothing else keeps patches. The handles and the stream
+ * lists are under the device lock, which is taken before an input's lock
+ * and never under one. AudioFlinger waits for these calls from the
+ * stream's thread, so they neither sleep nor touch the PCM.
  *********************************************************************/
 
 static struct stream_out_common *find_output_l(struct audio_device *adev,
@@ -2748,7 +2851,10 @@ static struct stream_in_common *find_input_l(struct audio_device *adev,
     return NULL;
 }
 
-/* The stream the patch routes, if any: one of *out and *in is set */
+/*
+ * What the patch routes, if this HAL has it: one of *out and *in is set
+ * for a stream's patch, neither for the FM patch.
+ */
 static bool find_patch_l(struct audio_device *adev, audio_patch_handle_t handle,
                          struct stream_out_common **out,
                          struct stream_in_common **in)
@@ -2760,6 +2866,10 @@ static bool find_patch_l(struct audio_device *adev, audio_patch_handle_t handle,
 
     if (handle == AUDIO_PATCH_HANDLE_NONE) {
         return false;
+    }
+
+    if (handle == adev->fm_patch_handle) {
+        return true;
     }
 
     list_for_each(node, &adev->outputs) {
@@ -2791,6 +2901,95 @@ static audio_patch_handle_t new_patch_handle_l(struct audio_device *adev)
     return ++adev->last_patch_handle;
 }
 
+/*
+ * Takes the handle for a patch to route out, in, or FM (both NULL): the
+ * one given back to update, moved from whatever had it -- which keeps its
+ * route, as a route set on one stream never undid another's, but for FM,
+ * whose patch it was -- or a new one for a handle this HAL does not have
+ * (one it never gave, or another module's after AudioFlinger moved the
+ * patch). A patch the stream had and AudioFlinger dropped without a
+ * release is simply forgotten.
+ */
+static void take_patch_handle_l(struct audio_device *adev,
+                                audio_patch_handle_t *handle,
+                                struct stream_out_common *out,
+                                struct stream_in_common *in)
+{
+    struct stream_out_common *old_out;
+    struct stream_in_common *old_in;
+
+    if (find_patch_l(adev, *handle, &old_out, &old_in)) {
+        if (old_out != NULL) {
+            if (old_out != out) {
+                old_out->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+            }
+        } else if (old_in != NULL) {
+            if (old_in != in) {
+                old_in->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+            }
+        } else if (out != NULL || in != NULL) {
+            fm_release_patch_l(adev);
+        }
+    } else {
+        if (*handle != AUDIO_PATCH_HANDLE_NONE) {
+            ALOGW("%s: unknown patch %d, giving a new handle", __func__, *handle);
+        }
+        *handle = new_patch_handle_l(adev);
+    }
+
+    if (out != NULL) {
+        out->patch_handle = *handle;
+    } else if (in != NULL) {
+        in->patch_handle = *handle;
+    } else {
+        adev->fm_patch_handle = *handle;
+    }
+}
+
+static int create_fm_patch(struct audio_device *adev,
+                           const struct audio_port_config *source,
+                           unsigned int num_sinks,
+                           const struct audio_port_config *sinks,
+                           audio_patch_handle_t *handle)
+{
+    uint32_t devices = 0;
+    unsigned int i;
+
+    if (source->ext.device.type != AUDIO_DEVICE_IN_FM_TUNER) {
+        ALOGW("%s: no patch from device 0x%x to devices", __func__,
+              source->ext.device.type);
+        return -ENOSYS;
+    }
+
+    for (i = 0; i < num_sinks; i++) {
+        if (sinks[i].type != AUDIO_PORT_TYPE_DEVICE ||
+                (sinks[i].ext.device.type & ~FM_PATCH_SINKS) != 0) {
+            ALOGE("%s: FM can't play on sink %u (device 0x%x)", __func__, i,
+                  sinks[i].type == AUDIO_PORT_TYPE_DEVICE
+                          ? sinks[i].ext.device.type : 0);
+            return -EINVAL;
+        }
+        devices |= sinks[i].ext.device.type;
+    }
+
+    pthread_mutex_lock(&adev->lock);
+
+    if (adev->fm_stream == NULL || adev->fm_capture_stream == NULL) {
+        pthread_mutex_unlock(&adev->lock);
+        ALOGE("%s: no fm streams in the config", __func__);
+        return -ENOSYS;
+    }
+
+    take_patch_handle_l(adev, handle, NULL, NULL);
+    adev->fm_devices = devices;
+    fm_apply_routes_l(adev);
+
+    ALOGV("%s: patch %d: FM on devices 0x%x", __func__, *handle, devices);
+
+    pthread_mutex_unlock(&adev->lock);
+    return 0;
+}
+
 static int adev_create_audio_patch(struct audio_hw_device *dev,
                                    unsigned int num_sources,
                                    const struct audio_port_config *sources,
@@ -2801,8 +3000,6 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
     struct audio_device *adev = (struct audio_device *)dev;
     struct stream_out_common *out = NULL;
     struct stream_in_common *in = NULL;
-    struct stream_out_common *old_out;
-    struct stream_in_common *old_in;
     audio_io_handle_t io_handle;
     audio_source_t source = AUDIO_SOURCE_DEFAULT;
     uint32_t devices = 0;
@@ -2837,9 +3034,11 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
         devices = sources[0].ext.device.type;
         io_handle = sinks[0].ext.mix.handle;
         source = sinks[0].ext.mix.usecase.source;
+    } else if (sources[0].type == AUDIO_PORT_TYPE_DEVICE) {
+        return create_fm_patch(adev, &sources[0], num_sinks, sinks, handle);
     } else {
-        ALOGW("%s: device to device patches are not supported", __func__);
-        return -ENOSYS;
+        ALOGE("%s: source of type %d", __func__, sources[0].type);
+        return -EINVAL;
     }
 
     pthread_mutex_lock(&adev->lock);
@@ -2866,35 +3065,10 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
                   io_handle, source, devices, ret);
             goto exit;
         }
+        fm_set_tuner_input_l(adev, in, devices == AUDIO_DEVICE_IN_FM_TUNER);
     }
 
-    /*
-     * A patch given back to update is kept under its handle, and moves to
-     * this stream if another held it; that one keeps its route, as a route
-     * set on one stream never undid another's. A handle no stream holds
-     * (one this HAL never gave, or another module's after AudioFlinger
-     * moved the patch) is replaced by a new one.
-     */
-    if (find_patch_l(adev, *handle, &old_out, &old_in)) {
-        if (old_out != NULL && old_out != out) {
-            old_out->patch_handle = AUDIO_PATCH_HANDLE_NONE;
-        } else if (old_in != NULL && old_in != in) {
-            old_in->patch_handle = AUDIO_PATCH_HANDLE_NONE;
-        }
-    } else {
-        if (*handle != AUDIO_PATCH_HANDLE_NONE) {
-            ALOGW("%s: unknown patch %d, giving a new handle", __func__, *handle);
-        }
-        *handle = new_patch_handle_l(adev);
-    }
-
-    /* A patch the stream had and AudioFlinger dropped without a release
-     * is simply forgotten here */
-    if (out != NULL) {
-        out->patch_handle = *handle;
-    } else {
-        in->patch_handle = *handle;
-    }
+    take_patch_handle_l(adev, handle, out, in);
 
     ALOGV("%s: patch %d: %s io handle %d devices 0x%x source %d", __func__,
           *handle, out != NULL ? "output" : "input", io_handle, devices, source);
@@ -2923,7 +3097,7 @@ static int adev_release_audio_patch(struct audio_hw_device *dev,
     if (out != NULL) {
         apply_route(out->hw, 0);
         out->patch_handle = AUDIO_PATCH_HANDLE_NONE;
-    } else {
+    } else if (in != NULL) {
         pthread_mutex_lock(&in->lock);
         in->devices = 0;
         if (in->hw != NULL) {
@@ -2931,6 +3105,9 @@ static int adev_release_audio_patch(struct audio_hw_device *dev,
         }
         pthread_mutex_unlock(&in->lock);
         in->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+        fm_set_tuner_input_l(adev, in, false);
+    } else {
+        fm_release_patch_l(adev);
     }
 
     ALOGV("%s: patch %d", __func__, handle);
@@ -2946,10 +3123,50 @@ static int adev_get_audio_port(struct audio_hw_device *dev,
     return -ENOSYS;
 }
 
+/*
+ * AudioPolicy sends only gains here (AudioPolicyManager::
+ * setAudioPortConfig), and of the ports only the FM tuner has one: the
+ * volume of FM, joint for both channels, as the policy declares it.
+ */
 static int adev_set_audio_port_config(struct audio_hw_device *dev,
                                       const struct audio_port_config *config)
 {
-    return -ENOSYS;
+    struct audio_device *adev = (struct audio_device *)dev;
+
+    if (config == NULL) {
+        return -EINVAL;
+    }
+
+    if (config->type != AUDIO_PORT_TYPE_DEVICE ||
+            config->role != AUDIO_PORT_ROLE_SOURCE ||
+            config->ext.device.type != AUDIO_DEVICE_IN_FM_TUNER) {
+        ALOGW("%s: port %d has no config to set", __func__, config->id);
+        return -ENOSYS;
+    }
+
+    if (!(config->config_mask & AUDIO_PORT_CONFIG_GAIN) ||
+            !(config->gain.mode & AUDIO_GAIN_MODE_JOINT)) {
+        ALOGE("%s: FM tuner config mask 0x%x gain mode 0x%x", __func__,
+              config->config_mask, config->gain.mode);
+        return -EINVAL;
+    }
+
+    pthread_mutex_lock(&adev->lock);
+
+    if (adev->fm_stream == NULL) {
+        pthread_mutex_unlock(&adev->lock);
+        ALOGE("%s: no fm stream in the config", __func__);
+        return -ENOSYS;
+    }
+
+    adev->fm_gain_mb = config->gain.values[0];
+    adev->fm_gain_set = true;
+    fm_apply_gain_l(adev);
+
+    ALOGV("%s: FM gain %ld mB", __func__, adev->fm_gain_mb);
+
+    pthread_mutex_unlock(&adev->lock);
+    return 0;
 }
 
 /*********************************************************************
@@ -2976,13 +3193,12 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
      * fm_volume: FM plays inside the codec (BCM4354 I2S -> AIF4 -> DAC1 ->
      * speaker) and never passes AudioFlinger's mixer, so no stream volume
      * reaches it. The FM app forwards STREAM_MUSIC volume here instead, as
-     * setParameters("fm_volume=<0..1>"). The named hw stream "fm_volume" in
-     * the config carries the codec control and its range in its leftvol and
+     * setParameters("fm_volume=<0..1>"). The named hw stream "fm" in the
+     * config carries the codec control and its range in its leftvol and
      * rightvol <ctl>s; set_hw_volume() scales the percentage onto them.
      */
     if (str_parms_get_str(parms, "fm_volume", value, sizeof(value)) >= 0) {
         float vol = strtof(value, NULL);
-        const struct hw_stream *fm;
         int pc;
 
         if (vol < 0.0f) {
@@ -2992,14 +3208,14 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
         }
         pc = (int)(vol * 100.0f + 0.5f);
 
-        fm = get_named_stream(adev->cm, "fm_volume");
-        if (fm != NULL) {
-            set_hw_volume(fm, pc, pc);
-            release_stream(fm);
+        pthread_mutex_lock(&adev->lock);
+        if (adev->fm_stream != NULL) {
+            set_hw_volume(adev->fm_stream, pc, pc);
             ALOGV("fm_volume %.3f -> %d%%", vol, pc);
         } else {
-            ALOGW("fm_volume: no stream named fm_volume in the config");
+            ALOGW("fm_volume: no stream named fm in the config");
         }
+        pthread_mutex_unlock(&adev->lock);
     }
 
     str_parms_destroy(parms);
@@ -3073,6 +3289,11 @@ static int adev_close(hw_device_t *device)
 {
     struct audio_device *adev = (struct audio_device *)device;
 
+    if (adev->fm_stream != NULL) {
+        release_stream(adev->fm_stream);
+        release_stream(adev->fm_capture_stream);
+    }
+
     free_audio_config(adev->cm);
 
     free(device);
@@ -3137,6 +3358,30 @@ static int adev_open(const hw_module_t *module, const char *name,
     }
 
     adev->global_stream = get_named_stream(adev->cm, "global");
+
+    /* FM needs both its streams, and DAC1's scale to know a gain below it */
+    adev->fm_patch_handle = AUDIO_PATCH_HANDLE_NONE;
+    adev->fm_stream = get_named_stream(adev->cm, "fm");
+    adev->fm_capture_stream = get_named_stream(adev->cm, "fm capture");
+    if (adev->fm_stream == NULL || adev->fm_capture_stream == NULL) {
+        ALOGE("No fm and fm capture streams in the config: no FM");
+        if (adev->fm_stream != NULL) {
+            release_stream(adev->fm_stream);
+        }
+        if (adev->fm_capture_stream != NULL) {
+            release_stream(adev->fm_capture_stream);
+        }
+        adev->fm_stream = NULL;
+        adev->fm_capture_stream = NULL;
+    } else {
+        long max_mb;
+
+        ret = get_hw_volume_mb_range(adev->fm_stream, &adev->fm_min_mb, &max_mb);
+        if (ret < 0) {
+            ALOGE("No dB scale for the fm stream's volume (%d): FM never mutes", ret);
+            adev->fm_min_mb = LONG_MIN;
+        }
+    }
 
     *device = &adev->hw_device.common;
 
