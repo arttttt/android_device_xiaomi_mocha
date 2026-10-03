@@ -11,6 +11,14 @@ PRODUCT_PROPERTY_OVERRIDES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     drm.service.enabled=true
 
+# FM
+#
+# De-emphasis of the FM receiver, in microseconds: it has to match the
+# transmitters' -- 50 in Europe, Russia and most of the world, 75 in the
+# Americas and Korea. The FM HAL sets it on the chip when the radio starts.
+PRODUCT_PROPERTY_OVERRIDES += \
+    ro.vendor.fm.deemphasis=50
+
 # Graphics
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.opengles.version=196610 \
