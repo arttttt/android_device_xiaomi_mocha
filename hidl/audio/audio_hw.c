@@ -117,6 +117,13 @@ struct audio_device {
 
     /* Open PCM output streams, under lock */
     struct listnode pcm_outputs;
+
+    /* All open streams, for finding one by its io handle; under lock */
+    struct listnode outputs;
+    struct listnode inputs;
+
+    /* The last audio patch handle given out, under lock */
+    audio_patch_handle_t last_patch_handle;
 };
 
 
@@ -133,6 +140,12 @@ struct stream_out_common {
     pthread_mutex_t lock;
 
     bool standby;
+
+    /* In audio_device.outputs. The io handle and the handle of the patch
+     * that routes the stream are under the device lock */
+    struct listnode node;
+    audio_io_handle_t io_handle;
+    audio_patch_handle_t patch_handle;
 
     /*
      * Stream parameters as seen by AudioFlinger
@@ -249,6 +262,12 @@ struct stream_in_common {
 
     bool standby;
 
+    /* In audio_device.inputs. The io handle and the handle of the patch
+     * that routes the stream are under the device lock */
+    struct listnode node;
+    audio_io_handle_t io_handle;
+    audio_patch_handle_t patch_handle;
+
     /*
      * Stream parameters as seen by AudioFlinger
      * If stream is resampling AudioFlinger buffers before
@@ -338,23 +357,6 @@ static int stream_invoke_usecases(const struct hw_stream *stream, const char *kv
     return ret;
 }
 
-static int common_get_routing_param(uint32_t *vout, const char *kvpairs)
-{
-    struct str_parms *parms;
-    char value[32];
-    int ret;
-
-    parms = str_parms_create_str(kvpairs);
-
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING,
-                            value, sizeof(value));
-    if (ret >= 0) {
-        *vout = atoi(value);
-    }
-    str_parms_destroy(parms);
-    return ret;
-}
-
 /*********************************************************************
  * Output stream common functions
  *********************************************************************/
@@ -424,16 +426,9 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
     struct stream_out_common *out = (struct stream_out_common *)stream;
     struct audio_device *adev = out->dev;
-    uint32_t v;
-    int ret;
 
-    ret = common_get_routing_param(&v, kvpairs);
-
+    /* Routes come as audio patches, see "Audio patches" below */
     pthread_mutex_lock(&adev->lock);
-
-    if (ret >= 0) {
-        apply_route(out->hw, v);
-    }
 
     stream_invoke_usecases(out->hw, kvpairs);
 
@@ -1906,10 +1901,7 @@ static int do_init_in_common(struct stream_in_common *in,
 #else
     in->frame_size = audio_stream_frame_size(&in->stream.common);
 #endif
-    /*
-     * Save devices so we can apply initial routing after we've
-     * been told the input_source and opened the stream
-     */
+    /* The route itself is put on by the stream's first audio patch */
     in->devices = devices;
 
     return 0;
@@ -2200,24 +2192,22 @@ static int start_pcm_input_stream(struct stream_in_pcm *in)
     return ret;
 }
 
-static int change_input_source_locked(struct stream_in_pcm *in, const char *value,
-                                      uint32_t devices, bool *was_changed)
+static int change_input_source_locked(struct stream_in_pcm *in, int new_source,
+                                      uint32_t devices)
 {
     struct audio_config config;
     const char *stream_name;
     const struct hw_stream *hw = NULL;
-    const int new_source = atoi(value);
 
-    *was_changed = false;
+    /* Checked first: a new route for a running capture keeps its source */
+    if (in->common.input_source == new_source) {
+        ALOGV("input source not changed");
+        return 0;
+    }
 
     if (!in->common.standby) {
         ALOGE("attempt to change input source while active");
         return -EINVAL;
-    }
-
-    if (in->common.input_source == new_source) {
-        ALOGV("input source not changed");
-        return 0;
     }
 
     /*
@@ -2272,7 +2262,6 @@ static int change_input_source_locked(struct stream_in_pcm *in, const char *valu
 
         in->common.hw = hw;
         in->common.input_source = new_source;
-        *was_changed = true;
         return 0;
     } else {
         ALOGV("Could not open new input stream");
@@ -2372,61 +2361,41 @@ static ssize_t in_pcm_read(struct audio_stream_in *stream, void *buffer,
     return ret;
 }
 
+/*
+ * Routes the stream to devices, from the given source: the source first,
+ * as it may change the config manager stream the route is put on.
+ * Called with the stream's lock held.
+ */
+static int route_input_locked(struct stream_in_pcm *in, int source,
+                              uint32_t devices)
+{
+    int ret;
+
+    ret = change_input_source_locked(in, source, devices);
+    if (ret < 0) {
+        return ret;
+    }
+
+    in->common.devices = devices;
+
+    if (in->common.hw) {
+        ALOGV("Apply routing=0x%x to input stream", devices);
+        apply_route(in->common.hw, devices);
+    }
+
+    return 0;
+}
+
 static int in_pcm_set_parameters(struct audio_stream *stream, const char *kvpairs)
 {
     struct stream_in_pcm *in = (struct stream_in_pcm *)stream;
-    struct str_parms *parms;
-    char value[32];
-    uint32_t new_routing = 0;
-    bool routing_changed;
-    uint32_t devices;
-    bool input_was_changed;
-    int ret;
 
     ALOGV("+in_pcm_set_parameters(%p) '%s'", stream, kvpairs);
 
-    ret = common_get_routing_param(&new_routing, kvpairs);
-    routing_changed = (ret >= 0);
-    parms = str_parms_create_str(kvpairs);
-
+    /* Routes and the input source come as audio patches */
     pthread_mutex_lock(&in->common.lock);
-
-    if (str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_INPUT_SOURCE,
-                          value, sizeof(value)) >= 0) {
-
-        if (routing_changed) {
-            devices = new_routing;
-        } else if (in->common.hw != NULL) {
-            /* Route new stream to same devices as current stream */
-            devices = get_current_routes(in->common.hw);
-        } else {
-            devices = 0;
-        }
-
-        ret = change_input_source_locked(in, value, devices, &input_was_changed);
-        if (ret < 0) {
-            goto out;
-        }
-
-        /* We must apply any existing routing to the new stream */
-        new_routing = devices;
-        routing_changed = true;
-    }
-
-    if (routing_changed) {
-        in->common.devices = new_routing;
-
-        if (in->common.hw) {
-            ALOGV("Apply routing=0x%x to input stream", new_routing);
-            apply_route(in->common.hw, new_routing);
-        }
-    }
-
     stream_invoke_usecases(in->common.hw, kvpairs);
-
-out:
     pthread_mutex_unlock(&in->common.lock);
-    str_parms_destroy(parms);
 
     ALOGV("-in_pcm_set_parameters(%p)", stream);
 
@@ -2505,9 +2474,9 @@ static int do_init_in_pcm(struct stream_in_pcm *in,
     in->common.stream.get_capture_position = in_pcm_get_capture_position;
 
     /*
-     * Although AudioFlinger has not yet told us the input_source for
-     * this stream, it expects us to already know the buffer size.
-     * We just have to hardcode something that might work
+     * The buffer size has to be known at open, before any config manager
+     * stream has been chosen for the input source. We just have to
+     * hardcode something that might work
      */
     in->common.buffer_size = IN_PCM_BUFFER_SIZE_DEFAULT;
 
@@ -2604,11 +2573,15 @@ static int adev_open_output_stream_v3(struct audio_hw_device *dev,
         goto err_open;
     }
 
+    out.common->io_handle = handle;
+    out.common->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+
+    pthread_mutex_lock(&adev->lock);
+    list_add_tail(&adev->outputs, &out.common->node);
     if (hw->type == e_stream_out_pcm) {
-        pthread_mutex_lock(&adev->lock);
         list_add_tail(&adev->pcm_outputs, &out.pcm->node);
-        pthread_mutex_unlock(&adev->lock);
     }
+    pthread_mutex_unlock(&adev->lock);
 
     /* Update config with initial stream settings */
     config->format = out.common->format;
@@ -2630,8 +2603,15 @@ err_fail:
 static void adev_close_output_stream(struct audio_hw_device *dev,
                                      struct audio_stream_out *stream)
 {
+    struct audio_device *adev = (struct audio_device *)dev;
     struct stream_out_common *out = (struct stream_out_common *)stream;
     ALOGV("adev_close_output_stream(%p)", stream);
+
+    /* Its patch, if still there, goes with it */
+    pthread_mutex_lock(&adev->lock);
+    list_remove(&out->node);
+    pthread_mutex_unlock(&adev->lock);
+
     (out->close)(stream);
 }
 
@@ -2666,12 +2646,6 @@ static int adev_open_input_stream_v3(struct audio_hw_device *dev,
         goto fail;
     }
 
-    /*
-     * We don't open a config manager stream here because we don't yet
-     * know what input_source to use. Defer until Android sends us an
-     * input_source set_parameter()
-     */
-
     in = (struct stream_in_pcm *)calloc(1, sizeof(struct stream_in_pcm));
     if (!in) {
         ret = -ENOMEM;
@@ -2689,6 +2663,24 @@ static int adev_open_input_stream_v3(struct audio_hw_device *dev,
     if (ret < 0) {
         goto fail;
     }
+
+    /*
+     * The source is known at open (the HIDL wrapper takes it from the
+     * stream's sink metadata), so the config manager stream for it is
+     * chosen now; the patch that routes the stream brings it again.
+     * Failing to find one leaves the generic stream, as before.
+     */
+    if (change_input_source_locked(in, source, devices) < 0) {
+        ALOGW("No input stream for source %d, keeping the generic one",
+              source);
+    }
+
+    in->common.io_handle = handle;
+    in->common.patch_handle = AUDIO_PATCH_HANDLE_NONE;
+
+    pthread_mutex_lock(&adev->lock);
+    list_add_tail(&adev->inputs, &in->common.node);
+    pthread_mutex_unlock(&adev->lock);
 
     *stream_in = &in->common.stream;
     return 0;
@@ -2729,10 +2721,268 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
 static void adev_close_input_stream(struct audio_hw_device *dev,
                                     struct audio_stream_in *stream)
 {
+    struct audio_device *adev = (struct audio_device *)dev;
     struct stream_in_common *in = (struct stream_in_common *)stream;
     ALOGV("adev_close_input_stream(%p)", stream);
 
+    /* Its patch, if still there, goes with it */
+    pthread_mutex_lock(&adev->lock);
+    list_remove(&in->node);
+    pthread_mutex_unlock(&adev->lock);
+
     (in->close)(&stream->common);
+}
+
+/*********************************************************************
+ * Audio patches
+ *
+ * From AUDIO_DEVICE_API_VERSION_3_0 on, AudioFlinger routes streams with
+ * audio patches instead of "routing" and "input_source" parameters: a
+ * patch from a stream's mix to the devices it plays on, or from the device
+ * a stream captures from to its mix, carrying the input source. A new
+ * route for the stream comes as a patch with the handle of the one it
+ * replaces, and the release of a patch takes the stream off its devices,
+ * as "routing=0" did.
+ *
+ * A stream holds the handle of the patch that routes it; nothing else
+ * keeps patches. The handles and the stream lists are under the device
+ * lock, which is taken before an input's lock and never under one.
+ * AudioFlinger waits for these calls from the stream's thread, so they
+ * neither sleep nor touch the PCM.
+ *********************************************************************/
+
+static struct stream_out_common *find_output_l(struct audio_device *adev,
+                                               audio_io_handle_t io_handle)
+{
+    struct listnode *node;
+
+    list_for_each(node, &adev->outputs) {
+        struct stream_out_common *out =
+                node_to_item(node, struct stream_out_common, node);
+        if (out->io_handle == io_handle) {
+            return out;
+        }
+    }
+    return NULL;
+}
+
+static struct stream_in_common *find_input_l(struct audio_device *adev,
+                                             audio_io_handle_t io_handle)
+{
+    struct listnode *node;
+
+    list_for_each(node, &adev->inputs) {
+        struct stream_in_common *in =
+                node_to_item(node, struct stream_in_common, node);
+        if (in->io_handle == io_handle) {
+            return in;
+        }
+    }
+    return NULL;
+}
+
+/* The stream the patch routes, if any: one of *out and *in is set */
+static bool find_patch_l(struct audio_device *adev, audio_patch_handle_t handle,
+                         struct stream_out_common **out,
+                         struct stream_in_common **in)
+{
+    struct listnode *node;
+
+    *out = NULL;
+    *in = NULL;
+
+    if (handle == AUDIO_PATCH_HANDLE_NONE) {
+        return false;
+    }
+
+    list_for_each(node, &adev->outputs) {
+        struct stream_out_common *o =
+                node_to_item(node, struct stream_out_common, node);
+        if (o->patch_handle == handle) {
+            *out = o;
+            return true;
+        }
+    }
+    list_for_each(node, &adev->inputs) {
+        struct stream_in_common *i =
+                node_to_item(node, struct stream_in_common, node);
+        if (i->patch_handle == handle) {
+            *in = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+static audio_patch_handle_t new_patch_handle_l(struct audio_device *adev)
+{
+    /* Never AUDIO_PATCH_HANDLE_NONE, nor negative after a wrap */
+    if (adev->last_patch_handle <= AUDIO_PATCH_HANDLE_NONE ||
+            adev->last_patch_handle == INT32_MAX) {
+        adev->last_patch_handle = AUDIO_PATCH_HANDLE_NONE;
+    }
+    return ++adev->last_patch_handle;
+}
+
+static int adev_create_audio_patch(struct audio_hw_device *dev,
+                                   unsigned int num_sources,
+                                   const struct audio_port_config *sources,
+                                   unsigned int num_sinks,
+                                   const struct audio_port_config *sinks,
+                                   audio_patch_handle_t *handle)
+{
+    struct audio_device *adev = (struct audio_device *)dev;
+    struct stream_out_common *out = NULL;
+    struct stream_in_common *in = NULL;
+    struct stream_out_common *old_out;
+    struct stream_in_common *old_in;
+    audio_io_handle_t io_handle;
+    audio_source_t source = AUDIO_SOURCE_DEFAULT;
+    uint32_t devices = 0;
+    unsigned int i;
+    int ret = 0;
+
+    if (sources == NULL || sinks == NULL || handle == NULL ||
+            num_sources != 1 || num_sinks == 0 ||
+            num_sinks > AUDIO_PATCH_PORTS_MAX) {
+        ALOGE("%s: %u sources, %u sinks", __func__, num_sources, num_sinks);
+        return -EINVAL;
+    }
+
+    if (sources[0].type == AUDIO_PORT_TYPE_MIX) {
+        /* Playback: the stream plays on every sink */
+        for (i = 0; i < num_sinks; i++) {
+            if (sinks[i].type != AUDIO_PORT_TYPE_DEVICE) {
+                ALOGE("%s: sink %u of a playback patch is not a device",
+                      __func__, i);
+                return -EINVAL;
+            }
+            devices |= sinks[i].ext.device.type;
+        }
+        io_handle = sources[0].ext.mix.handle;
+    } else if (sources[0].type == AUDIO_PORT_TYPE_DEVICE &&
+               sinks[0].type == AUDIO_PORT_TYPE_MIX) {
+        /* Capture: one device into one stream, with its input source */
+        if (num_sinks != 1) {
+            ALOGE("%s: capture patch with %u sinks", __func__, num_sinks);
+            return -EINVAL;
+        }
+        devices = sources[0].ext.device.type;
+        io_handle = sinks[0].ext.mix.handle;
+        source = sinks[0].ext.mix.usecase.source;
+    } else {
+        ALOGW("%s: device to device patches are not supported", __func__);
+        return -ENOSYS;
+    }
+
+    pthread_mutex_lock(&adev->lock);
+
+    if (sources[0].type == AUDIO_PORT_TYPE_MIX) {
+        out = find_output_l(adev, io_handle);
+    } else {
+        in = find_input_l(adev, io_handle);
+    }
+    if (out == NULL && in == NULL) {
+        ALOGE("%s: no stream with io handle %d", __func__, io_handle);
+        ret = -EINVAL;
+        goto exit;
+    }
+
+    if (out != NULL) {
+        apply_route(out->hw, devices);
+    } else {
+        pthread_mutex_lock(&in->lock);
+        ret = route_input_locked((struct stream_in_pcm *)in, source, devices);
+        pthread_mutex_unlock(&in->lock);
+        if (ret < 0) {
+            ALOGE("%s: io handle %d: source %d devices 0x%x: %d", __func__,
+                  io_handle, source, devices, ret);
+            goto exit;
+        }
+    }
+
+    /*
+     * A patch given back to update is kept under its handle, and moves to
+     * this stream if another held it; that one keeps its route, as a route
+     * set on one stream never undid another's. A handle no stream holds
+     * (one this HAL never gave, or another module's after AudioFlinger
+     * moved the patch) is replaced by a new one.
+     */
+    if (find_patch_l(adev, *handle, &old_out, &old_in)) {
+        if (old_out != NULL && old_out != out) {
+            old_out->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+        } else if (old_in != NULL && old_in != in) {
+            old_in->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+        }
+    } else {
+        if (*handle != AUDIO_PATCH_HANDLE_NONE) {
+            ALOGW("%s: unknown patch %d, giving a new handle", __func__, *handle);
+        }
+        *handle = new_patch_handle_l(adev);
+    }
+
+    /* A patch the stream had and AudioFlinger dropped without a release
+     * is simply forgotten here */
+    if (out != NULL) {
+        out->patch_handle = *handle;
+    } else {
+        in->patch_handle = *handle;
+    }
+
+    ALOGV("%s: patch %d: %s io handle %d devices 0x%x source %d", __func__,
+          *handle, out != NULL ? "output" : "input", io_handle, devices, source);
+
+exit:
+    pthread_mutex_unlock(&adev->lock);
+    return ret;
+}
+
+static int adev_release_audio_patch(struct audio_hw_device *dev,
+                                    audio_patch_handle_t handle)
+{
+    struct audio_device *adev = (struct audio_device *)dev;
+    struct stream_out_common *out;
+    struct stream_in_common *in;
+
+    pthread_mutex_lock(&adev->lock);
+
+    if (!find_patch_l(adev, handle, &out, &in)) {
+        /* Its stream is gone, or a newer patch took its place */
+        ALOGW("%s: unknown patch %d", __func__, handle);
+        pthread_mutex_unlock(&adev->lock);
+        return 0;
+    }
+
+    if (out != NULL) {
+        apply_route(out->hw, 0);
+        out->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+    } else {
+        pthread_mutex_lock(&in->lock);
+        in->devices = 0;
+        if (in->hw != NULL) {
+            apply_route(in->hw, 0);
+        }
+        pthread_mutex_unlock(&in->lock);
+        in->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+    }
+
+    ALOGV("%s: patch %d", __func__, handle);
+
+    pthread_mutex_unlock(&adev->lock);
+    return 0;
+}
+
+/* The HIDL wrapper calls this whatever the version, so it must be set */
+static int adev_get_audio_port(struct audio_hw_device *dev,
+                               struct audio_port *port)
+{
+    return -ENOSYS;
+}
+
+static int adev_set_audio_port_config(struct audio_hw_device *dev,
+                                      const struct audio_port_config *config)
+{
+    return -ENOSYS;
 }
 
 /*********************************************************************
@@ -2880,9 +3130,12 @@ static int adev_open(const hw_module_t *module, const char *name,
     }
 
     list_init(&adev->pcm_outputs);
+    list_init(&adev->outputs);
+    list_init(&adev->inputs);
+    adev->last_patch_handle = AUDIO_PATCH_HANDLE_NONE;
 
     adev->hw_device.common.tag = HARDWARE_DEVICE_TAG;
-    adev->hw_device.common.version = AUDIO_DEVICE_API_VERSION_2_0;
+    adev->hw_device.common.version = AUDIO_DEVICE_API_VERSION_3_0;
     adev->hw_device.common.module = (struct hw_module_t *) module;
     adev->hw_device.common.close = adev_close;
 
@@ -2899,6 +3152,10 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->hw_device.close_output_stream = adev_close_output_stream;
     adev->hw_device.open_input_stream = adev_open_input_stream;
     adev->hw_device.close_input_stream = adev_close_input_stream;
+    adev->hw_device.create_audio_patch = adev_create_audio_patch;
+    adev->hw_device.release_audio_patch = adev_release_audio_patch;
+    adev->hw_device.get_audio_port = adev_get_audio_port;
+    adev->hw_device.set_audio_port_config = adev_set_audio_port_config;
     adev->hw_device.dump = adev_dump;
 
     property_get("ro.product.device", property, "generic");

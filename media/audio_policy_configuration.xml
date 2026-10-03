@@ -14,7 +14,7 @@
              outputs and the HDMI port came with the Shield Tablet's
              configuration, written for NVIDIA's HAL and HDMI; this board has
              no HDMI and tinyhal has no such streams. -->
-        <module name="primary" halVersion="2.0">
+        <module name="primary" halVersion="3.0">
             <attachedDevices>
                 <item>Speaker</item>
                 <item>Built-In Mic</item>
