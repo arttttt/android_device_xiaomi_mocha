@@ -51,7 +51,7 @@ cc_library {
         },
     },
 
-    system_shared_libs: ["libc", "libdl"],
+    system_shared_libs: ["libc", "libdl", "libm"],
 
     sanitize: {
         integer_overflow: true,

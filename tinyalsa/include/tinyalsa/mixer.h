@@ -153,6 +153,11 @@ int mixer_ctl_get_range_min(const struct mixer_ctl *ctl);
 
 int mixer_ctl_get_range_max(const struct mixer_ctl *ctl);
 
+/* Gains in 1/100 dB, on the dB scale (TLV) the driver gives the control */
+int mixer_ctl_get_db_range(const struct mixer_ctl *ctl, long *min_db, long *max_db);
+
+int mixer_ctl_get_value_for_db(const struct mixer_ctl *ctl, long db, int *value);
+
 int mixer_read_event(struct mixer *mixer, struct mixer_ctl_event *event);
 
 int mixer_consume_event(struct mixer *mixer);
