@@ -144,7 +144,7 @@
                          scale, -65.62..0 dB, the HAL setting the nearest
                          step; below it, -66 dB, mutes. -->
                     <gains>
-                        <gain name="fm_volume" mode="AUDIO_GAIN_MODE_JOINT"
+                        <gain name="fm_gain" mode="AUDIO_GAIN_MODE_JOINT"
                               minValueMB="-6600" maxValueMB="0"
                               defaultValueMB="0" stepValueMB="1"/>
                     </gains>

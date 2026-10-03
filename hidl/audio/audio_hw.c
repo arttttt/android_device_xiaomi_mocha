@@ -3175,8 +3175,6 @@ static int adev_set_audio_port_config(struct audio_hw_device *dev,
 static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
 {
     struct audio_device *adev = (struct audio_device *)dev;
-    struct str_parms *parms;
-    char value[32];
 
     ALOGW("adev_set_parameters '%s'", kvpairs);
 
@@ -3184,41 +3182,6 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
         stream_invoke_usecases(adev->global_stream, kvpairs);
     }
 
-    parms = str_parms_create_str(kvpairs);
-    if (parms == NULL) {
-        return 0;
-    }
-
-    /*
-     * fm_volume: FM plays inside the codec (BCM4354 I2S -> AIF4 -> DAC1 ->
-     * speaker) and never passes AudioFlinger's mixer, so no stream volume
-     * reaches it. The FM app forwards STREAM_MUSIC volume here instead, as
-     * setParameters("fm_volume=<0..1>"). The named hw stream "fm" in the
-     * config carries the codec control and its range in its leftvol and
-     * rightvol <ctl>s; set_hw_volume() scales the percentage onto them.
-     */
-    if (str_parms_get_str(parms, "fm_volume", value, sizeof(value)) >= 0) {
-        float vol = strtof(value, NULL);
-        int pc;
-
-        if (vol < 0.0f) {
-            vol = 0.0f;
-        } else if (vol > 1.0f) {
-            vol = 1.0f;
-        }
-        pc = (int)(vol * 100.0f + 0.5f);
-
-        pthread_mutex_lock(&adev->lock);
-        if (adev->fm_stream != NULL) {
-            set_hw_volume(adev->fm_stream, pc, pc);
-            ALOGV("fm_volume %.3f -> %d%%", vol, pc);
-        } else {
-            ALOGW("fm_volume: no stream named fm in the config");
-        }
-        pthread_mutex_unlock(&adev->lock);
-    }
-
-    str_parms_destroy(parms);
     return 0;
 }
 

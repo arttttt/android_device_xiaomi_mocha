@@ -355,15 +355,14 @@
 	  to the fm chain. It takes from the speakers only their on_fm path.
 
 	  Its volume is DAC1's, which only FM goes through: the patch's gain
-	  in mB, set on the control's own dB scale by set_audio_port_config,
-	  or a percentage from the older fm_volume parameter.
+	  in mB, set on the control's own dB scale by set_audio_port_config.
 	  DAC1 Playback Volume is one control with two channels, so left and
 	  right are its index 0 and 1. A gain below the control's scale mutes:
 	  DAC1's mixer switches, which the fm chain closes, open again.
 	-->
 	<stream name="fm" type="hw" dir="out">
-		<ctl function="leftvol"  name="DAC1 Playback Volume" index="0" min="0" max="175"/>
-		<ctl function="rightvol" name="DAC1 Playback Volume" index="1" min="0" max="175"/>
+		<ctl function="leftvol"  name="DAC1 Playback Volume" index="0"/>
+		<ctl function="rightvol" name="DAC1 Playback Volume" index="1"/>
 		<usecase name="mute">
 			<case name="on">
 				<ctl name="DAC1 MIXL DAC1 Switch" val="0"/>
