@@ -258,6 +258,8 @@
         <path name="off">
             <ctl name="FM Switch" val="0"/>
             <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
+            <ctl name="DAC1 L Mux" val="IF1 DAC"/>
+            <ctl name="DAC1 R Mux" val="IF1 DAC"/>
         </path>
     </device>
 
@@ -302,6 +304,8 @@
         <path name="off">
             <ctl name="FM Switch" val="0"/>
             <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
+            <ctl name="DAC1 L Mux" val="IF1 DAC"/>
+            <ctl name="DAC1 R Mux" val="IF1 DAC"/>
             <ctl name="Mono DAC MIXL DAC L1 Switch" val="0"/>
             <ctl name="Mono DAC MIXR DAC R1 Switch" val="0"/>
             <ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
