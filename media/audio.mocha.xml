@@ -236,12 +236,17 @@
     <device name="fm">
         <!-- Mirrors the stock NV nvaudio_conf.xml fm-tx playback path:
              BCM4354 FM I2S → RT5671 AIF4 (IF4) → DAC1 mixer.
+             The BCM4354 masters that I2S from its own 37.4 MHz crystal
+             (48 kHz, 1.536 MHz BCLK; CYW4354 datasheet), unrelated to the
+             codec's clock, so the stereo DAC filter tracks I2S4 through the
+             ASRC while FM plays, and goes back to the system clock with it:
+             the AIF1 playback it serves otherwise is synchronous.
              HP / speaker output enable is the responsibility of whichever
              output device is selected alongside fm in the policy mask. -->
         <path name="on">
             <ctl name="DAC1 L Mux" val="IF4 DAC"/>
             <ctl name="DAC1 R Mux" val="IF4 DAC"/>
-            <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
+            <ctl name="DA STO ASRC Switch" val="clk_i2s4_track"/>
             <ctl name="DAC1 MIXL DAC1 Switch" val="1"/>
             <ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
             <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
@@ -252,6 +257,7 @@
         </path>
         <path name="off">
             <ctl name="FM Switch" val="0"/>
+            <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
         </path>
     </device>
 
@@ -284,7 +290,7 @@
 
             <ctl name="DAC1 L Mux" val="IF4 DAC"/>
             <ctl name="DAC1 R Mux" val="IF4 DAC"/>
-            <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
+            <ctl name="DA STO ASRC Switch" val="clk_i2s4_track"/>
             <ctl name="DAC1 MIXL DAC1 Switch" val="1"/>
             <ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
             <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
@@ -295,6 +301,7 @@
         </path>
         <path name="off">
             <ctl name="FM Switch" val="0"/>
+            <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
             <ctl name="Mono DAC MIXL DAC L1 Switch" val="0"/>
             <ctl name="Mono DAC MIXR DAC R1 Switch" val="0"/>
             <ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
