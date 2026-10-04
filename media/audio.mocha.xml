@@ -324,9 +324,9 @@
 	     most the Tegra DMA buffer holds at 24 bits. Its volume is the
 	     kernel's HiFi Playback Volume, the gain of the DAM input only this
 	     stream goes through, one for both channels: 0.5 dB steps from
-	     -60 dB, 0 dB leaving the samples untouched. A DIRECT output's
-	     volume on Android 11 is the HAL's alone. min 5 is -58 dB, the
-	     bottom of AudioFlinger's volume, which the HAL's percent spans.
+	     -63 dB, 0 dB leaving the samples untouched. A DIRECT output's
+	     volume on Android 11 is the HAL's alone; it sets it in mB on the
+	     control's own dB scale, as it does FM's.
 
 	     What a stream needs of its devices is in their on/off paths,
 	     counted per device, so any stream may leave a device while
@@ -344,7 +344,7 @@
 	<stream type="pcm" dir="out" device="7"
 	        flags="direct" instances="1"
 	        period_size="1024" period_count="4">
-		<ctl function="volume" name="HiFi Playback Volume" min="5" max="121"/>
+		<ctl function="volume" name="HiFi Playback Volume"/>
 	</stream>
 
 	<stream type="pcm" dir="in" device="0" rate="48000">
