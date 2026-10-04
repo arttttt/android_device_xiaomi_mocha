@@ -182,33 +182,36 @@
 	</device>
 
 	<!--
-	  Microphones. Recording is raw: the codec DSP is bypassed and its
-	  DRC/AGC is off, so noise suppression and echo cancelling are left to
-	  Android's effects, for the sources that ask for them. Stock ran its
-	  DSP noise suppression on every recording.
+	  Microphones. The built-in mics record through the codec's voice
+	  DSP, in its 48 kHz stereo mode with noise suppression and far-field
+	  pickup (the kernel's table): MAIN (IN2) left, AUX (IN4) right, the
+	  two mics it works with. The headset mic records raw, the DSP
+	  bypassed, until it is measured. DRC/AGC is off on both. Every
+	  source records the same way for now, voice recognition, which
+	  wants it raw, included.
 
 	  Each input sets its whole chain to AIF1: the muxes are shared with
 	  the FM capture's tap (the "fm capture" stream), which points them
 	  elsewhere.
 
 	  Chain: mic -> BST -> RECMIX -> ADC -> Stereo1 ADC -> TDM slot 0-1 ->
-	  DSP UL (bypass) -> TxDP -> IF1 ADC1 -> AIF1 TX.
+	  DSP UL (DSP, or bypass) -> TxDP -> IF1 ADC1 -> AIF1 TX.
 
-	  The built-in mics record MAIN (IN2) on both channels, its gain all in
-	  BST, before the ADC: +40 dB, TxDP at 0 dB. Stock's +22.9 dB, all of
-	  it TxDP's, was made up by its DSP's DRC/AGC, which the raw path has
-	  off: without them speech from a hand-held tablet peaked at -33 dBFS,
-	  with +40 dB at -17. The ADC's own noise sits well under a quiet
-	  room's. AUX (IN4) sits close to a speaker's sound and is left out.
-	  The headset mic keeps stock's gain until measured.
+	  The built-in mics' gain is BST, before the ADC, at +40 dB, and TxDP,
+	  after the DSP, at 0 dB. With the DSP's ~10 dB on top, speech from a
+	  tablet held in the hand reads about -20 dBFS and peaks at -6, a
+	  room's air conditioning about -58 dBFS in the pauses. Raising BST
+	  instead lowered the DSP's noise suppression; a louder recording is
+	  TxDP's to give, past the DSP. The headset mic keeps stock's gain
+	  until measured.
 	-->
     <device name="mic">
 		<path name="on">
           <ctl name="IF1 ADC Mux" val="IF1_ADC1"/>
           <ctl name="IF1 ADC1 IN2 Mux" val="IF1_ADC4"/>
           <ctl name="TDM Data Mux" val="Slot 0-1"/>
-          <ctl name="DSP UL Mux" val="Bypass"/>
-          <ctl name="DSP Function Switch" val="Disable"/>
+          <ctl name="DSP UL Mux" val="DSP"/>
+          <ctl name="DSP Function Switch" val="BuiltinMic 48K-stereo+FFP+NS"/>
           <ctl name="TxDP Capture Volume" val="47"/>
           <ctl name="TxDP SRC Switch" val="Normal"/>
           <ctl name="DRC Switch" val="Disable"/>
@@ -217,17 +220,17 @@
           <ctl name="Stereo1 ADC Mux" val="ADC1L ADC2R"/>
           <ctl name="ADC 1_2" val="ADC"/>
           <ctl name="IN2 Boost" val="5"/>
-          <ctl name="IN4 Boost" val="1"/>
+          <ctl name="IN4 Boost" val="5"/>
           <ctl name="RECMIXL BST2 Switch" val="1"/>
           <ctl name="RECMIXL BST4 Switch" val="0"/>
-          <ctl name="RECMIXR BST2 Switch" val="1"/>
-          <ctl name="RECMIXR BST4 Switch" val="0"/>
+          <ctl name="RECMIXR BST2 Switch" val="0"/>
+          <ctl name="RECMIXR BST4 Switch" val="1"/>
           <ctl name="Sto1 ADC MIXL ADC1 Switch" val="1"/>
           <ctl name="Sto1 ADC MIXR ADC1 Switch" val="1"/>
 		</path>
         <path name="off">
           <ctl name="RECMIXL BST2 Switch" val="0"/>
-          <ctl name="RECMIXR BST2 Switch" val="0"/>
+          <ctl name="RECMIXR BST4 Switch" val="0"/>
           <ctl name="Sto1 ADC MIXL ADC1 Switch" val="0"/>
           <ctl name="Sto1 ADC MIXR ADC1 Switch" val="0"/>
         </path>
