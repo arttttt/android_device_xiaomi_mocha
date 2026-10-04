@@ -101,10 +101,23 @@
                              samplingRates="44100,48000,88200,96000"
                              channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                 </devicePort>
-                <devicePort tagName="BT SCO Out" type="AUDIO_DEVICE_OUT_ALL_SCO" role="sink">
+                <!-- One port per SCO device type: AudioService connects them
+                     one by one, and a port of the three types at once
+                     matches none of them -->
+                <devicePort tagName="BT SCO" type="AUDIO_DEVICE_OUT_BLUETOOTH_SCO" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="8000,16000"
-                             channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                             channelMasks="AUDIO_CHANNEL_OUT_MONO"/>
+                </devicePort>
+                <devicePort tagName="BT SCO Headset" type="AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET" role="sink">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="8000,16000"
+                             channelMasks="AUDIO_CHANNEL_OUT_MONO"/>
+                </devicePort>
+                <devicePort tagName="BT SCO Car Kit" type="AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT" role="sink">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="8000,16000"
+                             channelMasks="AUDIO_CHANNEL_OUT_MONO"/>
                 </devicePort>
                 <devicePort tagName="FM Out" type="AUDIO_DEVICE_OUT_FM" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
@@ -159,7 +172,9 @@
                 <route type="mix" sink="Speaker"         sources="primary output,deep_buffer,FM In"/>
                 <route type="mix" sink="Wired Headset"   sources="primary output,deep_buffer,hifi,FM In"/>
                 <route type="mix" sink="Wired Headphone" sources="primary output,deep_buffer,hifi,FM In"/>
-                <route type="mix" sink="BT SCO Out"      sources="primary output"/>
+                <route type="mix" sink="BT SCO"          sources="primary output"/>
+                <route type="mix" sink="BT SCO Headset"  sources="primary output"/>
+                <route type="mix" sink="BT SCO Car Kit"  sources="primary output"/>
                 <route type="mix" sink="FM Out"          sources="primary output"/>
                 <route type="mix" sink="primary input"   sources="Built-In Mic,BT SCO Headset Mic,Wired Headset Mic,FM In"/>
             </routes>
