@@ -135,6 +135,16 @@
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="0"/>
             <ctl name="HPO MIX DAC1 Switch" val="0"/>
         </path>
+
+        <!-- FM, from DAC1 (see the fm device), into the stereo mixers -->
+        <path name="on_fm">
+            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
+            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
+        </path>
+        <path name="off_fm">
+            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
+            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="0"/>
+        </path>
 	</device>
 
 	<device name="headset">
@@ -149,6 +159,16 @@
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="0"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="0"/>
             <ctl name="HPO MIX DAC1 Switch" val="0"/>
+        </path>
+
+        <!-- FM, from DAC1 (see the fm device), into the stereo mixers -->
+        <path name="on_fm">
+            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
+            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
+        </path>
+        <path name="off_fm">
+            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
+            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="0"/>
         </path>
 	</device>
 
@@ -237,17 +257,18 @@
       The FM radio's own chain, for whichever stream needs it: the patch
       that plays FM on a device, or a capture from the tuner (see the fm
       streams below). Mirrors the stock NV nvaudio_conf.xml fm-tx path:
-      BCM4354 FM I2S -> RT5671 AIF4 (IF4) -> DAC1 -> stereo DAC mixer.
+      BCM4354 FM I2S -> RT5671 AIF4 (IF4) -> DAC1.
       The BCM4354 masters that I2S from its own 37.4 MHz crystal (48 kHz,
       1.536 MHz BCLK; CYW4354 datasheet), unrelated to the codec's clock,
       so the stereo DAC filter tracks I2S4 through the ASRC while FM is on,
       and goes back to the system clock with it: the AIF1 playback it
       serves otherwise is synchronous.
 
-      The stereo DAC mixer feeds both the headphones and the capture of
-      FM (ADC 1_2 takes it, see fm_in), so FM reaches the headphones
-      whenever they are on with this chain; the speakers take it only
-      through their on_fm path, for the patch.
+      The outputs take FM from DAC1 only through their on_fm paths, for
+      the patch: the speakers into the mono DAC mixers, the headphones
+      into the stereo ones. A capture takes it from DAC1 another way (see
+      fm_in), so FM recorded through the render does not reach the
+      headphones a second time, at full level, beside the render.
     -->
     <device name="fm">
         <path name="on">
@@ -256,14 +277,10 @@
             <ctl name="DA STO ASRC Switch" val="clk_i2s4_track"/>
             <ctl name="DAC1 MIXL DAC1 Switch" val="1"/>
             <ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
-            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
-            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
             <ctl name="FM Switch" val="1"/>
         </path>
         <path name="off">
             <ctl name="FM Switch" val="0"/>
-            <ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
-            <ctl name="Stereo DAC MIXR DAC R1 Switch" val="0"/>
             <ctl name="DAC1 MIXL DAC1 Switch" val="0"/>
             <ctl name="DAC1 MIXR DAC1 Switch" val="0"/>
             <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
@@ -273,28 +290,19 @@
     </device>
 
     <!--
-      Capture from the FM tuner, after stock NV nvaudio_conf.xml fm-rx: the
-      ADC path takes the stereo DAC mixer, which the fm chain feeds; the
-      HAL holds that chain for as long as the tuner is captured. Like the
-      microphones, it sets its whole chain, muxes included, and its off
-      opens only the switches its on closed.
+      Capture from the FM tuner: DAC1 (after its volume and EQ) through
+      the codec's voice DSP path, bypassing the DSP, back out on AIF1:
+      RxDP from DAC1, DSP DL bypass, TxDC to IF1 ADC. That path feeds no
+      output, unlike the stereo DAC mixer stock captured from, which also
+      drives the headphones. The HAL holds the fm chain for as long as the
+      tuner is captured. Like the microphones, it sets its whole chain;
+      it closes no switch, so its off has nothing to open.
     -->
     <device name="fm_in">
         <path name="on">
-            <ctl name="IF1 ADC Mux" val="IF1_ADC1"/>
-            <ctl name="IF1 ADC1 IN2 Mux" val="IF1_ADC1_IN1"/>
-            <ctl name="IF1 ADC1 IN1 Mux" val="IF_ADC1"/>
-            <ctl name="DRC Switch" val="Disable"/>
-            <ctl name="Sto1 ADC MIXL ADC1 Switch" val="1"/>
-            <ctl name="Sto1 ADC MIXR ADC1 Switch" val="1"/>
-            <ctl name="AD STO1 ASRC Switch" val="clk_sysy_div_out"/>
-            <ctl name="Stereo1 ADC1 Mux" val="ADC"/>
-            <ctl name="Stereo1 ADC Mux" val="ADC1L ADC2R"/>
-            <ctl name="ADC 1_2" val="Stereo DAC"/>
-        </path>
-        <path name="off">
-            <ctl name="Sto1 ADC MIXL ADC1 Switch" val="0"/>
-            <ctl name="Sto1 ADC MIXR ADC1 Switch" val="0"/>
+            <ctl name="RxDP Mux" val="DAC1"/>
+            <ctl name="DSP DL Mux" val="Bypass"/>
+            <ctl name="IF1 ADC Mux" val="TxDC_DAC"/>
         </path>
     </device>
 
