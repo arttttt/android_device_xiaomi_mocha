@@ -209,6 +209,8 @@ struct stream {
     uint32_t current_devices;   /* devices currently active for this stream */
 
     struct {
+        /* One control for both channels, or one per channel */
+        struct stream_control volume;
         struct stream_control volume_left;
         struct stream_control volume_right;
     } controls;
@@ -911,6 +913,13 @@ int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc)
         return -EINVAL;
     }
 
+    if (ctl_ref_valid(&s->controls.volume.ref)) {
+        /* One gain for both channels: their mean */
+        ret = set_vol_ctl(s, &s->controls.volume, (left_pc + right_pc) / 2);
+        ALOGV_IF(ret == 0, "set_hw_volume: %d%%", (left_pc + right_pc) / 2);
+        return ret;
+    }
+
     if (ctl_ref_valid(&s->controls.volume_left.ref)) {
         if (!ctl_ref_valid(&s->controls.volume_right.ref)) {
             /* Control is mono so average left and right */
@@ -957,6 +966,13 @@ int set_hw_volume_mb( const struct hw_stream *stream, long left_mb, long right_m
     struct stream *s = (struct stream *)stream;
     int ret = -ENOSYS;
 
+    if (ctl_ref_valid(&s->controls.volume.ref)) {
+        /* One gain for both channels: their mean */
+        ret = set_vol_ctl_mb(s, &s->controls.volume, (left_mb + right_mb) / 2);
+        ALOGV_IF(ret == 0, "set_hw_volume_mb: %ld mB", (left_mb + right_mb) / 2);
+        return ret;
+    }
+
     if (ctl_ref_valid(&s->controls.volume_left.ref)) {
         if (!ctl_ref_valid(&s->controls.volume_right.ref)) {
             /* Control is mono so average left and right */
@@ -983,7 +999,9 @@ int get_hw_volume_mb_range( const struct hw_stream *stream, long *min_mb, long *
     struct stream *s = (struct stream *)stream;
     const struct stream_control *volctl;
 
-    if (ctl_ref_valid(&s->controls.volume_left.ref)) {
+    if (ctl_ref_valid(&s->controls.volume.ref)) {
+        volctl = &s->controls.volume;
+    } else if (ctl_ref_valid(&s->controls.volume_left.ref)) {
         volctl = &s->controls.volume_left;
     } else if (ctl_ref_valid(&s->controls.volume_right.ref)) {
         volctl = &s->controls.volume_right;
@@ -1714,6 +1732,7 @@ static struct stream* new_stream(struct dyn_array *array, struct config_mgr *cm)
     s->cm = cm;
     s->enable_path = -1;    /* by default no special path to invoke */
     s->disable_path = -1;
+    ctl_ref_init(&s->controls.volume.ref);
     ctl_ref_init(&s->controls.volume_left.ref);
     ctl_ref_init(&s->controls.volume_right.ref);
     return s;
@@ -2520,7 +2539,22 @@ static int parse_stream_ctl_start(struct parse_state *state)
         }
     }
 
-    if (0 == strcmp(function, "leftvol")) {
+    /* "volume" is one control for both channels; "leftvol" and
+     * "rightvol" one per channel. A stream has one kind or the other. */
+    if (0 == strcmp(function, "volume")) {
+        if (ctl_ref_valid(&state->current.stream->controls.volume_left.ref) ||
+                ctl_ref_valid(&state->current.stream->controls.volume_right.ref)) {
+            ALOGE("'%s': a stream with leftvol/rightvol has no volume", name);
+            return -EINVAL;
+        }
+        ALOGE_IF(ctl_ref_valid(&state->current.stream->controls.volume.ref),
+                                "Volume control specified again");
+        streamctl = &(state->current.stream->controls.volume);
+    } else if (ctl_ref_valid(&state->current.stream->controls.volume.ref) &&
+            (0 == strcmp(function, "leftvol") || 0 == strcmp(function, "rightvol"))) {
+        ALOGE("'%s': a stream with volume has no leftvol/rightvol", name);
+        return -EINVAL;
+    } else if (0 == strcmp(function, "leftvol")) {
         ALOGE_IF(ctl_ref_valid(&state->current.stream->controls.volume_left.ref),
                                 "Left volume control specified again");
         streamctl = &(state->current.stream->controls.volume_left);
