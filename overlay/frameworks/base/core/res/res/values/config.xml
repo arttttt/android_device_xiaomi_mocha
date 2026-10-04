@@ -191,4 +191,8 @@
          else on this device offers it. -->
     <bool name="config_enableHapticTextHandle">true</bool>
 
+    <!-- The audio HAL records the UNPROCESSED source raw: the codec DSP
+         bypassed, no noise suppression, AGC or DRC -->
+    <bool name="config_supportAudioSourceUnprocessed">true</bool>
+
 </resources>

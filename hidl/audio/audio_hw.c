@@ -2184,6 +2184,10 @@ static int change_input_source_locked(struct stream_in_pcm *in, int new_source,
         stream_name = "voice recognition";
         break;
 
+    case AUDIO_SOURCE_UNPROCESSED:
+        stream_name = "unprocessed";
+        break;
+
     default:
         stream_name = NULL;
         break;
