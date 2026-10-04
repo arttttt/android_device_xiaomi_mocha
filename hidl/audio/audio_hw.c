@@ -3357,6 +3357,9 @@ static int adev_close(hw_device_t *device)
         release_stream(adev->fm_stream);
         release_stream(adev->fm_capture_stream);
     }
+    if (adev->global_stream != NULL) {
+        release_stream(adev->global_stream);
+    }
 
     free_audio_config(adev->cm);
 
@@ -3421,7 +3424,10 @@ static int adev_open(const hw_module_t *module, const char *name,
         goto fail;
     }
 
-    adev->global_stream = get_named_stream(adev->cm, "global");
+    /* Optional: the use-cases adev_set_parameters() keys select */
+    if (is_named_stream_defined(adev->cm, "global")) {
+        adev->global_stream = get_named_stream(adev->cm, "global");
+    }
 
     /* FM needs both its streams, and DAC1's scale to know a gain below it */
     adev->fm_patch_handle = AUDIO_PATCH_HANDLE_NONE;
