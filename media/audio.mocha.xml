@@ -192,8 +192,14 @@
 	  elsewhere.
 
 	  Chain: mic -> BST -> RECMIX -> ADC -> Stereo1 ADC -> TDM slot 0-1 ->
-	  DSP UL (bypass) -> TxDP (digital gain, +22.9 dB as in stock until the
-	  analogue gain is calibrated) -> IF1 ADC1 -> AIF1 TX.
+	  DSP UL (bypass) -> TxDP -> IF1 ADC1 -> AIF1 TX.
+
+	  The built-in mics' gain is in BST, before the ADC: +20 dB, with
+	  TxDP at +3 dB, keeps stock's +22.9 dB (all of it TxDP's) and lowers
+	  the noise in silence by some 9.5 dB (measured with no USB cable on,
+	  which induces its own hum). BST goes no higher: AUX sits close to a
+	  speaker's sound, and with that speaker at -6 dBFS it records at
+	  -7 dBFS already. The headset mic keeps stock's gain until measured.
 	-->
     <device name="mic">
 		<path name="on">
@@ -202,13 +208,15 @@
           <ctl name="TDM Data Mux" val="Slot 0-1"/>
           <ctl name="DSP UL Mux" val="Bypass"/>
           <ctl name="DSP Function Switch" val="Disable"/>
-          <ctl name="TxDP Capture Volume" val="108"/>
+          <ctl name="TxDP Capture Volume" val="55"/>
           <ctl name="TxDP SRC Switch" val="Normal"/>
           <ctl name="DRC Switch" val="Disable"/>
           <ctl name="AD STO1 ASRC Switch" val="clk_sysy_div_out"/>
           <ctl name="Stereo1 ADC1 Mux" val="ADC"/>
           <ctl name="Stereo1 ADC Mux" val="ADC1L ADC2R"/>
           <ctl name="ADC 1_2" val="ADC"/>
+          <ctl name="IN2 Boost" val="1"/>
+          <ctl name="IN4 Boost" val="1"/>
           <ctl name="RECMIXL BST2 Switch" val="1"/>
           <ctl name="RECMIXL BST4 Switch" val="0"/>
           <ctl name="RECMIXR BST2 Switch" val="0"/>
