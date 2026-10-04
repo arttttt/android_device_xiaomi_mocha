@@ -2736,10 +2736,11 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
  * in any order.
  *
  * Its volume is DAC1's, which only FM goes through: the gain the patch's
- * source port is given, in mB, set on the control's own dB scale. A gain
- * below that scale mutes, with DAC1's mixer switches; the chain closes
- * them when it comes on, so the mute is put back each time it is routed.
- * All of it is under the device lock.
+ * source port is given, in mB, set on the control's own dB scale. DAC1's
+ * mixer switches are the fm stream's "mute" use-case's alone: open while
+ * the chain is off or the gain is below that scale, closed otherwise --
+ * after the chain is routed, and before it goes. All of it is under the
+ * device lock.
  *********************************************************************/
 
 /* The sinks an FM patch can play on: those the fm stream's paths serve */
@@ -2755,21 +2756,14 @@ static bool fm_chain_on_l(const struct audio_device *adev)
 
 static void fm_apply_gain_l(struct audio_device *adev)
 {
-    bool muted;
+    const bool below = adev->fm_gain_set && adev->fm_gain_mb < adev->fm_min_mb;
 
-    if (!adev->fm_gain_set) {
-        return;
-    }
-
-    muted = adev->fm_gain_mb < adev->fm_min_mb;
-    if (!muted) {
+    if (adev->fm_gain_set && !below) {
         set_hw_volume_mb(adev->fm_stream, adev->fm_gain_mb, adev->fm_gain_mb);
     }
 
-    /* Only on the chain: its switches stay open while it is off */
-    if (fm_chain_on_l(adev)) {
-        apply_use_case(adev->fm_stream, "mute", muted ? "on" : "off");
-    }
+    apply_use_case(adev->fm_stream, "mute",
+                   (below || !fm_chain_on_l(adev)) ? "on" : "off");
 }
 
 static void fm_apply_routes_l(struct audio_device *adev)
@@ -2778,9 +2772,15 @@ static void fm_apply_routes_l(struct audio_device *adev)
                           ? adev->fm_devices | AUDIO_DEVICE_OUT_FM : 0;
     const uint32_t capture = (adev->fm_captures > 0) ? AUDIO_DEVICE_OUT_FM : 0;
 
+    /* DAC1 leaves its mixers before the chain goes, joins them after */
+    if (!fm_chain_on_l(adev)) {
+        fm_apply_gain_l(adev);
+    }
     apply_route(adev->fm_stream, play);
     apply_route(adev->fm_capture_stream, capture);
-    fm_apply_gain_l(adev);
+    if (fm_chain_on_l(adev)) {
+        fm_apply_gain_l(adev);
+    }
 }
 
 static void fm_set_tuner_input_l(struct audio_device *adev,

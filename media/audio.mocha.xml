@@ -262,7 +262,8 @@
       1.536 MHz BCLK; CYW4354 datasheet), unrelated to the codec's clock,
       so the stereo DAC filter tracks I2S4 through the ASRC while FM is on,
       and goes back to the system clock with it: the AIF1 playback it
-      serves otherwise is synchronous.
+      serves otherwise is synchronous. DAC1 joins its mixers through the fm
+      stream's "mute" use-case, not here.
 
       The outputs take FM from DAC1 only through their on_fm paths, for
       the patch: the speakers into the mono DAC mixers, the headphones
@@ -275,14 +276,10 @@
             <ctl name="DAC1 L Mux" val="IF4 DAC"/>
             <ctl name="DAC1 R Mux" val="IF4 DAC"/>
             <ctl name="DA STO ASRC Switch" val="clk_i2s4_track"/>
-            <ctl name="DAC1 MIXL DAC1 Switch" val="1"/>
-            <ctl name="DAC1 MIXR DAC1 Switch" val="1"/>
             <ctl name="FM Switch" val="1"/>
         </path>
         <path name="off">
             <ctl name="FM Switch" val="0"/>
-            <ctl name="DAC1 MIXL DAC1 Switch" val="0"/>
-            <ctl name="DAC1 MIXR DAC1 Switch" val="0"/>
             <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
             <ctl name="DAC1 L Mux" val="IF1 DAC"/>
             <ctl name="DAC1 R Mux" val="IF1 DAC"/>
@@ -365,8 +362,10 @@
 	  Its volume is DAC1's, which only FM goes through: the patch's gain
 	  in mB, set on the control's own dB scale by set_audio_port_config.
 	  DAC1 Playback Volume is one control with two channels, so left and
-	  right are its index 0 and 1. A gain below the control's scale mutes:
-	  DAC1's mixer switches, which the fm chain closes, open again.
+	  right are its index 0 and 1. DAC1's mixer switches are the "mute"
+	  use-case's alone: the HAL closes them ("off") once the fm chain is
+	  routed and the gain is on the control's scale, and opens them ("on")
+	  for a gain below it and before the chain goes.
 	-->
 	<stream name="fm" type="hw" dir="out">
 		<ctl function="leftvol"  name="DAC1 Playback Volume" index="0"/>
