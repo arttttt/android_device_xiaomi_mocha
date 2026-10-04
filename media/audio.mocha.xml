@@ -32,7 +32,6 @@
             <ctl name="DAC L2 Mux" val="IF1 DAC"/>
             <ctl name="DAC R2 Mux" val="IF1 DAC"/>
             <ctl name="DAC2 Playback Volume" val="175"/>
-            <ctl name="HP Playback Volume" val="29"/>
 
             <ctl name="Headphone Jack Switch" val="0"/>
             <ctl name="Mic Jack Switch" val="0"/>
@@ -119,21 +118,27 @@
 
 	<!--
 	  Headphones, and a headset's earpieces: the DAC2 pair goes into the
-	  stereo DAC mixer, DAC1 and the HP amp. A headset is the same output;
-	  its microphone is the input device headset_in.
+	  stereo DAC mixer, DAC1 and the HP amp, through the amp's volume
+	  (HPOVOL), which FM's volume sets; HPO MIX's other input, DAC1 straight
+	  to the amp, would pass it by. A headset is the same output; its
+	  microphone is the input device headset_in.
 	-->
 	<device name="headphone">
         <path name="on">
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="1"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="1"/>
-            <ctl name="HPO MIX DAC1 Switch" val="1"/>
+            <ctl name="HPOVOL MIXL DAC1 Switch" val="1"/>
+            <ctl name="HPOVOL MIXR DAC1 Switch" val="1"/>
+            <ctl name="HPO MIX HPVOL Switch" val="1"/>
             <ctl name="Headphone Jack Switch" val="1"/>
 		</path>
         <path name="off">
             <ctl name="Headphone Jack Switch" val="0"/>
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="0"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="0"/>
-            <ctl name="HPO MIX DAC1 Switch" val="0"/>
+            <ctl name="HPO MIX HPVOL Switch" val="0"/>
+            <ctl name="HPOVOL MIXL DAC1 Switch" val="0"/>
+            <ctl name="HPOVOL MIXR DAC1 Switch" val="0"/>
         </path>
 
         <!-- FM, from DAC1 (see the fm device), into the stereo mixers -->
@@ -151,14 +156,18 @@
         <path name="on">
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="1"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="1"/>
-            <ctl name="HPO MIX DAC1 Switch" val="1"/>
+            <ctl name="HPOVOL MIXL DAC1 Switch" val="1"/>
+            <ctl name="HPOVOL MIXR DAC1 Switch" val="1"/>
+            <ctl name="HPO MIX HPVOL Switch" val="1"/>
             <ctl name="Headphone Jack Switch" val="1"/>
 		</path>
         <path name="off">
             <ctl name="Headphone Jack Switch" val="0"/>
             <ctl name="Stereo DAC MIXL DAC L2 Switch" val="0"/>
             <ctl name="Stereo DAC MIXR DAC R2 Switch" val="0"/>
-            <ctl name="HPO MIX DAC1 Switch" val="0"/>
+            <ctl name="HPO MIX HPVOL Switch" val="0"/>
+            <ctl name="HPOVOL MIXL DAC1 Switch" val="0"/>
+            <ctl name="HPOVOL MIXR DAC1 Switch" val="0"/>
         </path>
 
         <!-- FM, from DAC1 (see the fm device), into the stereo mixers -->
@@ -281,6 +290,7 @@
             <ctl name="FM Switch" val="1"/>
         </path>
         <path name="off">
+            <ctl name="FM Playback Volume" val="255"/>
             <ctl name="FM Switch" val="0"/>
             <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
             <ctl name="DAC1 L Mux" val="IF1 DAC"/>
@@ -311,12 +321,10 @@
 	     Hifi: the DIRECT output, on device 7, with no rate: it plays at its
 	     track's rate and format (44.1 to 96 kHz, 16 or 24 bit, as its PCM
 	     reports), and the back end runs at that rate. 1024 x 4 frames, the
-	     most the Tegra DMA buffer holds at 24 bits. Its volume is the
-	     headphone amplifier's gain, so the samples reach the DAC untouched:
-	     -10..29 spreads the control's 1.5 dB steps over the 58 dB that
-	     AudioFlinger's volume spans, below the control's 0 clamped to it,
-	     and tops out at 29, the level the init path sets for every other
-	     stream.
+	     most the Tegra DMA buffer holds at 24 bits. It has no volume of
+	     its own yet: the headphone amplifier carries all the headphones
+	     play and is FM's volume, and a DIRECT output's volume on Android
+	     11 is the HAL's alone, so for now it plays at full level.
 
 	     What a stream needs of its devices is in their on/off paths,
 	     counted per device, so any stream may leave a device while
@@ -334,8 +342,6 @@
 	<stream type="pcm" dir="out" device="7"
 	        flags="direct" instances="1"
 	        period_size="1024" period_count="4">
-		<ctl function="leftvol"  name="HP Playback Volume" index="0" min="-10" max="29"/>
-		<ctl function="rightvol" name="HP Playback Volume" index="1" min="-10" max="29"/>
 	</stream>
 
 	<stream type="pcm" dir="in" device="0" rate="48000">
@@ -348,17 +354,19 @@
 	  for an audio patch from the tuner to devices: to those devices and
 	  to the fm chain. It takes from the speakers only their on_fm path.
 
-	  Its volume is DAC1's, which only FM goes through: the patch's gain
-	  in mB, set on the control's own dB scale by set_audio_port_config.
-	  DAC1 Playback Volume is one control with two channels, so left and
-	  right are its index 0 and 1. DAC1's mixer switches are the "mute"
+	  Its volume is the kernel's FM Playback Volume, set past the point a
+	  capture takes FM at, so a recording keeps its full level: on the
+	  headphone amplifier and on the TFA9890s at once, DAC1 left at 0 dB
+	  but below the amplifier's range. It is the patch's gain in mB, set
+	  on the control's own dB scale by set_audio_port_config, and the fm
+	  device's "off" puts it back to 0 dB, as the amplifiers carry
+	  everything else on their outputs too. DAC1's mixer switches are the "mute"
 	  use-case's alone: the HAL closes them ("off") once the fm chain is
 	  routed and the gain is on the control's scale, and opens them ("on")
 	  for a gain below it and before the chain goes.
 	-->
 	<stream name="fm" type="hw" dir="out">
-		<ctl function="leftvol"  name="DAC1 Playback Volume" index="0"/>
-		<ctl function="rightvol" name="DAC1 Playback Volume" index="1"/>
+		<ctl function="leftvol" name="FM Playback Volume"/>
 		<usecase name="mute">
 			<case name="on">
 				<ctl name="DAC1 MIXL DAC1 Switch" val="0"/>

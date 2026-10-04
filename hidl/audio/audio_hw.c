@@ -130,7 +130,8 @@ struct audio_device {
      * The FM radio, see "FM radio" below; under lock. The named streams
      * of the config that route it, the patch that plays it and the
      * devices it plays on, the inputs on the tuner, and the gain the patch
-     * last took, with the bottom of DAC1's scale, below which FM mutes.
+     * last took, with the bottom of its volume's scale, below which FM
+     * mutes.
      */
     const struct hw_stream *fm_stream;
     const struct hw_stream *fm_capture_stream;
@@ -2754,11 +2755,12 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
  * that goes is off before a route changes, so no output that joins plays
  * the mixer it was on, and the one that comes is on after.
  *
- * Its volume is DAC1's, which only FM goes through: the gain the patch's
- * source port is given, in mB, set on the control's own dB scale. DAC1's
- * mixer switches are the fm stream's "mute" use-case's alone: open while
- * the chain is off or the gain is below that scale, closed otherwise --
- * after the chain is routed, and before it goes. All of it is under the
+ * Its volume is the fm stream's control, the kernel's FM Playback Volume,
+ * past the taps: the gain the patch's source port is given, in mB, set
+ * on the control's own dB scale. DAC1's mixer switches are the fm
+ * stream's "mute" use-case's alone: open while the chain is off or the
+ * gain is below that scale, closed otherwise -- after the chain is
+ * routed, and before it goes. All of it is under the
  * device lock.
  *********************************************************************/
 
@@ -3429,7 +3431,8 @@ static int adev_open(const hw_module_t *module, const char *name,
         adev->global_stream = get_named_stream(adev->cm, "global");
     }
 
-    /* FM needs both its streams, and DAC1's scale to know a gain below it */
+    /* FM needs both its streams, and its volume's scale to know a gain
+     * below it */
     adev->fm_patch_handle = AUDIO_PATCH_HANDLE_NONE;
     adev->fm_stream = get_named_stream(adev->cm, "fm");
     adev->fm_capture_stream = get_named_stream(adev->cm, "fm capture");

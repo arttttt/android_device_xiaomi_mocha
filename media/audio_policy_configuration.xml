@@ -140,12 +140,13 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_8_24_BIT"
                              samplingRates="48000"
                              channelMasks="AUDIO_CHANNEL_IN_STEREO"/>
-                    <!-- FM's volume, set on the patch from the tuner: DAC1's
-                         scale, -65.62..0 dB, the HAL setting the nearest
-                         step; below it, -66 dB, mutes. -->
+                    <!-- FM's volume, set on the patch from the tuner: the
+                         kernel's FM Playback Volume scale, -127.5..0 dB,
+                         the HAL setting the nearest step; below it,
+                         -128 dB, mutes. -->
                     <gains>
                         <gain name="fm_gain" mode="AUDIO_GAIN_MODE_JOINT"
-                              minValueMB="-6600" maxValueMB="0"
+                              minValueMB="-12800" maxValueMB="0"
                               defaultValueMB="0" stepValueMB="1"/>
                     </gains>
                 </devicePort>
