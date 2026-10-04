@@ -140,6 +140,7 @@ struct audio_device {
     bool fm_gain_set;
     long fm_gain_mb;
     long fm_min_mb;
+    const char *fm_tap;     /* the tap use-case that is on, NULL for none */
 };
 
 
@@ -2610,6 +2611,8 @@ err_fail:
     return ret;
 }
 
+static void fm_apply_tap_l(struct audio_device *adev);
+
 static void adev_close_output_stream(struct audio_hw_device *dev,
                                      struct audio_stream_out *stream)
 {
@@ -2623,6 +2626,11 @@ static void adev_close_output_stream(struct audio_hw_device *dev,
     pthread_mutex_unlock(&adev->lock);
 
     (out->close)(stream);
+
+    /* Its route gone, FM may be taken from another mixer */
+    pthread_mutex_lock(&adev->lock);
+    fm_apply_tap_l(adev);
+    pthread_mutex_unlock(&adev->lock);
 }
 
 static int adev_open_input_stream(struct audio_hw_device *dev,
@@ -2731,9 +2739,20 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
  * the config route it. "fm" plays it, for the audio patch from the tuner
  * to devices: it goes to those devices and to the fm chain. "fm capture"
  * goes to the fm chain alone, for as long as an input stream captures
- * the tuner, which takes FM from that chain. The config manager counts
- * the streams on the chain, so the patch and a capture can come and go
- * in any order.
+ * the tuner. The config manager counts the streams on the chain, so the
+ * patch and a capture can come and go in any order.
+ *
+ * A capture takes FM from DAC1 through a mixer that no output in use
+ * plays, or the outputs would play it a second time, straight from DAC1
+ * beside what plays the capture: the headphones play the stereo DAC
+ * mixers, the speakers the mono ones. "fm capture" has a use-case for
+ * each tap, "mono tap" and "stereo tap", "on" and "off": the mono one
+ * while headphones or a headset are among the devices the outputs and
+ * the patch play on, the stereo one otherwise, none without a capture.
+ * Each "off" opens only what its "on" closed, which no output in use
+ * shares while that tap is the one on. The taps follow the routes: one
+ * that goes is off before a route changes, so no output that joins plays
+ * the mixer it was on, and the one that comes is on after.
  *
  * Its volume is DAC1's, which only FM goes through: the gain the patch's
  * source port is given, in mB, set on the control's own dB scale. DAC1's
@@ -2766,21 +2785,100 @@ static void fm_apply_gain_l(struct audio_device *adev)
                    (below || !fm_chain_on_l(adev)) ? "on" : "off");
 }
 
+/* The outputs that play FM's stereo DAC mixers; the speakers play the mono */
+#define FM_TAP_MONO_SINKS  (AUDIO_DEVICE_OUT_WIRED_HEADSET | \
+                            AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+
+/* The tap use-cases; adev->fm_tap is one of them, or NULL */
+static const char fm_tap_mono[] = "mono tap";
+static const char fm_tap_stereo[] = "stereo tap";
+
+/*
+ * The tap for the routes, with one output's about to become new_devices
+ * (out NULL for none): NULL without a capture
+ */
+static const char *fm_tap_for_l(struct audio_device *adev,
+                                const struct stream_out_common *out,
+                                uint32_t new_devices)
+{
+    uint32_t devices = new_devices;
+    struct listnode *node;
+
+    if (adev->fm_capture_stream == NULL || adev->fm_captures == 0) {
+        return NULL;
+    }
+
+    list_for_each(node, &adev->outputs) {
+        const struct stream_out_common *o =
+                node_to_item(node, struct stream_out_common, node);
+        if (o != out) {
+            devices |= get_current_routes(o->hw);
+        }
+    }
+    if (adev->fm_patch_handle != AUDIO_PATCH_HANDLE_NONE) {
+        devices |= adev->fm_devices;
+    }
+    return (devices & FM_TAP_MONO_SINKS) ? fm_tap_mono : fm_tap_stereo;
+}
+
+/* Before a route changes: the tap on goes, unless it is the one to stay */
+static void fm_leave_tap_l(struct audio_device *adev, const char *tap)
+{
+    if (adev->fm_tap != NULL && adev->fm_tap != tap) {
+        apply_use_case(adev->fm_capture_stream, adev->fm_tap, "off");
+        ALOGV("%s: %s off", __func__, adev->fm_tap);
+        adev->fm_tap = NULL;
+    }
+}
+
+/* After it: the tap for the new routes comes on */
+static void fm_join_tap_l(struct audio_device *adev, const char *tap)
+{
+    if (tap != NULL && adev->fm_tap != tap) {
+        apply_use_case(adev->fm_capture_stream, tap, "on");
+        ALOGV("%s: %s on", __func__, tap);
+        adev->fm_tap = tap;
+    }
+}
+
+static void fm_apply_tap_l(struct audio_device *adev)
+{
+    const char *tap = fm_tap_for_l(adev, NULL, 0);
+
+    fm_leave_tap_l(adev, tap);
+    fm_join_tap_l(adev, tap);
+}
+
+/* Route an output, the tap around it */
+static void route_output_l(struct audio_device *adev,
+                           struct stream_out_common *out, uint32_t devices)
+{
+    const char *tap = fm_tap_for_l(adev, out, devices);
+
+    fm_leave_tap_l(adev, tap);
+    apply_route(out->hw, devices);
+    fm_join_tap_l(adev, tap);
+}
+
 static void fm_apply_routes_l(struct audio_device *adev)
 {
     const uint32_t play = (adev->fm_patch_handle != AUDIO_PATCH_HANDLE_NONE)
                           ? adev->fm_devices | AUDIO_DEVICE_OUT_FM : 0;
     const uint32_t capture = (adev->fm_captures > 0) ? AUDIO_DEVICE_OUT_FM : 0;
 
-    /* DAC1 leaves its mixers before the chain goes, joins them after */
+    const char *tap = fm_tap_for_l(adev, NULL, 0);
+
+    /* DAC1 and the tap leave the mixers before the routes, join after */
     if (!fm_chain_on_l(adev)) {
         fm_apply_gain_l(adev);
     }
+    fm_leave_tap_l(adev, tap);
     apply_route(adev->fm_stream, play);
     apply_route(adev->fm_capture_stream, capture);
     if (fm_chain_on_l(adev)) {
         fm_apply_gain_l(adev);
     }
+    fm_join_tap_l(adev, tap);
 }
 
 static void fm_set_tuner_input_l(struct audio_device *adev,
@@ -3055,7 +3153,7 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
     }
 
     if (out != NULL) {
-        apply_route(out->hw, devices);
+        route_output_l(adev, out, devices);
     } else {
         pthread_mutex_lock(&in->lock);
         ret = route_input_locked((struct stream_in_pcm *)in, source, devices);
@@ -3095,7 +3193,7 @@ static int adev_release_audio_patch(struct audio_hw_device *dev,
     }
 
     if (out != NULL) {
-        apply_route(out->hw, 0);
+        route_output_l(adev, out, 0);
         out->patch_handle = AUDIO_PATCH_HANDLE_NONE;
     } else if (in != NULL) {
         pthread_mutex_lock(&in->lock);
@@ -3252,7 +3350,10 @@ static int adev_close(hw_device_t *device)
 {
     struct audio_device *adev = (struct audio_device *)device;
 
+    /* What FM's use-cases closed, opened before their streams go */
     if (adev->fm_stream != NULL) {
+        fm_leave_tap_l(adev, NULL);
+        apply_use_case(adev->fm_stream, "mute", "on");
         release_stream(adev->fm_stream);
         release_stream(adev->fm_capture_stream);
     }

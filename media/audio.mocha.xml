@@ -179,7 +179,8 @@
 	  DSP noise suppression on every recording.
 
 	  Each input sets its whole chain to AIF1: the muxes are shared with
-	  fm_in, which points them elsewhere and does not point them back.
+	  the FM capture's tap (the "fm capture" stream), which points them
+	  elsewhere.
 
 	  Chain: mic -> BST -> RECMIX -> ADC -> Stereo1 ADC -> TDM slot 0-1 ->
 	  DSP UL (bypass) -> TxDP (digital gain, +22.9 dB as in stock until the
@@ -267,9 +268,10 @@
 
       The outputs take FM from DAC1 only through their on_fm paths, for
       the patch: the speakers into the mono DAC mixers, the headphones
-      into the stereo ones. A capture takes it from DAC1 another way (see
-      fm_in), so FM recorded through the render does not reach the
-      headphones a second time, at full level, beside the render.
+      into the stereo ones. A capture takes it through the mixers the
+      outputs in use do not play (the "fm capture" stream's tap), so FM
+      recorded through the render does not reach them a second time, at
+      full level, beside the render.
     -->
     <device name="fm">
         <path name="on">
@@ -283,23 +285,6 @@
             <ctl name="DA STO ASRC Switch" val="clk_sysy_div_out"/>
             <ctl name="DAC1 L Mux" val="IF1 DAC"/>
             <ctl name="DAC1 R Mux" val="IF1 DAC"/>
-        </path>
-    </device>
-
-    <!--
-      Capture from the FM tuner: DAC1 (after its volume and EQ) through
-      the codec's voice DSP path, bypassing the DSP, back out on AIF1:
-      RxDP from DAC1, DSP DL bypass, TxDC to IF1 ADC. That path feeds no
-      output, unlike the stereo DAC mixer stock captured from, which also
-      drives the headphones. The HAL holds the fm chain for as long as the
-      tuner is captured. Like the microphones, it sets its whole chain;
-      it closes no switch, so its off has nothing to open.
-    -->
-    <device name="fm_in">
-        <path name="on">
-            <ctl name="RxDP Mux" val="DAC1"/>
-            <ctl name="DSP DL Mux" val="Bypass"/>
-            <ctl name="IF1 ADC Mux" val="TxDC_DAC"/>
         </path>
     </device>
 
@@ -385,11 +370,64 @@
 	</stream>
 
 	<!--
-	  The fm chain held for a capture from the tuner, which takes FM from
-	  the stereo DAC mixer: the HAL routes this one to the fm chain alone
-	  while an input stream is on the tuner.
+	  The fm chain held for a capture from the tuner: the HAL routes this
+	  one to the fm chain alone while an input stream is on the tuner, and
+	  turns one of its taps on. The capture comes off AIF1, whose two
+	  channels carry IF1 ADC1 or IF1 ADC2, and takes FM from DAC1 through
+	  the mixers that no output in use plays, or the outputs would play FM
+	  a second time, straight from DAC1 beside the render of the capture:
+	  - "mono tap", while the headphones or a headset play: the mono DAC
+	    mixers (the speakers'), the mono ADC, IF1 ADC2;
+	  - "stereo tap", otherwise: the stereo DAC mixers (the headphones'),
+	    ADC 1_2, the stereo1 ADC, IF1 ADC1.
+	  Each "on" sets the tap's whole chain, its "off" opens the switches
+	  its "on" closed. The HAL turns a tap off before a route changes and
+	  the next one on after, so while a tap is on no output in use plays
+	  its mixers and its switches are its own; the muxes are left to the
+	  next path that sets them, as the microphones do.
 	-->
 	<stream name="fm capture" type="hw" dir="out">
+		<usecase name="mono tap">
+			<case name="on">
+				<ctl name="Mono ADC L1 Mux" val="Mono DAC MIXL"/>
+				<ctl name="Mono ADC R1 Mux" val="Mono DAC MIXR"/>
+				<ctl name="IF1 ADC2 IN Mux" val="IF_ADC2"/>
+				<ctl name="IF1 ADC2 IN1 Mux" val="IF1_ADC2_IN"/>
+				<ctl name="IF1 ADC Mux" val="IF1_ADC2"/>
+				<ctl name="Mono ADC MIXL ADC1 Switch" val="1"/>
+				<ctl name="Mono ADC MIXR ADC1 Switch" val="1"/>
+				<ctl name="Mono DAC MIXL DAC L1 Switch" val="1"/>
+				<ctl name="Mono DAC MIXR DAC R1 Switch" val="1"/>
+			</case>
+			<case name="off">
+				<ctl name="Mono DAC MIXL DAC L1 Switch" val="0"/>
+				<ctl name="Mono DAC MIXR DAC R1 Switch" val="0"/>
+				<ctl name="Mono ADC MIXL ADC1 Switch" val="0"/>
+				<ctl name="Mono ADC MIXR ADC1 Switch" val="0"/>
+			</case>
+		</usecase>
+		<usecase name="stereo tap">
+			<case name="on">
+				<ctl name="ADC 1_2" val="Stereo DAC"/>
+				<ctl name="Stereo1 ADC Mux" val="ADC1L ADC2R"/>
+				<ctl name="Stereo1 ADC1 Mux" val="ADC"/>
+				<ctl name="AD STO1 ASRC Switch" val="clk_sysy_div_out"/>
+				<ctl name="DRC Switch" val="Disable"/>
+				<ctl name="IF1 ADC1 IN1 Mux" val="IF_ADC1"/>
+				<ctl name="IF1 ADC1 IN2 Mux" val="IF1_ADC1_IN1"/>
+				<ctl name="IF1 ADC Mux" val="IF1_ADC1"/>
+				<ctl name="Sto1 ADC MIXL ADC1 Switch" val="1"/>
+				<ctl name="Sto1 ADC MIXR ADC1 Switch" val="1"/>
+				<ctl name="Stereo DAC MIXL DAC L1 Switch" val="1"/>
+				<ctl name="Stereo DAC MIXR DAC R1 Switch" val="1"/>
+			</case>
+			<case name="off">
+				<ctl name="Stereo DAC MIXL DAC L1 Switch" val="0"/>
+				<ctl name="Stereo DAC MIXR DAC R1 Switch" val="0"/>
+				<ctl name="Sto1 ADC MIXL ADC1 Switch" val="0"/>
+				<ctl name="Sto1 ADC MIXR ADC1 Switch" val="0"/>
+			</case>
+		</usecase>
 	</stream>
 
 </audiohal>
