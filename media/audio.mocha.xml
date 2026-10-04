@@ -294,12 +294,16 @@
 	     capture only.
 
 	     Primary: everything that is not music, on device 6, at 48 kHz.
-	     256 x 4 frames, 5.3 ms a period, short enough for AudioFlinger to
-	     run its FastMixer on it.
+	     512 x 4 frames, 10.7 ms a period, as stock had it: still short
+	     enough for AudioFlinger to run its FastMixer on it, and 43 ms of
+	     buffer. With the CPU at its 204 MHz floor a period is now and
+	     then late by up to some 20 ms; 256 x 4 held 21 ms, so it ran dry
+	     and ALSA stopped and restarted the stream: a crackle in every
+	     sound on this output, alarms, ringtones, notifications.
 
 	     Deep buffer: music and video, on device 5, at 48 kHz. 960 x 4
-	     frames, 20 ms a period, so the mixer thread and the DMA wake four
-	     times less often and a late period costs nothing audible.
+	     frames, 20 ms a period, so the mixer thread and the DMA wake about
+	     half as often and a late period costs nothing audible.
 
 	     The two are mixed in one DAM and converted by the next to the back
 	     end's rate, which is 48 kHz unless the hifi stream set it.
@@ -319,7 +323,7 @@
 	     another plays on it. -->
 	<stream type="pcm" dir="out" device="6" rate="48000"
 	        flags="primary" instances="1"
-	        period_size="256" period_count="4">
+	        period_size="512" period_count="4">
 	</stream>
 
 	<stream type="pcm" dir="out" device="5" rate="48000"
