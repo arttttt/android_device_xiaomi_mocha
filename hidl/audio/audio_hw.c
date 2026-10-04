@@ -2049,24 +2049,28 @@ static void do_in_pcm_standby(struct stream_in_pcm *in)
     ALOGV("-do_in_pcm_standby");
 }
 
+/*
+ * The buffer AudioFlinger reads in: one PCM period, taking resampling
+ * into account, in the closest majoring multiple of 16 frames, as
+ * audioflinger expects audio buffers to be a multiple of 16 frames
+ */
+static size_t in_pcm_buffer_size(const struct stream_in_pcm *in,
+                                 unsigned int period_size, unsigned int rate)
+{
+    size_t size = (period_size * in->common.sample_rate) / rate;
+
+    size = ((size + 15) / 16) * 16;
+    return size * in->common.frame_size;
+}
+
 static void in_pcm_fill_params(struct stream_in_pcm *in,
                                const struct pcm_config *config)
 {
-    size_t size;
-
     in->hw_sample_rate = config->rate;
     in->hw_channel_count = config->channels;
     in->period_size = config->period_size;
-
-    /*
-     * Take resampling into account and return the closest majoring
-     * multiple of 16 frames, as audioflinger expects audio buffers to
-     * be a multiple of 16 frames
-     */
-    size = (config->period_size * in->common.sample_rate) / config->rate;
-    size = ((size + 15) / 16) * 16;
-    in->common.buffer_size = size * in->common.frame_size;
-
+    in->common.buffer_size = in_pcm_buffer_size(in, config->period_size,
+                                                config->rate);
 }
 
 /* Called with the stream's lock held; the device lock is not needed */
@@ -2425,13 +2429,6 @@ static int do_init_in_pcm(struct stream_in_pcm *in,
     in->common.stream.read = in_pcm_read;
     in->common.stream.get_capture_position = in_pcm_get_capture_position;
 
-    /*
-     * The buffer size has to be known at open, before any config manager
-     * stream has been chosen for the input source. We just have to
-     * hardcode something that might work
-     */
-    in->common.buffer_size = IN_PCM_BUFFER_SIZE_DEFAULT;
-
     return 0;
 }
 
@@ -2633,6 +2630,15 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         ALOGW("No input stream for source %d, keeping the generic one",
               source);
     }
+
+    /*
+     * AudioFlinger takes the buffer size once, now, and from it decides
+     * whether the record thread runs a fast capture, which takes no
+     * software effects: it is the chosen stream's period, as the PCM
+     * opens with it
+     */
+    in->common.buffer_size = in_pcm_buffer_size(in, in_pcm_cfg_period_size(in),
+                                                in_pcm_cfg_rate(in));
 
     in->common.io_handle = handle;
     in->common.patch_handle = AUDIO_PATCH_HANDLE_NONE;
