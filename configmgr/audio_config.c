@@ -1057,10 +1057,15 @@ static int stream_flags_score(const struct stream *s, uint32_t flags)
     return __builtin_popcount(s->flags);
 }
 
-const struct hw_stream *get_stream(struct config_mgr *cm,
-                                   const audio_devices_t devices,
-                                   const audio_output_flags_t flags,
-                                   const struct audio_config *config )
+/*
+ * The unnamed stream that suits devices, flags and config best, under
+ * cm->lock: the input or output, PCM or compressed, its flags matching
+ * best. With free_only, only one still below its instance count.
+ * Returns its index, or -1.
+ */
+static int find_stream_l(struct config_mgr *cm, const audio_devices_t devices,
+                         const audio_output_flags_t flags,
+                         const struct audio_config *config, bool free_only)
 {
     int i;
     int best = -1;
@@ -1069,24 +1074,20 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
     const bool pcm = audio_is_linear_pcm(config->format);
     enum stream_type type;
 
-    ALOGV("+get_stream devices=0x%x flags=0x%x format=0x%x",
-                            devices, flags, config->format );
-
     if (devices & AUDIO_DEVICE_BIT_IN) {
         type = pcm ? e_stream_in_pcm : e_stream_in_compress;
     } else {
         type = pcm ? e_stream_out_pcm : e_stream_out_compress;
     }
 
-    pthread_mutex_lock(&cm->lock);
     for (i = cm->anon_stream_array.count - 1; i >= 0; --i) {
         int score;
 
-        ALOGV("get_stream: require type=%d; try type=%d refcount=%d refmax=%d flags=0x%x",
+        ALOGV("find_stream: require type=%d; try type=%d refcount=%d refmax=%d flags=0x%x",
                     type, s[i].info.type, s[i].ref_count, s[i].max_ref_count,
                     s[i].flags );
         if (s[i].info.type != type ||
-                s[i].ref_count >= s[i].max_ref_count) {
+                (free_only && s[i].ref_count >= s[i].max_ref_count)) {
             continue;
         }
         score = stream_flags_score(&s[i], flags);
@@ -1095,7 +1096,22 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
             best_score = score;
         }
     }
-    i = best;
+    return best;
+}
+
+const struct hw_stream *get_stream(struct config_mgr *cm,
+                                   const audio_devices_t devices,
+                                   const audio_output_flags_t flags,
+                                   const struct audio_config *config )
+{
+    struct stream *s = cm->anon_stream_array.streams;
+    int i;
+
+    ALOGV("+get_stream devices=0x%x flags=0x%x format=0x%x",
+                            devices, flags, config->format );
+
+    pthread_mutex_lock(&cm->lock);
+    i = find_stream_l(cm, devices, flags, config, true);
     if (i >= 0 && !open_stream_l(cm, &s[i])) {
         i = -1;
     }
@@ -1112,6 +1128,20 @@ const struct hw_stream *get_stream(struct config_mgr *cm,
         ALOGE("-get_stream no suitable stream" );
         return NULL;
     }
+}
+
+const struct hw_stream *find_stream(struct config_mgr *cm,
+                                    const audio_devices_t devices,
+                                    const audio_output_flags_t flags,
+                                    const struct audio_config *config)
+{
+    int i;
+
+    pthread_mutex_lock(&cm->lock);
+    i = find_stream_l(cm, devices, flags, config, false);
+    pthread_mutex_unlock(&cm->lock);
+
+    return (i >= 0) ? &cm->anon_stream_array.streams[i].info : NULL;
 }
 
 const struct hw_stream *get_named_stream(struct config_mgr *cm,

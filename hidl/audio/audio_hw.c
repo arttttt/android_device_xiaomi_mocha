@@ -27,6 +27,7 @@
 #include <limits.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -72,8 +73,6 @@
 #define IN_CHANNEL_COUNT_DEFAULT 1
 #define IN_RATE_DEFAULT 44100
 
-#define IN_PCM_BUFFER_SIZE_DEFAULT \
-        (IN_PERIOD_SIZE_DEFAULT * IN_CHANNEL_COUNT_DEFAULT * sizeof(uint16_t))
 
 /*
  * How long compress_write() will wait for driver to signal a poll()
@@ -1123,8 +1122,15 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
     const bool routed = out->common.devices != 0;
     pthread_mutex_unlock(&out->common.route_lock);
     if (!routed) {
-        ALOGV("-out_pcm_write(%p) 0 (no routes)", stream);
-        return 0;
+        /*
+         * Written as if played: AudioFlinger writes a zero-byte write
+         * again at once, and spins until a patch routes the stream. The
+         * write takes the time the buffer would have played for.
+         */
+        usleep((int64_t)bytes / out->common.frame_size * 1000000 /
+               out->common.sample_rate);
+        ALOGV("-out_pcm_write(%p) %zu (no routes, dropped)", stream, bytes);
+        return bytes;
     }
 
     pthread_mutex_lock(&out->common.lock);
@@ -3326,22 +3332,79 @@ static int adev_get_mic_mute(const struct audio_hw_device *dev, bool *state)
     return 0;
 }
 
+/*
+ * A period of the PCM a capture at config would get, at config's rate:
+ * the period of the config's input stream, in its own frames at its own
+ * rate, scaled to config's. It used to be IN_PERIOD_SIZE_DEFAULT frames
+ * at any rate, and no more than a mono 16-bit period's bytes, a quarter
+ * of a stereo float one.
+ */
 static size_t adev_get_input_buffer_size(const struct audio_hw_device *dev,
                                          const struct audio_config *config)
 {
-    size_t s = IN_PERIOD_SIZE_DEFAULT *
-               audio_bytes_per_sample(config->format) *
-               audio_channel_count_from_in_mask(config->channel_mask);
+    const struct audio_device *adev = (const struct audio_device *)dev;
+    const struct hw_stream *hw = find_stream(adev->cm, AUDIO_DEVICE_BIT_IN,
+                                             0, config);
+    const unsigned int rate = (hw && hw->rate) ? hw->rate : IN_RATE_DEFAULT;
+    const unsigned int period = (hw && hw->period_size) ? hw->period_size
+                                                        : IN_PERIOD_SIZE_DEFAULT;
+    const size_t frames = ((size_t)period * config->sample_rate + rate - 1) /
+                          rate;
 
-    if (s > IN_PCM_BUFFER_SIZE_DEFAULT) {
-        s = IN_PCM_BUFFER_SIZE_DEFAULT;
-    }
-
-    return s;
+    return frames * audio_bytes_per_sample(config->format) *
+           audio_channel_count_from_in_mask(config->channel_mask);
 }
 
+/*
+ * The HAL's part of "dumpsys media.audio_flinger": each open stream with
+ * its io handle, patch, devices and state, and FM's. The device lock is
+ * only tried, so that a dump never hangs on a HAL that is stuck.
+ */
 static int adev_dump(const audio_hw_device_t *device, int fd)
 {
+    struct audio_device *adev = (struct audio_device *)device;
+    struct listnode *node;
+    int i;
+
+    for (i = 0; i < 10; i++) {
+        if (pthread_mutex_trylock(&adev->lock) == 0) {
+            break;
+        }
+        usleep(10000);
+    }
+    if (i == 10) {
+        dprintf(fd, "  tinyhal: device lock busy, no dump\n");
+        return 0;
+    }
+
+    dprintf(fd, "  tinyhal: mic mute %d\n", adev->mic_mute);
+    list_for_each(node, &adev->outputs) {
+        const struct stream_out_common *o =
+                node_to_item(node, struct stream_out_common, node);
+        dprintf(fd, "  output io %d patch %d: %s, devices 0x%x%s, %u Hz,"
+                " format 0x%x, %d ch\n",
+                o->io_handle, o->patch_handle,
+                o->hw->type == e_stream_out_pcm ? "pcm" : "other",
+                o->devices, o->standby ? ", standby" : ", playing",
+                o->sample_rate, o->format, o->channel_count);
+    }
+    list_for_each(node, &adev->inputs) {
+        const struct stream_in_common *in =
+                node_to_item(node, struct stream_in_common, node);
+        dprintf(fd, "  input io %d patch %d: source %d, devices 0x%x%s%s,"
+                " %u Hz, format 0x%x, %d ch\n",
+                in->io_handle, in->patch_handle, in->input_source,
+                in->devices, in->standby ? ", standby" : ", recording",
+                in->on_tuner ? ", on the tuner" : "",
+                in->sample_rate, in->format, in->channel_count);
+    }
+    dprintf(fd, "  fm: patch %d, devices 0x%x, captures %d, tap %s,"
+            " gain %ld mB%s\n",
+            adev->fm_patch_handle, adev->fm_devices, adev->fm_captures,
+            adev->fm_tap ? adev->fm_tap : "none", adev->fm_gain_mb,
+            adev->fm_gain_set ? "" : " (not set)");
+
+    pthread_mutex_unlock(&adev->lock);
     return 0;
 }
 

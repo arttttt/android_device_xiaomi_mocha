@@ -134,6 +134,16 @@ const struct hw_stream *get_stream(  struct config_mgr *cm,
                                         const audio_output_flags_t flags,
                                         const struct audio_config *config );
 
+/**
+ * The stream get_stream() would give for devices, flags and config, its
+ * instances in use or not, left as it is: not opened, not routed, nothing
+ * to release. Only to read its parameters. NULL when none suits.
+ */
+const struct hw_stream *find_stream(struct config_mgr *cm,
+                                    const audio_devices_t devices,
+                                    const audio_output_flags_t flags,
+                                    const struct audio_config *config);
+
 /** Find a named custom stream and return a pointer to it */
 const struct hw_stream *get_named_stream(struct config_mgr *cm,
                                    const char *name);
