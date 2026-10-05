@@ -2238,6 +2238,10 @@ static int change_input_source_locked(struct stream_in_pcm *in, int new_source,
         stream_name = "unprocessed";
         break;
 
+    case AUDIO_SOURCE_VOICE_COMMUNICATION:
+        stream_name = "voice communication";
+        break;
+
     default:
         stream_name = NULL;
         break;

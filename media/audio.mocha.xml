@@ -257,6 +257,46 @@
         <path name="off_pcm_rec_raw">
           <ctl name="RECMIXR BST2 Switch" val="0"/>
 		</path>
+
+        <!-- A VoIP capture (voice communication): through the DSP's 2-mic
+             echo cancelling, which runs at 16 kHz behind the RxDP and TxDP
+             rate converters. Its reference is the playback mix, taken at
+             RxDP; the playback itself stays on DAC2 straight from AIF1, at
+             its full bandwidth; through the DSP's downlink it was no
+             better cancelled, later and band-limited.
+             BST 10 dB lower than the other recordings', at +30 dB: at +40
+             the speaker's echo clips AUX's ADC, and the cancelling comes
+             and goes. TxDP gives 8 dB of it back, past the DSP; +10 took
+             speech in the hand to 0 dBFS. Measured on a test signal
+             through the speaker, the echo goes 9-10 dB lower than through
+             the noise suppression alone. Speech over loud playback still
+             comes out distorted; no table tried did better. -->
+        <path name="on_pcm_rec_aec">
+          <ctl name="RECMIXR BST2 Switch" val="0"/>
+          <ctl name="RECMIXR BST4 Switch" val="1"/>
+          <ctl name="DSP ASRC Switch" val="clk_i2s1_track"/>
+          <ctl name="RxDP Mux" val="IF1 DAC"/>
+          <ctl name="RxDP SRC Switch" val="Divided by 3"/>
+          <ctl name="TxDP SRC Switch" val="Multiplied by 3"/>
+          <ctl name="DSP Function Switch" val="BuiltinMic AEC-2mic"/>
+          <ctl name="DSP DL Mux" val="DSP"/>
+          <ctl name="DSP UL Mux" val="DSP"/>
+          <ctl name="IN2 Boost" val="3"/>
+          <ctl name="IN4 Boost" val="3"/>
+          <ctl name="TxDP Capture Volume" val="68"/>
+		</path>
+        <path name="off_pcm_rec_aec">
+          <ctl name="TxDP Capture Volume" val="47"/>
+          <ctl name="IN2 Boost" val="5"/>
+          <ctl name="IN4 Boost" val="5"/>
+          <ctl name="DSP UL Mux" val="Bypass"/>
+          <ctl name="DSP DL Mux" val="Bypass"/>
+          <ctl name="DSP Function Switch" val="Disable"/>
+          <ctl name="TxDP SRC Switch" val="Normal"/>
+          <ctl name="RxDP SRC Switch" val="Normal"/>
+          <ctl name="DSP ASRC Switch" val="clk_sysy_div_out"/>
+          <ctl name="RECMIXR BST4 Switch" val="0"/>
+		</path>
     </device>
 
     <device name="headset_in">
@@ -469,6 +509,14 @@
 	<stream name="unprocessed" type="pcm" dir="in" device="0" rate="48000">
         <enable path="on_pcm_rec_raw"/>
         <disable path="off_pcm_rec_raw"/>
+	</stream>
+
+	<!-- Voice communication, picked by the HAL by name: the built-in
+	     mics through the DSP's echo cancelling. The headset mic has no
+	     such path, and records as for every source. -->
+	<stream name="voice communication" type="pcm" dir="in" device="0" rate="48000">
+        <enable path="on_pcm_rec_aec"/>
+        <disable path="off_pcm_rec_aec"/>
 	</stream>
 
 	<!--
