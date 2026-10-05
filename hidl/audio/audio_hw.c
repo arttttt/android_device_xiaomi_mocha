@@ -2198,12 +2198,49 @@ static int start_pcm_input_stream(struct stream_in_pcm *in)
     return ret;
 }
 
+/*
+ * The config manager stream an input source records through: a stream
+ * of its own, named in the config, for the sources that have one, or the
+ * generic PCM input for the devices and config.
+ */
+static const struct hw_stream *get_input_stream(struct config_mgr *cm,
+                                                int source, uint32_t devices,
+                                                const struct audio_config *config)
+{
+    const char *stream_name;
+    const struct hw_stream *hw;
+
+    switch (source) {
+    case AUDIO_SOURCE_VOICE_RECOGNITION:
+        stream_name = "voice recognition";
+        break;
+    case AUDIO_SOURCE_UNPROCESSED:
+        stream_name = "unprocessed";
+        break;
+    case AUDIO_SOURCE_VOICE_COMMUNICATION:
+        stream_name = "voice communication";
+        break;
+    default:
+        stream_name = NULL;
+        break;
+    }
+
+    if (stream_name) {
+        hw = get_named_stream(cm, stream_name);
+        if (hw) {
+            ALOGV("Input source %d records through %s", source, stream_name);
+            return hw;
+        }
+    }
+
+    return get_stream(cm, devices, 0, config);
+}
+
 static int change_input_source_locked(struct stream_in_pcm *in, int new_source,
                                       uint32_t devices)
 {
     struct audio_config config;
-    const char *stream_name;
-    const struct hw_stream *hw = NULL;
+    const struct hw_stream *hw;
 
     /* Checked first: a new route for a running capture keeps its source */
     if (in->common.input_source == new_source) {
@@ -2216,71 +2253,27 @@ static int change_input_source_locked(struct stream_in_pcm *in, int new_source,
         return -EINVAL;
     }
 
-    /*
-     * Special input sources are obtained from the configuration
-     * by opening a named stream
-     */
-    switch (new_source) {
-    case AUDIO_SOURCE_VOICE_RECOGNITION:
-        /*
-         * We should verify here that current frame size, sample rate and
-         * channels are compatible
-         */
-
-        /*
-         * Depends on voice recognition type and state whether we open
-         * the voice recognition stream or generic PCM stream
-         */
-        stream_name = "voice recognition";
-        break;
-
-    case AUDIO_SOURCE_UNPROCESSED:
-        stream_name = "unprocessed";
-        break;
-
-    case AUDIO_SOURCE_VOICE_COMMUNICATION:
-        stream_name = "voice communication";
-        break;
-
-    default:
-        stream_name = NULL;
-        break;
-    }
-
-    if (stream_name) {
-        /* Try to open a stream specific to the chosen input source */
-        hw = get_named_stream(in->common.dev->cm, stream_name);
-        ALOGV_IF(hw != NULL, "Changing input source to %s", stream_name);
-    }
-
-    if (!hw) {
-        /* Open generic PCM input stream */
-        memset(&config, 0, sizeof(config));
-        config.sample_rate = in->common.sample_rate;
-        config.channel_mask = in->common.channel_mask;
-        config.format = in->common.format;
-        hw = get_stream(in->common.dev->cm, devices, 0, &config);
-        ALOGV_IF(hw != NULL, "Changing to default input source for devices 0x%x",
-                        devices);
-    }
-
-    if (hw != NULL) {
-        /*
-         * A normal stream will be in standby and therefore device node
-         * is closed when we get here.
-         */
-
-        if (in->common.hw != NULL) {
-            release_stream(in->common.hw);
-        }
-
-        in->common.hw = hw;
-        in->common.input_source = new_source;
-        return 0;
-    } else {
+    memset(&config, 0, sizeof(config));
+    config.sample_rate = in->common.sample_rate;
+    config.channel_mask = in->common.channel_mask;
+    config.format = in->common.format;
+    hw = get_input_stream(in->common.dev->cm, new_source, devices, &config);
+    if (hw == NULL) {
         ALOGV("Could not open new input stream");
         return -EINVAL;
     }
+
+    /*
+     * A normal stream will be in standby and therefore device node
+     * is closed when we get here.
+     */
+    if (in->common.hw != NULL) {
+        release_stream(in->common.hw);
+    }
+
+    in->common.hw = hw;
+    in->common.input_source = new_source;
+    return 0;
 }
 
 static ssize_t do_in_pcm_read(struct audio_stream_in *stream, void *buffer,
@@ -2652,7 +2645,16 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     *stream_in = NULL;
 
     devices &= AUDIO_DEVICE_IN_ALL;
-    const struct hw_stream *hw = get_stream(adev->cm, devices, 0, config);
+    /*
+     * The source is known at open (the HIDL wrapper takes it from the
+     * stream's sink metadata), so the stream is the source's from the
+     * start: getting a stream puts its paths on, and the generic one's
+     * loaded the DSP's recording mode only for a named one to take it
+     * off again. The patch that routes the stream brings the source
+     * again, and finds it unchanged.
+     */
+    const struct hw_stream *hw = get_input_stream(adev->cm, source, devices,
+                                                  config);
     if (!hw) {
         ALOGE("No suitable input stream for devices=0x%x flags=0x%x format=0x%x",
               devices, flags, config->format);
@@ -2678,16 +2680,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         goto fail;
     }
 
-    /*
-     * The source is known at open (the HIDL wrapper takes it from the
-     * stream's sink metadata), so the config manager stream for it is
-     * chosen now; the patch that routes the stream brings it again.
-     * Failing to find one leaves the generic stream, as before.
-     */
-    if (change_input_source_locked(in, source, devices) < 0) {
-        ALOGW("No input stream for source %d, keeping the generic one",
-              source);
-    }
+    in->common.input_source = source;
 
     /*
      * AudioFlinger takes the buffer size once, now, and from it decides
