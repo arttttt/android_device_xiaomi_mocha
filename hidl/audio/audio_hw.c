@@ -159,6 +159,16 @@ struct stream_out_common {
 
     bool standby;
 
+    /* The devices the patch routes the stream to, and whether it plays:
+     * a PCM output has the devices' paths on the codec only while it does
+     * (see out_set_devices). Under route_lock, taken last: after the
+     * device lock when a patch routes the stream, after the stream's lock
+     * when it starts or stops, and never with anything else taken inside
+     * it but the config manager's own lock */
+    pthread_mutex_t route_lock;
+    uint32_t devices;
+    bool playing;
+
     /* In audio_device.outputs. The io handle and the handle of the patch
      * that routes the stream are under the device lock */
     struct listnode node;
@@ -669,6 +679,39 @@ static void do_close_out_common(struct audio_stream_out *stream)
     free(stream);
 }
 
+/*
+ * An output's devices on the codec: a PCM output's only while it plays,
+ * so an output routed somewhere but idle (music on the deep buffer
+ * output, left on the speaker during a call) keeps no device's paths on.
+ * All the outputs reach the codec mixed into AIF1, and a device's paths
+ * play whatever AIF1 carries. Other outputs keep their route throughout.
+ * The route and whether the stream plays change, and the paths follow,
+ * under route_lock, so neither change can apply a stale view of the other.
+ */
+static void out_apply_devices_locked(struct stream_out_common *out)
+{
+    const bool idle = out->hw->type == e_stream_out_pcm && !out->playing;
+
+    apply_route(out->hw, idle ? 0 : out->devices);
+}
+
+static void out_set_devices(struct stream_out_common *out, uint32_t devices)
+{
+    pthread_mutex_lock(&out->route_lock);
+    out->devices = devices;
+    out_apply_devices_locked(out);
+    pthread_mutex_unlock(&out->route_lock);
+}
+
+/* Called with the stream's lock held, as it starts or stops */
+static void out_set_playing(struct stream_out_common *out, bool playing)
+{
+    pthread_mutex_lock(&out->route_lock);
+    out->playing = playing;
+    out_apply_devices_locked(out);
+    pthread_mutex_unlock(&out->route_lock);
+}
+
 static int do_init_out_common(struct stream_out_common *out,
                               const struct audio_config *config,
                               audio_devices_t devices)
@@ -704,8 +747,9 @@ static int do_init_out_common(struct stream_out_common *out,
 
     /* Default settings */
     out->frame_size = audio_stream_out_frame_size(&out->stream);
-    /* Apply initial route */
-    apply_route(out->hw, devices);
+    /* The initial route; a PCM output takes it up when it plays */
+    pthread_mutex_init(&out->route_lock, NULL);
+    out_set_devices(out, devices);
 
     return 0;
 }
@@ -888,6 +932,7 @@ static void do_out_pcm_standby(struct stream_out_pcm *out)
         pcm_close(out->pcm);
         out->pcm = NULL;
         out->common.standby = true;
+        out_set_playing(&out->common, false);
     }
 
     ALOGV("-do_out_standby(%p)", out);
@@ -1074,12 +1119,16 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
      * state we shouldn't issue any write commands because we can't be
      * sure that the driver will accept a write to nowhere
      */
-    if (get_current_routes(out->common.hw) == 0) {
+    pthread_mutex_lock(&out->common.route_lock);
+    const bool routed = out->common.devices != 0;
+    pthread_mutex_unlock(&out->common.route_lock);
+    if (!routed) {
         ALOGV("-out_pcm_write(%p) 0 (no routes)", stream);
         return 0;
     }
 
     pthread_mutex_lock(&out->common.lock);
+
     if (out->common.standby) {
         ret = start_output_pcm(out);
         if (ret != 0 && out->follows_track) {
@@ -1089,6 +1138,7 @@ static ssize_t out_pcm_write(struct audio_stream_out *stream, const void *buffer
             goto exit;
         }
         out->common.standby = false;
+        out_set_playing(&out->common, true);
     }
 
     ret = out_pcm_write_frames(out, buffer, bytes);
@@ -2764,7 +2814,7 @@ static const char *fm_tap_for_l(struct audio_device *adev,
         const struct stream_out_common *o =
                 node_to_item(node, struct stream_out_common, node);
         if (o != out) {
-            devices |= get_current_routes(o->hw);
+            devices |= o->devices;
         }
     }
     if (adev->fm_patch_handle != AUDIO_PATCH_HANDLE_NONE) {
@@ -2808,7 +2858,7 @@ static void route_output_l(struct audio_device *adev,
     const char *tap = fm_tap_for_l(adev, out, devices);
 
     fm_leave_tap_l(adev, tap);
-    apply_route(out->hw, devices);
+    out_set_devices(out, devices);
     fm_join_tap_l(adev, tap);
 }
 
