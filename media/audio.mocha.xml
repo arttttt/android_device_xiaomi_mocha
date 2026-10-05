@@ -246,15 +246,20 @@
           <ctl name="RECMIXR BST4 Switch" val="0"/>
 		</path>
 
-        <!-- A raw one (voice recognition, unprocessed): the DSP
-             bypassed, MAIN on both channels -->
+        <!-- A raw one (voice recognition, unprocessed): MAIN on both
+             channels, from the stereo1 ADC straight to IF1 (IF_ADC1), past
+             the DSP and past TxDP too. TxDP passes 16 bits even with the
+             DSP bypassed; the ADC gives 24. -->
         <path name="on_pcm_rec_raw">
           <ctl name="RECMIXR BST4 Switch" val="0"/>
           <ctl name="RECMIXR BST2 Switch" val="1"/>
           <ctl name="DSP Function Switch" val="Disable"/>
           <ctl name="DSP UL Mux" val="Bypass"/>
+          <ctl name="IF1 ADC1 IN1 Mux" val="IF_ADC1"/>
+          <ctl name="IF1 ADC1 IN2 Mux" val="IF1_ADC1_IN1"/>
 		</path>
         <path name="off_pcm_rec_raw">
+          <ctl name="IF1 ADC1 IN2 Mux" val="IF1_ADC4"/>
           <ctl name="RECMIXR BST2 Switch" val="0"/>
 		</path>
 
