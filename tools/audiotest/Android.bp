@@ -1,0 +1,41 @@
+//
+// Audio test: the device's audio tester, built on demand only
+// (mmm device/xiaomi/mocha/tools/audiotest), never part of the build.
+// A system app, installed by hand into /system/app: its native part
+// uses libaudioclient's AudioTrack for what the SDK cannot ask for, a
+// DIRECT output, and only a bundled app may link to a private system
+// library. Updated in place with a reboot; "adb install" would turn it
+// into an updated system app, which no longer may.
+//
+
+android_app {
+    name: "MochaAudioTest",
+    srcs: ["src/**/*.java"],
+    manifest: "AndroidManifest.xml",
+    platform_apis: true,
+    certificate: "platform",
+    // Installed beside the app in /system/lib, not embedded: an
+    // embedded platform JNI library brings copies of its every
+    // dependency into the APK, libaudioclient and the linker's own
+    jni_libs: ["libmochaaudiotest_jni"],
+}
+
+cc_library_shared {
+    name: "libmochaaudiotest_jni",
+    srcs: ["jni/audiotest.cpp"],
+    header_libs: [
+        "jni_headers",
+        "libmedia_headers",
+        "libmediametrics_headers",
+    ],
+    shared_libs: [
+        "libaudioclient",
+        "libbinder",
+        "liblog",
+        "libutils",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
