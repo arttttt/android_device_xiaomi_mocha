@@ -187,8 +187,6 @@ struct usecase {
 struct stream_control {
     struct ctl_ref      ref;
     uint                index;
-    int                 min;
-    int                 max;
 };
 
 struct stream {
@@ -276,8 +274,6 @@ enum attrib_index {
     e_attrib_rate,
     e_attrib_period_size,
     e_attrib_period_count,
-    e_attrib_min,
-    e_attrib_max,
     e_attrib_file,
     e_attrib_flags,
 
@@ -859,89 +855,9 @@ void apply_route( const struct hw_stream *stream, uint32_t devices )
  * Stream control
  *********************************************************************/
 
-static int set_vol_ctl(struct stream *stream,
-                       const struct stream_control *volctl,
-                       int percent)
-{
-    struct mixer_ctl *ctl = ctl_get_ptr(stream->cm, &volctl->ref);
-    int val;
-    long long lmin;
-    long long lmax;
-    long long lval;
-
-    switch (percent) {
-    case 0:
-        val = volctl->min;
-        break;
-
-    case 100:
-        val = volctl->max;
-        break;
-
-    default:
-        lmin = volctl->min;
-        lmax = volctl->max;
-        lval = lmin + (((lmax - lmin) * percent) / 100LL);
-        val = (int)lval;
-        break;
-    }
-
-    /* The config may stretch min/max past the control's ends, to line a
-     * percent up with the control's dB steps; set what the control takes */
-    if (val < mixer_ctl_get_range_min(ctl)) {
-        val = mixer_ctl_get_range_min(ctl);
-    } else if (val > mixer_ctl_get_range_max(ctl)) {
-        val = mixer_ctl_get_range_max(ctl);
-    }
-
-    mixer_ctl_set_value(ctl, volctl->index, val);
-    return 0;
-}
-
-int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc)
-{
-    struct stream *s = (struct stream *)stream;
-    int ret = -ENOSYS;
-
-    if ((left_pc < 0) || (left_pc > 100)) {
-        ALOGE("Volume percent %d is out of range 0..100", left_pc);
-        return -EINVAL;
-    }
-
-    if ((right_pc < 0) || (right_pc > 100)) {
-        ALOGE("Volume percent %d is out of range 0..100", right_pc);
-        return -EINVAL;
-    }
-
-    if (ctl_ref_valid(&s->controls.volume.ref)) {
-        /* One gain for both channels: their mean */
-        ret = set_vol_ctl(s, &s->controls.volume, (left_pc + right_pc) / 2);
-        ALOGV_IF(ret == 0, "set_hw_volume: %d%%", (left_pc + right_pc) / 2);
-        return ret;
-    }
-
-    if (ctl_ref_valid(&s->controls.volume_left.ref)) {
-        if (!ctl_ref_valid(&s->controls.volume_right.ref)) {
-            /* Control is mono so average left and right */
-            left_pc = (left_pc + right_pc) / 2;
-        }
-
-        ret = set_vol_ctl(s, &s->controls.volume_left, left_pc);
-    }
-
-    if (ctl_ref_valid(&s->controls.volume_right.ref)) {
-        ret = set_vol_ctl(s, &s->controls.volume_right, right_pc);
-    }
-
-    ALOGV_IF(ret == 0, "set_hw_volume: L=%d%% R=%d%%", left_pc, right_pc);
-
-    return ret;
-}
-
 /*
- * A gain on a volume control, by the dB scale its driver gives it. The
- * config's min and max, which line percents up with the control, play no
- * part: the value is the one nearest the gain on the control's own scale.
+ * A gain on a volume control, by the dB scale its driver gives it: the
+ * value is the one nearest the gain on the control's own scale.
  */
 static int set_vol_ctl_mb(struct stream *stream,
                           const struct stream_control *volctl,
@@ -1438,8 +1354,7 @@ static const struct parse_element elem_table[e_elem_count] = {
     [e_elem_stream_ctl] =    {
         .name = "ctl",
         .valid_attribs = BIT(e_attrib_name) | BIT(e_attrib_function)
-                            | BIT(e_attrib_index)
-                            | BIT(e_attrib_min) | BIT(e_attrib_max),
+                            | BIT(e_attrib_index),
         .required_attribs = BIT(e_attrib_name) | BIT(e_attrib_function),
         .valid_subelem = 0,
         .start_fn = parse_stream_ctl_start,
@@ -1516,8 +1431,6 @@ static const struct parse_attrib attrib_table[e_attrib_count] = {
     [e_attrib_rate] =       {"rate"},
     [e_attrib_period_size] = {"period_size"},
     [e_attrib_period_count] = {"period_count"},
-    [e_attrib_min] = {"min"},
-    [e_attrib_max] = {"max"},
     [e_attrib_file] = {"file"},
     [e_attrib_flags] = {"flags"}
  };
@@ -1923,13 +1836,6 @@ static int attrib_to_uint(uint32_t *result, struct parse_state *state,
 {
     const char *str = state->attribs.value[index];
     return string_to_uint(result, str);
-}
-
-static int attrib_to_int(int *result, struct parse_state *state,
-                                enum attrib_index index)
-{
-    const char *str = state->attribs.value[index];
-    return string_to_int(result, str);
 }
 
 static int make_byte_work_buffer(struct ctl *c,
@@ -2544,7 +2450,6 @@ static int parse_stream_ctl_start(struct parse_state *state)
     struct mixer_ctl *ctl;
     struct stream_control *streamctl;
     uint idx_val = 0;
-    int v;
 
     ctl = mixer_get_ctl_by_name(state->cm->mixer, name);
     if (!ctl) {
@@ -2552,12 +2457,8 @@ static int parse_stream_ctl_start(struct parse_state *state)
         return -EINVAL;
     }
 
-    /*
-     * Tinyalsa mixer_ctl_get_range_min()/mixer_ctl_get_range_max()
-     * return negative error if the control isn't valid. As the minimum
-     * value could be negative we can't check for errors so check in advance
-     * that the control will not cause an error from these functions.
-     */
+    /* A volume is set as a gain on the control's dB scale, which only an
+     * integer control has */
     if (mixer_ctl_get_type(ctl) != MIXER_CTL_TYPE_INT) {
         ALOGE("Control '%s' is not an integer", name);
         return -EINVAL;
@@ -2599,41 +2500,10 @@ static int parse_stream_ctl_start(struct parse_state *state)
 
     streamctl->index = idx_val;
 
-    switch (attrib_to_int(&v, state, e_attrib_min)) {
-    case -EINVAL:
-        ALOGE("Invalid min for '%s'", name);
-        return -EINVAL;
-
-    case -ENOENT:
-        /* Not specified, get control's min value */
-        streamctl->min = mixer_ctl_get_range_min(ctl);
-        break;
-
-    default:
-        streamctl->min = v;
-        break;
-    }
-
-    switch (attrib_to_int(&v, state, e_attrib_max)) {
-    case -EINVAL:
-        ALOGE("Invalid max for '%s'", name);
-        return -EINVAL;
-
-    case -ENOENT:
-        /* Not specified, get control's max value */
-        streamctl->max = mixer_ctl_get_range_max(ctl);
-        break;
-
-    default:
-        streamctl->max = v;
-        break;
-    }
-
     ctl_set_ref(&streamctl->ref, ctl);
 
-    ALOGV("(%p) Added control '%s' function '%s' range %d-%d",
-                state->current.stream,
-                name, function, streamctl->min, streamctl->max);
+    ALOGV("(%p) Added control '%s' function '%s'",
+                state->current.stream, name, function);
 
     return 0;
 }

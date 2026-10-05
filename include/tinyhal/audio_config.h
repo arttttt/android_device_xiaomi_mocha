@@ -185,9 +185,6 @@ uint32_t get_current_routes( const struct hw_stream *stream );
 /** Apply new device routing to a stream */
 void apply_route( const struct hw_stream *stream, uint32_t devices );
 
-/** Apply hardware volume */
-int set_hw_volume( const struct hw_stream *stream, int left_pc, int right_pc);
-
 /** Apply hardware volume as gains in mB (1/100 dB), on the dB scale the
  * driver gives the volume controls. Gains outside it give its ends.
  * @return      0 on success
