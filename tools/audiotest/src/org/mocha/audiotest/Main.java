@@ -11,6 +11,10 @@ import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.MediaRecorder;
+import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.AudioEffect;
+import android.media.audiofx.AutomaticGainControl;
+import android.media.audiofx.NoiseSuppressor;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -44,6 +48,14 @@ import java.io.RandomAccessFile;
  * one, at the stream's own rate and depth (the native part):
  *   am start -n org.mocha.audiotest/.Main --ei hifi RATE [--ei bits 16|24]
  *       [--ei freq HZ] [--ei secs SECONDS]
+ *
+ * "Effects": which of the platform's AcousticEchoCanceler,
+ * NoiseSuppressor and AutomaticGainControl the device offers, then a
+ * capture from SOURCE (VOICE_COMMUNICATION by default), nothing played,
+ * through which the echo canceller and the noise suppressor are turned
+ * off and on again in steps, each logged; the HAL's dump shows what the
+ * capture records with at each:
+ *   am start -n org.mocha.audiotest/.Main --ez fx true [--ei src SOURCE]
  */
 public class Main extends Activity {
     static final String TAG = "AudioTest";
@@ -109,6 +121,8 @@ public class Main extends Activity {
                     i.getIntExtra("freq", 1000), i.getIntExtra("secs", 10));
         } else if (i.getBooleanExtra("echo", false)) {
             echoTest(i.getIntExtra("vol", -1));
+        } else if (i.getBooleanExtra("fx", false)) {
+            fxTake(i.getIntExtra("src", MediaRecorder.AudioSource.VOICE_COMMUNICATION));
         } else if (i.getIntExtra("raw", 0) > 0) {
             rawTake(i.getIntExtra("raw", 0), i.getIntExtra("src",
                     MediaRecorder.AudioSource.UNPROCESSED));
@@ -172,6 +186,71 @@ public class Main extends Activity {
             } finally {
                 rec.release();
             }
+            runOnUiThread(() -> { loop = null; running = false; });
+        });
+        loop.start();
+    }
+
+    void fxTake(final int source) {
+        if (running || loop != null) {
+            log("busy");
+            return;
+        }
+        running = true;
+        loop = new Thread(() -> {
+            log("available: aec " + AcousticEchoCanceler.isAvailable()
+                    + ", ns " + NoiseSuppressor.isAvailable()
+                    + ", agc " + AutomaticGainControl.isAvailable());
+            for (AudioEffect.Descriptor d : AudioEffect.queryEffects()) {
+                if (d.connectMode.equals(AudioEffect.EFFECT_PRE_PROCESSING)) {
+                    log("pre-processing: " + d.name + " (" + d.implementor + ")");
+                }
+            }
+            int min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT);
+            AudioRecord rec = new AudioRecord(source, RATE, AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT, min * 4);
+            AcousticEchoCanceler aec = null;
+            NoiseSuppressor ns = null;
+            /* each step: aec on?, ns on? */
+            final boolean[][] steps = {
+                {true, true}, {false, true}, {false, false}, {true, false}, {true, true},
+            };
+            try {
+                aec = AcousticEchoCanceler.create(rec.getAudioSessionId());
+                ns = NoiseSuppressor.create(rec.getAudioSessionId());
+                log("source " + source + ": aec " + (aec != null ? aec.getEnabled() : "none")
+                        + ", ns " + (ns != null ? ns.getEnabled() : "none"));
+                rec.startRecording();
+                short[] buf = new short[min / 2];
+                for (boolean[] st : steps) {
+                    if (aec != null) aec.setEnabled(st[0]);
+                    if (ns != null) ns.setEnabled(st[1]);
+                    log("aec " + st[0] + " ns " + st[1]);
+                    int peak = 0;
+                    for (int total = 0; total < RATE * 2; ) {
+                        int got = rec.read(buf, 0, buf.length);
+                        if (got <= 0) {
+                            log("read " + got);
+                            break;
+                        }
+                        for (int k = 0; k < got; k++) {
+                            peak = Math.max(peak, Math.abs((int) buf[k]));
+                        }
+                        total += got;
+                    }
+                    log(String.format("  peak %.1f dBFS",
+                            20 * Math.log10(Math.max(peak, 1) / 32768.0)));
+                }
+                rec.stop();
+            } catch (Exception e) {
+                log("error " + e);
+            } finally {
+                if (aec != null) aec.release();
+                if (ns != null) ns.release();
+                rec.release();
+            }
+            log("fx done");
             runOnUiThread(() -> { loop = null; running = false; });
         });
         loop.start();

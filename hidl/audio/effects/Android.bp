@@ -1,0 +1,25 @@
+// The codec DSP's echo cancelling and noise suppression, as platform
+// pre-processing effects the HAL carries out
+cc_library_shared {
+    name: "libmochavoiceprocessing",
+
+    vendor: true,
+
+    relative_install_path: "soundfx",
+
+    srcs: ["voice_processing.c"],
+
+    shared_libs: ["liblog"],
+
+    header_libs: [
+        "libaudioeffects",
+        "libhardware_headers",
+    ],
+
+    cflags: [
+        "-fvisibility=hidden",
+        "-Wall",
+        "-Werror",
+        "-Wno-unused-parameter",
+    ],
+}

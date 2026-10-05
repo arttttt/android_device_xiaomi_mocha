@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -40,9 +41,12 @@
 #include <utils/Timers.h>
 
 #include <hardware/audio.h>
+#include <hardware/audio_effect.h>
 #include <hardware/hardware.h>
 
 #include <system/audio.h>
+#include <system/audio_effects/effect_aec.h>
+#include <system/audio_effects/effect_ns.h>
 
 #include <tinyalsa/asoundlib.h>
 
@@ -307,6 +311,12 @@ struct stream_in_common {
     size_t buffer_size;
 
     int input_source;
+
+    /* The processing it records with, under its lock: the source's own,
+     * then whatever the app turns on or off through the platform's
+     * AcousticEchoCanceler and NoiseSuppressor */
+    bool aec;
+    bool ns;
 
     nsecs_t last_read_ns;
 };
@@ -1808,16 +1818,19 @@ static uint32_t in_get_input_frames_lost(struct audio_stream_in *stream)
     return 0;
 }
 
+static int in_set_effect(const struct audio_stream *stream,
+                         effect_handle_t effect, bool on);
+
 static int in_add_audio_effect(const struct audio_stream *stream,
                                effect_handle_t effect)
 {
-    return 0;
+    return in_set_effect(stream, effect, true);
 }
 
 static int in_remove_audio_effect(const struct audio_stream *stream,
                                   effect_handle_t effect)
 {
-    return 0;
+    return in_set_effect(stream, effect, false);
 }
 
 static void do_in_set_read_timestamp(struct stream_in_common *in)
@@ -2205,31 +2218,62 @@ static int start_pcm_input_stream(struct stream_in_pcm *in)
 }
 
 /*
- * The config manager stream an input source records through: a stream
- * of its own, named in the config, for the sources that have one, or the
- * generic PCM input for the devices and config.
+ * The processing a source records with until the app says otherwise: a
+ * VoIP capture with the DSP's echo cancelling and noise suppression,
+ * voice recognition and unprocessed capture raw, any other with the
+ * noise suppression of the generic stream.
  */
-static const struct hw_stream *get_input_stream(struct config_mgr *cm,
-                                                int source, uint32_t devices,
-                                                const struct audio_config *config)
+static void input_source_processing(int source, bool *aec, bool *ns)
 {
-    const char *stream_name;
-    const struct hw_stream *hw;
-
     switch (source) {
-    case AUDIO_SOURCE_VOICE_RECOGNITION:
-        stream_name = "voice recognition";
-        break;
-    case AUDIO_SOURCE_UNPROCESSED:
-        stream_name = "unprocessed";
-        break;
     case AUDIO_SOURCE_VOICE_COMMUNICATION:
-        stream_name = "voice communication";
+        *aec = true;
+        *ns = true;
+        break;
+    case AUDIO_SOURCE_VOICE_RECOGNITION:
+    case AUDIO_SOURCE_UNPROCESSED:
+        *aec = false;
+        *ns = false;
         break;
     default:
-        stream_name = NULL;
+        *aec = false;
+        *ns = true;
         break;
     }
+}
+
+/*
+ * The config manager stream a capture records through, by its processing:
+ * echo cancelling (which brings noise suppression with it) on the named
+ * "voice communication" stream; noise suppression alone on the generic
+ * PCM input, NULL here; none on a raw named stream, voice recognition's
+ * for that source and "unprocessed" for any other.
+ */
+static const char *input_stream_name(int source, bool aec, bool ns)
+{
+    if (aec) {
+        return "voice communication";
+    } else if (ns) {
+        return NULL;
+    } else if (source == AUDIO_SOURCE_VOICE_RECOGNITION) {
+        return "voice recognition";
+    } else {
+        return "unprocessed";
+    }
+}
+
+static bool same_input_stream(const char *a, const char *b)
+{
+    return a == b || (a != NULL && b != NULL && strcmp(a, b) == 0);
+}
+
+static const struct hw_stream *get_input_stream(struct config_mgr *cm,
+                                                int source, bool aec, bool ns,
+                                                uint32_t devices,
+                                                const struct audio_config *config)
+{
+    const char *stream_name = input_stream_name(source, aec, ns);
+    const struct hw_stream *hw;
 
     if (stream_name) {
         hw = get_named_stream(cm, stream_name);
@@ -2239,14 +2283,54 @@ static const struct hw_stream *get_input_stream(struct config_mgr *cm,
         }
     }
 
-    return get_stream(cm, devices, 0, config);
+    /* An input's devices, even none: the stream is found by direction */
+    return get_stream(cm, devices | AUDIO_DEVICE_BIT_IN, 0, config);
+}
+
+/*
+ * Puts a capture in standby on the config manager stream for a source
+ * and processing. The old stream goes first, so its paths are off before
+ * the new one's go on: they share the mic's controls. If the new one
+ * can't be had, the capture stays as it was. Leaves routing the new
+ * stream to the caller. Called with the stream's lock held, in standby.
+ */
+static int swap_input_stream_locked(struct stream_in_pcm *in, int source,
+                                    bool aec, bool ns, uint32_t devices)
+{
+    struct config_mgr *cm = in->common.dev->cm;
+    struct audio_config config;
+    const struct hw_stream *hw;
+
+    memset(&config, 0, sizeof(config));
+    config.sample_rate = in->common.sample_rate;
+    config.channel_mask = in->common.channel_mask;
+    config.format = in->common.format;
+
+    if (in->common.hw != NULL) {
+        release_stream(in->common.hw);
+        in->common.hw = NULL;
+    }
+
+    hw = get_input_stream(cm, source, aec, ns, devices, &config);
+    if (hw == NULL) {
+        ALOGE("No input stream for source %d aec %d ns %d", source, aec, ns);
+        in->common.hw = get_input_stream(cm, in->common.input_source,
+                                         in->common.aec, in->common.ns,
+                                         devices, &config);
+        return -EINVAL;
+    }
+
+    in->common.hw = hw;
+    in->common.input_source = source;
+    in->common.aec = aec;
+    in->common.ns = ns;
+    return 0;
 }
 
 static int change_input_source_locked(struct stream_in_pcm *in, int new_source,
                                       uint32_t devices)
 {
-    struct audio_config config;
-    const struct hw_stream *hw;
+    bool aec, ns;
 
     /* Checked first: a new route for a running capture keeps its source */
     if (in->common.input_source == new_source) {
@@ -2259,27 +2343,73 @@ static int change_input_source_locked(struct stream_in_pcm *in, int new_source,
         return -EINVAL;
     }
 
-    memset(&config, 0, sizeof(config));
-    config.sample_rate = in->common.sample_rate;
-    config.channel_mask = in->common.channel_mask;
-    config.format = in->common.format;
-    hw = get_input_stream(in->common.dev->cm, new_source, devices, &config);
-    if (hw == NULL) {
-        ALOGV("Could not open new input stream");
+    /* A new source starts from its own processing */
+    input_source_processing(new_source, &aec, &ns);
+    return swap_input_stream_locked(in, new_source, aec, ns, devices);
+}
+
+/*
+ * The platform's AcousticEchoCanceler and NoiseSuppressor, which are this
+ * device's voice processing library's: AudioFlinger gives the stream an
+ * effect when it is enabled and takes it back when it is disabled. The
+ * capture moves to the stream that records with the processing asked
+ * for, through standby if it is running. Other effects are left alone;
+ * software ones run in AudioFlinger and are nothing to the HAL.
+ */
+static int in_set_effect(const struct audio_stream *stream,
+                         effect_handle_t effect, bool on)
+{
+    struct stream_in_pcm *in = (struct stream_in_pcm *)stream;
+    effect_descriptor_t desc;
+    bool aec, ns;
+    int ret = 0;
+
+    if (effect == NULL || (*effect)->get_descriptor(effect, &desc) != 0) {
         return -EINVAL;
     }
 
-    /*
-     * A normal stream will be in standby and therefore device node
-     * is closed when we get here.
-     */
-    if (in->common.hw != NULL) {
-        release_stream(in->common.hw);
+    if ((desc.flags & EFFECT_FLAG_HW_ACC_TUNNEL) == 0) {
+        return 0;
     }
 
-    in->common.hw = hw;
-    in->common.input_source = new_source;
-    return 0;
+    pthread_mutex_lock(&in->common.lock);
+
+    aec = in->common.aec;
+    ns = in->common.ns;
+
+    if (memcmp(&desc.type, FX_IID_AEC, sizeof(desc.type)) == 0) {
+        aec = on;
+    } else if (memcmp(&desc.type, FX_IID_NS, sizeof(desc.type)) == 0) {
+        ns = on;
+    } else {
+        goto exit;
+    }
+
+    ALOGI("in %p source %d: %s %s, records with aec %d ns %d",
+          in, in->common.input_source, desc.name, on ? "on" : "off", aec, ns);
+
+    /* Echo cancelling brings noise suppression with it: a change that
+     * keeps the stream is only written down */
+    if (same_input_stream(input_stream_name(in->common.input_source,
+                                            in->common.aec, in->common.ns),
+                          input_stream_name(in->common.input_source,
+                                            aec, ns))) {
+        in->common.aec = aec;
+        in->common.ns = ns;
+        goto exit;
+    }
+
+    do_in_pcm_standby(in);
+
+    ret = swap_input_stream_locked(in, in->common.input_source, aec, ns,
+                                   in->common.devices);
+    if (in->common.hw != NULL && in->common.devices != 0) {
+        apply_route(in->common.hw, in->common.devices);
+    }
+
+exit:
+    pthread_mutex_unlock(&in->common.lock);
+    return ret;
 }
 
 static ssize_t do_in_pcm_read(struct audio_stream_in *stream, void *buffer,
@@ -2659,8 +2789,11 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
      * off again. The patch that routes the stream brings the source
      * again, and finds it unchanged.
      */
-    const struct hw_stream *hw = get_input_stream(adev->cm, source, devices,
-                                                  config);
+    bool aec, ns;
+    input_source_processing(source, &aec, &ns);
+
+    const struct hw_stream *hw = get_input_stream(adev->cm, source, aec, ns,
+                                                  devices, config);
     if (!hw) {
         ALOGE("No suitable input stream for devices=0x%x flags=0x%x format=0x%x",
               devices, flags, config->format);
@@ -2687,6 +2820,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     }
 
     in->common.input_source = source;
+    in->common.aec = aec;
+    in->common.ns = ns;
 
     /*
      * AudioFlinger takes the buffer size once, now, and from it decides
@@ -3391,9 +3526,10 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
     list_for_each(node, &adev->inputs) {
         const struct stream_in_common *in =
                 node_to_item(node, struct stream_in_common, node);
-        dprintf(fd, "  input io %d patch %d: source %d, devices 0x%x%s%s,"
-                " %u Hz, format 0x%x, %d ch\n",
+        dprintf(fd, "  input io %d patch %d: source %d, aec %d ns %d,"
+                " devices 0x%x%s%s, %u Hz, format 0x%x, %d ch\n",
                 in->io_handle, in->patch_handle, in->input_source,
+                in->aec, in->ns,
                 in->devices, in->standby ? ", standby" : ", recording",
                 in->on_tuner ? ", on the tuner" : "",
                 in->sample_rate, in->format, in->channel_count);

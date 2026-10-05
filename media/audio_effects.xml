@@ -6,6 +6,7 @@
         <library name="visualizer" path="libvisualizer.so"/>
         <library name="downmix" path="libdownmix.so"/>
         <library name="loudness_enhancer" path="libldnhncr.so"/>
+        <library name="voice_processing" path="libmochavoiceprocessing.so"/>
     </libraries>
     <effects>
         <effect name="bassboost" library="bundle" uuid="8631f300-72e2-11df-b57e-0002a5d5c51b"/>
@@ -19,5 +20,16 @@
         <effect name="visualizer" library="visualizer" uuid="d069d9e0-8329-11df-9168-0002a5d5c51b"/>
         <effect name="downmix" library="downmix" uuid="93f04452-e4fe-41cc-91f9-e475b6d1d69f"/>
         <effect name="loudness_enhancer" library="loudness_enhancer" uuid="fa415329-2034-4bea-b5dc-5b381c8d1e2c"/>
+        <!-- The codec DSP's, carried out by the HAL -->
+        <effect name="aec" library="voice_processing" uuid="a26b33f6-39f2-4a7d-88d7-0a9eff774b22"/>
+        <effect name="ns" library="voice_processing" uuid="62d49dfd-1d6c-4f23-8e23-a5985f99e90a"/>
     </effects>
+    <!-- A VoIP capture records with the DSP's echo cancelling and noise
+         suppression; an app turns either off through its effect -->
+    <preprocess>
+        <stream type="voice_communication">
+            <apply effect="aec"/>
+            <apply effect="ns"/>
+        </stream>
+    </preprocess>
 </audio_effects_conf>

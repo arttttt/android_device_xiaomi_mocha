@@ -58,6 +58,7 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     audio.primary.tegra \
     libaudiohalcm \
+    libmochavoiceprocessing \
     libtinyalsav2 \
     tinycap2 \
     tinymix2 \
