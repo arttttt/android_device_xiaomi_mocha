@@ -289,8 +289,13 @@
           <ctl name="IN2 Boost" val="3"/>
           <ctl name="IN4 Boost" val="3"/>
           <ctl name="TxDP Capture Volume" val="68"/>
+          <!-- The speakers' voice preset and equalizer, for the call -->
+          <ctl name="Left Spk Profile" val="Voice"/>
+          <ctl name="Right Spk Profile" val="Voice"/>
 		</path>
         <path name="off_pcm_rec_aec">
+          <ctl name="Left Spk Profile" val="Music"/>
+          <ctl name="Right Spk Profile" val="Music"/>
           <ctl name="TxDP Capture Volume" val="47"/>
           <ctl name="IN2 Boost" val="5"/>
           <ctl name="IN4 Boost" val="5"/>
