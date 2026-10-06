@@ -195,4 +195,14 @@
          bypassed, no noise suppression, AGC or DRC -->
     <bool name="config_supportAudioSourceUnprocessed">true</bool>
 
+    <!-- No default ceiling on the refresh rate. The panel's own rate is
+         60.012 Hz, and the platform's default of 60 caps the display
+         policy at exactly sixty; SurfaceFlinger compares against that cap
+         to a thousandth of a hertz, so it dropped the panel's own rate as
+         too fast and, given a choice of sixty and thirty, could only ever
+         pick thirty. Without the cap the framework chooses between the
+         two rates the composer offers: thirty when nothing draws, sixty
+         otherwise. -->
+    <integer name="config_defaultRefreshRate">0</integer>
+
 </resources>
