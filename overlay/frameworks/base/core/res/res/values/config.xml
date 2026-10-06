@@ -205,4 +205,13 @@
          otherwise. -->
     <integer name="config_defaultRefreshRate">0</integer>
 
+    <!-- Square window corners in app transitions. SurfaceFlinger forces
+         client composition on any layer with a corner radius, and the
+         launcher animates one on every launch from an icon: about twenty
+         GPU compositions per launch, each holding SurfaceFlinger's main
+         thread for 2.7 ms. Square, the same layers go to the composer's
+         windows and merges; SurfaceFlinger's frame p90 14.1 -> 7.5 ms,
+         frames it waited on the previous one 126-140 -> 24-53 a run. -->
+    <bool name="config_supportsRoundedCornersOnWindows">false</bool>
+
 </resources>
