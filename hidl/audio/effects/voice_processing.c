@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2026 The LineageOS Project
+ * Copyright (C) 2026 Artem Bambalov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -257,7 +257,7 @@ audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
     .tag = AUDIO_EFFECT_LIBRARY_TAG,
     .version = EFFECT_LIBRARY_API_VERSION,
     .name = "Mocha voice processing",
-    .implementor = "LineageOS",
+    .implementor = "Artem Bambalov",
     .create_effect = lib_create,
     .release_effect = lib_release,
     .get_descriptor = lib_get_descriptor,
