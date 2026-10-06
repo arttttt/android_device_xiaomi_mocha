@@ -67,9 +67,16 @@ PRODUCT_PACKAGES += \
 # HIDL, which is the only way SurfaceFlinger reaches a composer here. The
 # module itself is declared with the other hardware modules in device.mk.
 #
-# 2.3 is the last version Q carries -- 2.4 arrives in R -- and the module
-# behind this service already answers at that level, so the version here is
-# the whole of what was holding it back. Nothing in the module changes: every
+# 2.4, which R brings: the module has answered at that level all along, and
+# what the version unlocks is the rate change. At 2.4 every vsync carries the
+# period it was taken at and the framework may move the display between its
+# configs seamlessly -- which is how the panel goes to thirty hertz when
+# nothing draws and back when something does, with the framework knowing
+# the rate instead of having it changed behind its back.
+#
+# 2.3 was the last version Q carries, and the module behind that service
+# already answered at that level, so the version there was the whole of what
+# was holding it back. Nothing in the module changes: every
 # call 2.3 adds is registered through initOptionalDispatch, so the ones it
 # does not export are answered by the service with UNSUPPORTED rather than
 # refused at start-up.
@@ -83,7 +90,7 @@ PRODUCT_PACKAGES += \
     android.hardware.graphics.allocator@2.0-impl \
     android.hardware.graphics.allocator@2.0-service \
     android.hardware.graphics.mapper@2.0-impl-2.1 \
-    android.hardware.graphics.composer@2.3-service
+    android.hardware.graphics.composer@2.4-service
 
 # Health HAL
 # The generic service, not our own: it reads the battery through
