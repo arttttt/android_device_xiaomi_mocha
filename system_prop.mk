@@ -80,11 +80,14 @@ PRODUCT_PROPERTY_OVERRIDES += \
 
 # The panel runs at sixty or, with its porch stretched, at thirty, and the
 # composer offers both as one seamless group. Which one is the framework's
-# call: after a second with no new frame it takes the slowest rate its
-# policy allows, and a touch puts it back at the fastest for as long as the
-# finger is down and half a second after. Both timers are off unless set.
+# call: after two and a half seconds with no new frame it takes the slowest
+# rate its policy allows, and a touch puts it back at the fastest for as
+# long as the finger is down and half a second after. Both timers are off
+# unless set. A second was too short: the pause between the launcher's
+# animation and an opening application's first frames outlasts it, and
+# the application opened at thirty hertz.
 PRODUCT_PROPERTY_OVERRIDES += \
-    ro.surface_flinger.set_idle_timer_ms=1000 \
+    ro.surface_flinger.set_idle_timer_ms=2500 \
     ro.surface_flinger.set_touch_timer_ms=500
 
 # Input
