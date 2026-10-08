@@ -1,0 +1,58 @@
+From 0a096e1d6d6d199a6b7685dafca8af8daaa1d72a Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Thu, 1 Oct 2026 23:03:52 +0300
+Subject: [PATCH] tinyalsa: don't underflow the control index on a match at
+ index 0
+
+mixer_get_ctl_by_name_and_index() tested "index-- == 0", so every lookup
+that matched the first control of a name also decremented the unsigned
+index past zero. libtinyalsav2 is built with the integer-overflow
+sanitizer in diagnostic mode, and the audio HAL logged an
+UndefinedBehaviorSanitizer report from mixer.c for it on start-up (29 in
+one session); in trap mode it would abort. Taken from upstream tinyalsa
+b49414e, which AOSP's tinyalsa_new on android12-release predates.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ src/mixer.c | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/src/mixer.c b/src/mixer.c
+index 5581e5d..b4d96fd 100644
+--- a/src/mixer.c
++++ b/src/mixer.c
+@@ -732,9 +732,13 @@ struct mixer_ctl *mixer_get_ctl_by_name_and_index(struct mixer *mixer,
+         ctl = grp->ctl;
+ 
+         for (n = 0; n < grp->count; n++)
+-            if (!strcmp(name, (char*) ctl[n].info.id.name))
+-                if (index-- == 0)
++            if (!strcmp(name, (char*) ctl[n].info.id.name)) {
++                if (index == 0) {
+                     return ctl + n;
++                } else {
++                    index--;
++                }
++            }
+     }
+ 
+ #ifdef TINYALSA_USES_PLUGINS
+@@ -743,9 +747,13 @@ struct mixer_ctl *mixer_get_ctl_by_name_and_index(struct mixer *mixer,
+         ctl = grp->ctl;
+ 
+         for (n = 0; n < grp->count; n++)
+-            if (!strcmp(name, (char*) ctl[n].info.id.name))
+-                if (index-- == 0)
++            if (!strcmp(name, (char*) ctl[n].info.id.name)) {
++                if (index == 0) {
+                     return ctl + n;
++                } else {
++                    index--;
++                }
++            }
+     }
+ #endif
+     return NULL;
+-- 
+2.56.0
+

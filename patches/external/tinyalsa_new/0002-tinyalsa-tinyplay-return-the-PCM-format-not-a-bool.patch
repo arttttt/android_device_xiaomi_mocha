@@ -1,0 +1,32 @@
+From bcc3fd26d516e2076c905113b99888f1746cb4d2 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 3 Oct 2026 05:34:55 +0300
+Subject: [PATCH] tinyalsa: tinyplay: return the PCM format, not a bool
+
+signed_pcm_bits_to_format() was declared bool, so it worked by accident
+for 16-bit (PCM_FORMAT_S16_LE, 0) and mapped every other width to
+true, PCM_FORMAT_S32_LE: an 8- or 24-bit WAV was opened as S32_LE and
+played as noise. Taken from upstream tinyalsa f5368cd ("tinyplay: fix
+playback of 24-bit and 8-bit pcm"), which AOSP's tinyalsa_new predates.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ utils/tinyplay.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/tinyplay.c b/utils/tinyplay.c
+index 96d0f60..1648418 100644
+--- a/utils/tinyplay.c
++++ b/utils/tinyplay.c
+@@ -111,7 +111,7 @@ static bool is_wave_file(const char *filetype)
+     return filetype != NULL && strcmp(filetype, "wav") == 0;
+ }
+ 
+-static bool signed_pcm_bits_to_format(int bits)
++static enum pcm_format signed_pcm_bits_to_format(int bits)
+ {
+     switch (bits) {
+     case 8:
+-- 
+2.56.0
+

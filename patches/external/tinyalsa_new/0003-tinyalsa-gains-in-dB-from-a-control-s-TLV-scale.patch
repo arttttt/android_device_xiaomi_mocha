@@ -1,0 +1,375 @@
+From 9e2129614533c5a020c149183436cc4f7e216503 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sun, 4 Oct 2026 00:02:25 +0300
+Subject: [PATCH] tinyalsa: gains in dB from a control's TLV scale
+
+A driver gives most volume controls a dB scale, as TLV data next to the
+control; tinyalsa had no way to read it, so a caller that wants a gain
+in dB had to know each control's scale itself. mixer_ctl_get_db_range()
+and mixer_ctl_get_value_for_db() read the scale from the kernel and turn
+a gain, in 1/100 dB as the TLV has it, into the nearest value. They read
+it as alsa-lib's snd_tlv_get_dB_range() and snd_tlv_convert_from_dB()
+do: dB scale, linear, min-max (with or without mute), ranges of those,
+and containers around them.
+
+The kernel does not size the data it returns, so the TLV's own header
+does, within the buffer, and the parsing never trusts a length past what
+was read. The arithmetic is 64-bit: the library builds with the integer
+overflow sanitizer, and a step times a wide range overflows 32 bits.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ Android.bp               |   2 +-
+ include/tinyalsa/mixer.h |   5 +
+ src/mixer.c              | 299 +++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 305 insertions(+), 1 deletion(-)
+
+diff --git a/Android.bp b/Android.bp
+index d6fec57..dbbdc48 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -51,7 +51,7 @@ cc_library {
+         },
+     },
+ 
+-    system_shared_libs: ["libc", "libdl"],
++    system_shared_libs: ["libc", "libdl", "libm"],
+ 
+     sanitize: {
+         integer_overflow: true,
+diff --git a/include/tinyalsa/mixer.h b/include/tinyalsa/mixer.h
+index 7d0580f..056b038 100644
+--- a/include/tinyalsa/mixer.h
++++ b/include/tinyalsa/mixer.h
+@@ -153,6 +153,11 @@ int mixer_ctl_get_range_min(const struct mixer_ctl *ctl);
+ 
+ int mixer_ctl_get_range_max(const struct mixer_ctl *ctl);
+ 
++/* Gains in 1/100 dB, on the dB scale (TLV) the driver gives the control */
++int mixer_ctl_get_db_range(const struct mixer_ctl *ctl, long *min_db, long *max_db);
++
++int mixer_ctl_get_value_for_db(const struct mixer_ctl *ctl, long db, int *value);
++
+ int mixer_read_event(struct mixer *mixer, struct mixer_ctl_event *event);
+ 
+ int mixer_consume_event(struct mixer *mixer);
+diff --git a/src/mixer.c b/src/mixer.c
+index b4d96fd..41f2fc3 100644
+--- a/src/mixer.c
++++ b/src/mixer.c
+@@ -38,6 +38,7 @@
+ #include <limits.h>
+ #include <time.h>
+ #include <poll.h>
++#include <math.h>
+ 
+ #include <sys/ioctl.h>
+ 
+@@ -1222,6 +1223,304 @@ int mixer_ctl_get_range_max(const struct mixer_ctl *ctl)
+     return ctl->info.value.integer.max;
+ }
+ 
++/*
++ * The dB scale a driver gives an integer control, as its TLV data. Gains
++ * are in 1/100 dB, the unit of the TLV itself. What follows reads the
++ * scale as alsa-lib's snd_tlv_get_dB_range() and snd_tlv_convert_from_dB()
++ * do, rounding to the nearest value.
++ */
++#ifndef SNDRV_CTL_TLVT_CONTAINER
++#define SNDRV_CTL_TLVT_CONTAINER        0
++#define SNDRV_CTL_TLVT_DB_SCALE         1
++#define SNDRV_CTL_TLVT_DB_LINEAR        2
++#define SNDRV_CTL_TLVT_DB_RANGE         3
++#define SNDRV_CTL_TLVT_DB_MINMAX        4
++#define SNDRV_CTL_TLVT_DB_MINMAX_MUTE   5
++#endif
++
++/* Words of TLV read at most: a dB range of a few dozen items fits */
++#define MIXER_TLV_MAX_WORDS 256
++
++/* A TLV item's type, its length in bytes, then its data */
++#define TLV_TYPE(tlv)   ((tlv)[0])
++#define TLV_BYTES(tlv)  ((tlv)[1])
++/* Rounded up without an addition that could wrap on a bad length */
++#define TLV_WORDS(tlv)  ((size_t)2 + TLV_BYTES(tlv) / sizeof(unsigned int) + \
++                         (TLV_BYTES(tlv) % sizeof(unsigned int) != 0))
++
++static int mixer_ctl_read_tlv(const struct mixer_ctl *ctl, struct snd_ctl_tlv *tlv)
++{
++    struct mixer_ctl_group *grp = ctl->grp;
++    int ret;
++
++    if (ctl->info.type != SNDRV_CTL_ELEM_TYPE_INTEGER ||
++            !(ctl->info.access & SNDRV_CTL_ELEM_ACCESS_TLV_READ)) {
++        return -ENXIO;
++    }
++
++    tlv->numid = ctl->info.id.numid;
++    tlv->length = MIXER_TLV_MAX_WORDS * sizeof(unsigned int);
++    ret = grp->ops->ioctl(grp->data, SNDRV_CTL_IOCTL_TLV_READ, tlv);
++    if (ret < 0) {
++        return (ret == -1 && errno != 0) ? -errno : ret;
++    }
++
++    /* The kernel leaves length as it was: the data's own header sizes it */
++    if (TLV_WORDS(tlv->tlv) > MIXER_TLV_MAX_WORDS) {
++        return -ENOSPC;
++    }
++    return 0;
++}
++
++/* The first dB item in a TLV of the given words, looking into containers */
++static const unsigned int *tlv_find_db(const unsigned int *tlv, size_t words)
++{
++    while (words >= 2 && TLV_WORDS(tlv) <= words) {
++        switch (TLV_TYPE(tlv)) {
++        case SNDRV_CTL_TLVT_CONTAINER: {
++            const unsigned int *db = tlv_find_db(tlv + 2, TLV_WORDS(tlv) - 2);
++            if (db) {
++                return db;
++            }
++            break;
++        }
++        case SNDRV_CTL_TLVT_DB_SCALE:
++        case SNDRV_CTL_TLVT_DB_LINEAR:
++        case SNDRV_CTL_TLVT_DB_RANGE:
++        case SNDRV_CTL_TLVT_DB_MINMAX:
++        case SNDRV_CTL_TLVT_DB_MINMAX_MUTE:
++            return tlv;
++        default:
++            break;
++        }
++        words -= TLV_WORDS(tlv);
++        tlv += TLV_WORDS(tlv);
++    }
++    return NULL;
++}
++
++/* The dB range of one dB item over the values rmin..rmax */
++static int tlv_db_range(const unsigned int *tlv, int64_t rmin, int64_t rmax,
++                        int64_t *min_db, int64_t *max_db)
++{
++    switch (TLV_TYPE(tlv)) {
++    case SNDRV_CTL_TLVT_DB_SCALE:
++        if (TLV_BYTES(tlv) < 2 * sizeof(unsigned int)) {
++            return -EINVAL;
++        }
++        *min_db = (int)tlv[2];
++        *max_db = *min_db + (int64_t)(tlv[3] & 0xffff) * (rmax - rmin);
++        return 0;
++    case SNDRV_CTL_TLVT_DB_LINEAR:
++    case SNDRV_CTL_TLVT_DB_MINMAX:
++    case SNDRV_CTL_TLVT_DB_MINMAX_MUTE:
++        if (TLV_BYTES(tlv) < 2 * sizeof(unsigned int)) {
++            return -EINVAL;
++        }
++        *min_db = (int)tlv[2];
++        *max_db = (int)tlv[3];
++        return 0;
++    case SNDRV_CTL_TLVT_DB_RANGE: {
++        /* Items of value range and dB item: rmin, rmax, type, bytes, data */
++        const unsigned int *item = tlv + 2;
++        size_t words = TLV_WORDS(tlv) - 2;
++        bool found = false;
++
++        while (words >= 4 && 2 + TLV_WORDS(item + 2) <= words) {
++            int64_t lo, hi;
++            int ret = tlv_db_range(item + 2, (int)item[0], (int)item[1], &lo, &hi);
++            if (ret < 0) {
++                return ret;
++            }
++            if (!found || lo < *min_db) {
++                *min_db = lo;
++            }
++            if (!found || hi > *max_db) {
++                *max_db = hi;
++            }
++            found = true;
++            words -= 2 + TLV_WORDS(item + 2);
++            item += 2 + TLV_WORDS(item + 2);
++        }
++        return found ? 0 : -EINVAL;
++    }
++    default:
++        return -EINVAL;
++    }
++}
++
++static int64_t round_div(int64_t num, int64_t den)
++{
++    /* nearest, halves away from zero, for a positive divisor */
++    return (num >= 0) ? (num + den / 2) / den : -((-num + den / 2) / den);
++}
++
++/* The value, in rmin..rmax, of one dB item nearest to the gain */
++static int tlv_db_to_value(const unsigned int *tlv, int64_t rmin, int64_t rmax,
++                           int64_t db, int64_t *value)
++{
++    int64_t min_db, max_db;
++    int ret;
++
++    if (TLV_TYPE(tlv) == SNDRV_CTL_TLVT_DB_RANGE) {
++        const unsigned int *item = tlv + 2;
++        size_t words = TLV_WORDS(tlv) - 2;
++        int64_t prev_max_db = 0;
++        int64_t prev_value = 0;
++        bool have_prev = false;
++
++        while (words >= 4 && 2 + TLV_WORDS(item + 2) <= words) {
++            const int64_t imin = (int)item[0], imax = (int)item[1];
++
++            ret = tlv_db_range(item + 2, imin, imax, &min_db, &max_db);
++            if (ret < 0) {
++                return ret;
++            }
++            if (db < min_db) {
++                /* Below this item: the item before, if nearer, else its start */
++                *value = (have_prev && db - prev_max_db < min_db - db) ? prev_value : imin;
++                return 0;
++            }
++            if (db <= max_db) {
++                return tlv_db_to_value(item + 2, imin, imax, db, value);
++            }
++            prev_max_db = max_db;
++            prev_value = imax;
++            have_prev = true;
++            words -= 2 + TLV_WORDS(item + 2);
++            item += 2 + TLV_WORDS(item + 2);
++        }
++        if (!have_prev) {
++            return -EINVAL;
++        }
++        *value = prev_value;
++        return 0;
++    }
++
++    ret = tlv_db_range(tlv, rmin, rmax, &min_db, &max_db);
++    if (ret < 0) {
++        return ret;
++    }
++    if (db <= min_db) {
++        *value = rmin;
++        return 0;
++    }
++    if (db >= max_db) {
++        *value = rmax;
++        return 0;
++    }
++
++    switch (TLV_TYPE(tlv)) {
++    case SNDRV_CTL_TLVT_DB_SCALE: {
++        const int64_t step = tlv[3] & 0xffff;
++        *value = rmin + round_div(db - min_db, step);
++        break;
++    }
++    case SNDRV_CTL_TLVT_DB_LINEAR: {
++        /* Linear in amplitude between the two ends */
++        const double lo = pow(10.0, min_db / 2000.0);
++        const double hi = pow(10.0, max_db / 2000.0);
++        const double a = pow(10.0, db / 2000.0);
++        *value = rmin + llround((a - lo) / (hi - lo) * (double)(rmax - rmin));
++        break;
++    }
++    default:
++        /* DB_MINMAX, DB_MINMAX_MUTE: linear in dB between the two ends */
++        *value = rmin + round_div((db - min_db) * (rmax - rmin), max_db - min_db);
++        break;
++    }
++
++    if (*value < rmin) {
++        *value = rmin;
++    } else if (*value > rmax) {
++        *value = rmax;
++    }
++    return 0;
++}
++
++/** Gets the gain range of an integer control from the dB scale its driver
++ * gives it.
++ * @param ctl An initialized control handle.
++ * @param min_db Set to the gain of the control's minimum value, in 1/100 dB.
++ * @param max_db Set to the gain of the control's maximum value, in 1/100 dB.
++ * @returns On success, zero.
++ *  -ENXIO if the control has no dB scale, other negative errno on failure.
++ * @ingroup libtinyalsa-mixer
++ */
++int mixer_ctl_get_db_range(const struct mixer_ctl *ctl, long *min_db, long *max_db)
++{
++    unsigned int buf[(sizeof(struct snd_ctl_tlv) / sizeof(unsigned int)) + MIXER_TLV_MAX_WORDS];
++    struct snd_ctl_tlv *tlv = (struct snd_ctl_tlv *)buf;
++    const unsigned int *db;
++    int64_t lo, hi;
++    int ret;
++
++    if (!ctl || !min_db || !max_db) {
++        return -EINVAL;
++    }
++
++    ret = mixer_ctl_read_tlv(ctl, tlv);
++    if (ret < 0) {
++        return ret;
++    }
++
++    db = tlv_find_db(tlv->tlv, TLV_WORDS(tlv->tlv));
++    if (!db) {
++        return -ENXIO;
++    }
++
++    ret = tlv_db_range(db, ctl->info.value.integer.min, ctl->info.value.integer.max,
++                       &lo, &hi);
++    if (ret < 0) {
++        return ret;
++    }
++
++    *min_db = lo;
++    *max_db = hi;
++    return 0;
++}
++
++/** Gets the value of an integer control nearest to a gain, from the dB
++ * scale its driver gives it. Gains outside the scale give its ends.
++ * @param ctl An initialized control handle.
++ * @param db The gain, in 1/100 dB.
++ * @param value Set to the control's value for the gain.
++ * @returns On success, zero.
++ *  -ENXIO if the control has no dB scale, other negative errno on failure.
++ * @ingroup libtinyalsa-mixer
++ */
++int mixer_ctl_get_value_for_db(const struct mixer_ctl *ctl, long db, int *value)
++{
++    unsigned int buf[(sizeof(struct snd_ctl_tlv) / sizeof(unsigned int)) + MIXER_TLV_MAX_WORDS];
++    struct snd_ctl_tlv *tlv = (struct snd_ctl_tlv *)buf;
++    const unsigned int *item;
++    int64_t v;
++    int ret;
++
++    if (!ctl || !value) {
++        return -EINVAL;
++    }
++
++    ret = mixer_ctl_read_tlv(ctl, tlv);
++    if (ret < 0) {
++        return ret;
++    }
++
++    item = tlv_find_db(tlv->tlv, TLV_WORDS(tlv->tlv));
++    if (!item) {
++        return -ENXIO;
++    }
++
++    ret = tlv_db_to_value(item, ctl->info.value.integer.min,
++                          ctl->info.value.integer.max, db, &v);
++    if (ret < 0) {
++        return ret;
++    }
++
++    *value = (int)v;
++    return 0;
++}
++
+ /** Get the number of enumerated items in the control.
+  * @param ctl An initialized control handle.
+  * @returns The number of enumerated items in the control.
+-- 
+2.56.0
+

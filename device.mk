@@ -52,9 +52,9 @@ PRODUCT_PACKAGES += \
 # tinyhal, the open-source audio HAL this board switched to (BoardConfig sets
 # BOARD_USES_TINYHAL_AUDIO). audio.primary.tegra comes from hidl/audio,
 # libaudiohalcm from configmgr. Both link libtinyalsav2, the tinyalsa 2.x that
-# upstream tinyhal is written for; R has only the old libtinyalsa, so ours is
-# AOSP's external/tinyalsa_new (android12-release) kept in tinyalsa/, and goes
-# away once the platform carries it. The *2 tools come with it.
+# upstream tinyhal is written for. S carries it as external/tinyalsa_new, so
+# the copy 18.1 kept in tinyalsa/ is gone; our three fixes to it ride on the
+# platform's as patches/external/tinyalsa_new. The *2 tools come with it.
 PRODUCT_PACKAGES += \
     audio.primary.tegra \
     libaudiohalcm \

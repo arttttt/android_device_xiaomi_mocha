@@ -71,7 +71,11 @@ fi
 # in order; one with changes is compared with the series applied to HEAD in
 # a scratch index, and is either exactly that (already in) or something
 # else, which is an error.
+#
+# Projects named as arguments limit it to their series; with none it applies
+# every series under patches/.
 patch_trees() {
+    local only=" $* "
     local tree="$BUILD_DIR/device/xiaomi/mocha"
     local root="$tree/patches"
     # A branch with nothing to patch is a normal state, not an error: each
@@ -89,6 +93,9 @@ patch_trees() {
     local proj dir p idx expected
     for proj in $(find "$root" -name '*.patch' -exec dirname {} \; | sort -u); do
         proj=${proj#$root/}
+        if [ "$only" != "  " ] && [ "${only#* $proj }" = "$only" ]; then
+            continue
+        fi
         dir="$BUILD_DIR/$proj"
         if [ ! -d "$dir/.git" ]; then
             echo "  $proj: not a git project, skipping its patches" >&2
@@ -252,11 +259,13 @@ config_191() {
     export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
 }
 
-# Nothing yet. The device tree's patches/ was carried over from 18.1 and was
-# written against R; it is not applied until each patch has been looked at
-# against S.
+# Only what S needs to build: our three fixes to the platform's tinyalsa_new,
+# which took the place of the copy 18.1 kept in the device tree. The rest of
+# patches/ came over from 18.1 written against R, and is not applied until
+# each patch has been read against S.
 post_sync_191() {
-    echo "==> post-sync (19.1): nothing to apply yet"
+    echo "==> post-sync patches (19.1)"
+    patch_trees external/tinyalsa_new || return 1
     echo "==> post-sync OK"
 }
 
