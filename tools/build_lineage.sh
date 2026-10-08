@@ -223,6 +223,32 @@ post_sync_181() {
 }
 
 #==============================================================================
+# 19.1
+#==============================================================================
+
+# The bring-up starts bare: the repo, its branch and where the tree lives,
+# nothing else. 18.1's host fixes (MKE2FS_CONFIG, the linaro kernel
+# toolchain) and the tree patches each answered a failure 18.1 hit; on S they
+# come back one at a time, when the build hits the failure they cure.
+config_191() {
+    VER="19.1"
+    V=191
+    BUILD_DIR="/home/artem/DATA/projects/android/12.0.0"
+    REPO_INIT_URL="https://github.com/LineageOS/android.git"
+    REPO_INIT_BRANCH="lineage-19.1"
+    REPO_INIT_FLAGS="--git-lfs"
+    DEVICE_TREE_BRANCH="lineage-19.1"
+}
+
+# Nothing yet. The device tree's patches/ was carried over from 18.1 and was
+# written against R; it is not applied until each patch has been looked at
+# against S.
+post_sync_191() {
+    echo "==> post-sync (19.1): nothing to apply yet"
+    echo "==> post-sync OK"
+}
+
+#==============================================================================
 # Actions (version-agnostic, driven by config_* vars)
 #==============================================================================
 
@@ -556,7 +582,7 @@ usage() {
     cat <<EOF
 usage: $(basename "$0") [<version> <action>]
 
-  version   17.1 | 18.1
+  version   17.1 | 18.1 | 19.1
   action    manifest | sync | post-sync | clean | installclean | build
             | bootimage | mmm <dir>... | vintf | full | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
@@ -586,6 +612,7 @@ select_version() {
     case "$1" in
         17.1|171) config_171 ;;
         18.1|181) config_181 ;;
+        19.1|191) config_191 ;;
         *) echo "unknown version: $1" >&2; return 1 ;;
     esac
 }
@@ -635,6 +662,7 @@ cat <<EOF
 ==================  LineageOS (mocha)  ===================
   1) 17.1
   2) 18.1
+  3) 19.1
   q) quit
 ==========================================================
 EOF
@@ -642,6 +670,7 @@ read -p "> " ver_ans
 case "$ver_ans" in
     1) config_171 ;;
     2) config_181 ;;
+    3) config_191 ;;
     q|Q|"") echo "bye"; exit 0 ;;
     *) echo "unknown: $ver_ans"; exit 1 ;;
 esac
