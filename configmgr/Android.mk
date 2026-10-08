@@ -30,7 +30,6 @@ LOCAL_CFLAGS += -DETC_PATH=\"/vendor/etc\"
 
 LOCAL_C_INCLUDES += \
 	external/tinycompress/include \
-	device/xiaomi/mocha/tinyalsa/include \
 	external/expat/lib \
 	$(call include-path-for, audio-utils)
 
