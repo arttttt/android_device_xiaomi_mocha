@@ -78,12 +78,11 @@ PRODUCT_COPY_FILES += \
 # tried both. They go to the framework side anyway, where Google's own
 # devices put them, because that is the only place that keeps working if
 # the board ever moves to an isolated, treble-enforced linker config.
-# TARGET_OUT_VENDOR_SHARED_LIBRARIES, which this used before, is a build
-# variable and empty while product makefiles are read: the copies landed
-# in the root of the product out directory and never reached an image.
-PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/aptXHD/libaptX_encoder.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libaptX_encoder.so \
-    $(LOCAL_PATH)/aptXHD/libaptXHD_encoder.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libaptXHD_encoder.so
+# S refuses ELF files in PRODUCT_COPY_FILES; aptXHD/Android.bp makes them
+# prebuilt modules, installed to /system/lib as the copies were.
+PRODUCT_PACKAGES += \
+    libaptX_encoder \
+    libaptXHD_encoder
 
 # Bluetooth
 # Stays in vendor/etc, where a vendor config belongs since Android 8, even

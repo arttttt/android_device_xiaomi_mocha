@@ -1,0 +1,44 @@
+//
+// Copyright (C) 2026 Artem Bambalov
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// The aptX and aptX HD encoders the Bluetooth stack dlopen()s by these bare
+// names. S refuses ELF files in PRODUCT_COPY_FILES, so they are modules.
+//
+// check_elf_files is off because each carries the soname it was built with
+// (libaptX-1.0.0-rel-Android21-ARMv7A.so, libaptXHD-...), not the name it
+// ships under, and the check wants the two to agree. Nothing links against
+// them: they are only ever opened by path name, which the soname does not
+// take part in. Their own needs are libc and libdl.
+
+cc_prebuilt_library_shared {
+    name: "libaptX_encoder",
+    srcs: ["libaptX_encoder.so"],
+    compile_multilib: "32",
+    check_elf_files: false,
+    strip: {
+        none: true,
+    },
+}
+
+cc_prebuilt_library_shared {
+    name: "libaptXHD_encoder",
+    srcs: ["libaptXHD_encoder.so"],
+    compile_multilib: "32",
+    check_elf_files: false,
+    strip: {
+        none: true,
+    },
+}
