@@ -226,10 +226,9 @@ post_sync_181() {
 # 19.1
 #==============================================================================
 
-# The bring-up starts bare: the repo, its branch and where the tree lives,
-# nothing else. 18.1's host fixes (MKE2FS_CONFIG, the linaro kernel
-# toolchain) and the tree patches each answered a failure 18.1 hit; on S they
-# come back one at a time, when the build hits the failure they cure.
+# The base the build needs on this host, as for 18.1: the tree, the kernel
+# toolchain and mke2fs's configuration. Workarounds and the tree patches stay
+# out until S shows it needs them.
 config_191() {
     VER="19.1"
     V=191
@@ -238,6 +237,19 @@ config_191() {
     REPO_INIT_BRANCH="lineage-19.1"
     REPO_INIT_FLAGS="--git-lfs"
     DEVICE_TREE_BRANCH="lineage-19.1"
+
+    # The tree's mke2fs reads /etc/mke2fs.conf when nothing else is named,
+    # and on a rolling distribution that lists features it has never heard
+    # of ("Invalid filesystem option set: ...,orphan_file"). The tree ships a
+    # configuration of its own.
+    export MKE2FS_CONFIG="$BUILD_DIR/system/extras/ext4_utils/mke2fs.conf"
+
+    # The kernel is the same SmokeR24.1-stable 18.1 builds, with the same
+    # toolchain: the in-tree androideabi-4.9 pin miscompiles it on this host,
+    # linaro-4.9.4 does not. Env overrides still win.
+    : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
+    : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
+    export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
 }
 
 # Nothing yet. The device tree's patches/ was carried over from 18.1 and was
