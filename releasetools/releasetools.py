@@ -16,9 +16,16 @@
 
 """Writes the secure world's image as part of installing the ROM.
 
-The kernel on this board talks to a secure monitor and expects PSCI 0.1
+The kernel on this board talks to a secure monitor and expects PSCI 0.2
 behind it -- which is why the image carries that in its name, because the
 next person to touch this will need to know which of the two worlds it is.
+It is the Shield Tablet's TLK built in February 2017: CPU_ON, CPU_OFF,
+CPU_SUSPEND and SYSTEM_RESET in the monitor, a monitor vector set on every
+CPU as it comes up. Its SYSTEM_OFF is a stub that halts; the kernel powers
+the board off through the PMIC and never asks it to. The 2015 TLK this
+replaced answers neither PSCI_VERSION nor SYSTEM_RESET, so it cannot stand
+behind this kernel.
+
 A board whose TOS partition holds something else, or nothing, does not fail
 in a way anyone can read: it fails like a kernel, a driver, anything but
 firmware. Asking people to flash it separately has not worked, so the
@@ -38,12 +45,12 @@ Written in InstallBegin rather than InstallEnd so that a failure stops the
 install before the system image has been touched.
 
 The write is unconditional. Guarding it on the partition's current contents
-was considered and dropped: the image is 1.42 MB in a 4 MB partition, and
+was considered and dropped: the image is 1.6 MB in a 4 MB partition, and
 past it a device can still hold most of an older and larger image -- so a
 hash of the partition says nothing portable, and edify cannot hash a slice.
 """
 
-TOS_IMAGE = "install/firmware-update/tos-psci-0.1.img"
+TOS_IMAGE = "install/firmware-update/tos-psci-0.2.img"
 
 # Where TOS can be reached, best first. Every entry was read off a device
 # sitting in the recovery this runs in -- TWRP 3.2.1, omni_mocha 7.1.2 base
@@ -63,7 +70,7 @@ TOS_IMAGE = "install/firmware-update/tos-psci-0.1.img"
 # links resolve to was in it as well, and came out for a better reason: a
 # partition number is not a name. It is true for the table this board ships
 # today and says nothing about the table in front of the script -- and being
-# wrong there does not fail, it writes 1.42 MB over whatever partition six
+# wrong there does not fail, it writes 1.6 MB over whatever partition six
 # happens to be. That is the failure by-name exists to make impossible, and
 # there is no point reaching for it as a fallback.
 #
@@ -84,7 +91,7 @@ def _write_tos(info):
     written is the exact state this file exists to prevent.
     """
     info.script.AppendExtra(
-        'ui_print("Writing the secure world (PSCI 0.1) to TOS...");')
+        'ui_print("Writing the secure world (PSCI 0.2) to TOS...");')
 
     attempts = ['package_extract_file("%s", "%s")' % (TOS_IMAGE, partition)
                 for partition in TOS_PARTITIONS]
