@@ -137,10 +137,19 @@ PRODUCT_PROPERTY_OVERRIDES += \
     persist.debug.wfd.enable=1
 
 # Wi-Fi country. Without a SIM, R takes the country from ro.boot.wificountrycode
-# and from nothing else: left unset, the framework has no country, the settings
-# offer the hotspot 2.4 GHz only, and a 5 GHz hotspot is refused ("Failed to
-# set country code, required for setting up soft ap in 5GHz"). It could come
-# as androidboot.wificountrycode on the kernel cmdline, but that is baked into
-# boot.img; here it is a system property, and a cmdline value would still win.
+# and from nothing else. It could come as androidboot.wificountrycode on the
+# kernel cmdline, but that is baked into boot.img; here it is a system
+# property, and a cmdline value would still win.
+#
+# 00, the world domain, as most SIM-less devices LineageOS carries set it:
+# the tablet is used everywhere, and naming any one country is right only
+# for that one. What it costs is the hotspot, which needs a country to
+# transmit on 5 GHz ("Failed to set country code, required for setting up
+# soft ap in 5GHz") and stays on 2.4 GHz.
+#
+# The station side does not hang on it here: the channel list bcmdhd gives
+# cfg80211 comes from the firmware and did not follow the framework's
+# country -- under US, 2.4 GHz channels 12 and 13 and the 5 GHz DFS ones
+# were listed as usable all the same.
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
-    ro.boot.wificountrycode=US
+    ro.boot.wificountrycode=00
