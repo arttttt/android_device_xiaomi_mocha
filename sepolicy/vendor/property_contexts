@@ -14,9 +14,6 @@
 
 ro.bt.bdaddr_path                   u:object_r:bdaddr_path_prop:s0
 
-sf.lcd_density                   u:object_r:sf_lcd_density_prop:s0
-ro.sf.lcd_density                   u:object_r:sf_lcd_density_prop:s0
-
 sys.vrr.min-refr-per-ns          u:object_r:vrr_prop:s0
 
 ctl.consolemode                  u:object_r:system_prop:s0

@@ -13,12 +13,6 @@
 # limitations under the License.
 
 type mediacodec_prop, property_type;
-
-# For sf.lcd_density and ro.sf.lcd_density, which surfaceflinger writes at
-# boot to set the DPI. NVIDIA called it surfaceflinger_prop; S declares a
-# surfaceflinger_prop of its own, for the ro.surface_flinger.* configuration
-# only init and vendor_init may set, and the two would be one type.
-type sf_lcd_density_prop, property_type;
 type thermal_prop, property_type;
 type phs_prop, property_type;
 
