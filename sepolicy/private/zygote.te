@@ -33,4 +33,4 @@ r_dir_file(zygote, camera_config_file)
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-get_prop(zygote, surfaceflinger_prop)
+get_prop(zygote, sf_lcd_density_prop)

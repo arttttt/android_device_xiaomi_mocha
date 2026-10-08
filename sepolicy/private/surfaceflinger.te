@@ -14,7 +14,7 @@
 
 # Allow writing to ro.sf.lcd_density at boot, so that we can dynamically
 # configure the DPI
-set_prop(surfaceflinger, surfaceflinger_prop)
+set_prop(surfaceflinger, sf_lcd_density_prop)
 # Allow execmem to use fast format/data conversions inside the driver.
 allow surfaceflinger self:process execmem;
 # Allow surfaceflinger to configure smartdimmer and other PMQoS nodes
