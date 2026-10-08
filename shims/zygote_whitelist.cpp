@@ -13,7 +13,7 @@ PATH_WHITELIST_EXTRA
 };
 
 bool FileDescriptorAllowlist::IsAllowed(const std::string& path) const {
-  bool (*IsAllowed_real)(const FileDescriptorAllowlist*, const std::string&);
+  static bool (*IsAllowed_real)(const FileDescriptorAllowlist*, const std::string&);
 
   // Check the static whitelist path.
   for (const auto& whitelist_path : kPathWhitelistExtra) {
