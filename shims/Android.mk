@@ -21,8 +21,8 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := zygote_whitelist.cpp
-LOCAL_C_INCLUDES := frameworks/base/core/jni \
-                    system/core/base/include
+LOCAL_C_INCLUDES := frameworks/base/core/jni
+LOCAL_HEADER_LIBRARIES := libbase_headers
 ifneq ($(ZYGOTE_WHITELIST_PATH_EXTRA),)
     LOCAL_CFLAGS += -DPATH_WHITELIST_EXTRA=$(ZYGOTE_WHITELIST_PATH_EXTRA)
 endif
