@@ -16,10 +16,11 @@
 -->
 <resources>
     <!-- The tiles a fresh install shows, the owner's set: the device's own
-         performance and charger tiles fifth and sixth, the last of the six
-         the collapsed panel shows. No flashlight or mobile data: mocha has
-         neither, and a tile the device lacks is hidden, moving the rest -->
+         charger tile fifth. The performance tile stood before it and is out
+         on 19.1 until the profiles have a way in on S; it goes back in
+         fifth. No flashlight or mobile data: mocha has neither, and a tile
+         the device lacks is hidden, moving the rest -->
     <string name="quick_settings_tiles_default" translatable="false">
-        wifi,bt,rotation,airplane,custom(com.android.arttttt.performanceprofilestile/.PerformanceProfilesTile),custom(com.android.arttttt.chargertile/.ChargerTile),dnd,battery,hotspot,location,cast,screenrecord
+        wifi,bt,rotation,airplane,custom(com.android.arttttt.chargertile/.ChargerTile),dnd,battery,hotspot,location,cast,screenrecord
     </string>
 </resources>

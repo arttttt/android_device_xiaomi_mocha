@@ -170,14 +170,6 @@ Return<void> Power::getPlatformLowPowerStats(getPlatformLowPowerStats_cb _hidl_c
     return Void();
 }
 
-Return<int32_t> Power::getFeature(LineageFeature feature)  {
-    if (feature == LineageFeature::SUPPORTED_PROFILES) {
-        ALOGI("power profiles POWER_FEATURE_SUPPORTED_PROFILES\n");
-        return Profiles::COUNT;
-    }
-    return -1;
-}
-
 /* Methods from ::android::hardware::power::V1_1::IPower follow.
  *
  * The same hints as 1.0, asked for without waiting. That is the whole of 1.1,
@@ -253,14 +245,6 @@ status_t Power::registerAsSystemService() {
         goto fail;
     } else {
         ALOGI("Successfully registered IPower");
-    }
-
-    ret = ILineagePower::registerAsService();
-    if (ret != 0) {
-        ALOGE("Failed to register ILineagePower (%d)", ret);
-        goto fail;
-    } else {
-        ALOGI("Successfully registered ILineagePower");
     }
 
 fail:

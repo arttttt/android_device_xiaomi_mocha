@@ -19,7 +19,6 @@
 #define ANDROID_HARDWARE_POWER_V1_3_POWER_H
 
 #include <android/hardware/power/1.3/IPower.h>
-#include <vendor/lineage/power/1.0/ILineagePower.h>
 
 #include <mutex>
 
@@ -39,12 +38,10 @@ namespace implementation {
 using ::android::hardware::power::V1_0::Feature;
 using ::android::hardware::power::V1_0::PowerHint;
 using ::android::hardware::power::V1_3::IPower;
-using ::vendor::lineage::power::V1_0::ILineagePower;
-using ::vendor::lineage::power::V1_0::LineageFeature;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
 
-struct Power : public IPower, public ILineagePower {
+struct Power : public IPower {
     // Methods from ::android::hardware::power::V1_0::IPower follow.
     // They are inherited through 1.3 -> 1.2 -> 1.1 -> 1.0 and still ours to answer.
     Power();
@@ -63,9 +60,6 @@ struct Power : public IPower, public ILineagePower {
     Return<void> getSubsystemLowPowerStats(getSubsystemLowPowerStats_cb _hidl_cb) override;
     Return<void> powerHintAsync_1_2(V1_2::PowerHint hint, int32_t data) override;
     Return<void> powerHintAsync_1_3(V1_3::PowerHint hint, int32_t data) override;
-
-    // Methods from ::vendor::lineage::power::V1_0::ILineagePower follow.
-    Return<int32_t> getFeature(LineageFeature feature) override;
 
   private:
     /* What a hint means on this board. The three below are what it is

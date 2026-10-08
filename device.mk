@@ -124,9 +124,13 @@ PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.sensor.proximity.xml:system/etc/permissions/android.hardware.sensor.proximity.xml
     
 # Custom tiles
+#
+# PerformanceTile is out on 19.1 for now: it sets the profile through
+# lineageos.power.PerformanceManager, which LineageOS 19.1 no longer has,
+# and the power HAL no longer serves vendor.lineage.power with it. Both come
+# back together once the profiles have a way in on S.
 PRODUCT_PACKAGES += \
-    ChargerTile \
-    PerformanceTile
+    ChargerTile
     
 # Filesystem management tools
 PRODUCT_PACKAGES += \
