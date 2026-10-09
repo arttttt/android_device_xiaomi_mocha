@@ -32,5 +32,11 @@ allow conn_wifi bkb_block_device:blk_file r_file_perms;
 allow conn_wifi vendor_data_file:file { create_file_perms setattr };
 set_prop(conn_wifi, bluetooth_prop)
 
+# On S only the Bluetooth HAL among vendor domains may set or read
+# bluetooth_prop (system/sepolicy/private/property.te). This is not that HAL
+# and stands in its place only until the address goes out as a file named
+# by ro.bt.bdaddr_path instead.
+hal_server_domain(conn_wifi, hal_bluetooth)
+
 # Where the firmware and the calibration are loaded from.
 allow conn_wifi sysfs_wifi:file rw_file_perms;
