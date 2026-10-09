@@ -14,9 +14,6 @@
 
 allow drmserver gpu_device:chr_file rw_file_perms;
 
-# Blake video files
-allow drmserver oem_media_file:file read;
-
 # Allow to write to nvfeedback log file
 allow drmserver anr_data_file:file write;
 

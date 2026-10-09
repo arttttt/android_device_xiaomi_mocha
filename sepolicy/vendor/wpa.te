@@ -15,8 +15,6 @@
 # Allow wpa_supplicant to access symlinks created by wifi_loader
 allow hal_wifi_supplicant wifi_data_file:lnk_file { getattr read write };
 
-r_dir_file(hal_wifi_supplicant, factory_file)
-
 # Access to mmc_host
 r_dir_file(hal_wifi_supplicant, sysfs_mmc_host)
 

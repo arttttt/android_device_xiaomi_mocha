@@ -32,17 +32,6 @@ allow vold fuse_device:chr_file rw_file_perms;
 allow vold sysfs_bus_usb:file rw_file_perms;
 allow vold media_rw_data_file:dir { r_dir_perms mounton };
 
-# Access user calibration block device.
-allow vold usercalib_block_device:blk_file rw_file_perms;
-auditallow vold usercalib_block_device:blk_file rw_file_perms;
-allow vold user_calib_file:dir { getattr open read ioctl };
-
-# Access factory  calibration block device.
-allow vold factorycalib_block_device:blk_file rw_file_perms;
-auditallow vold factorycalib_block_device:blk_file rw_file_perms;
-
-allow vold factory_file:filesystem unmount;
-
 # vold need to restart surfaceflinger so that hwcomposer gets correct prop
 allow vold ctl_default_prop:property_service set;
 allow vold system_prop:property_service set;
@@ -65,14 +54,8 @@ allow vold swap_block_device:blk_file getattr;
 # Request various crypto modules.
 allow vold kernel:system module_request;
 
-allow vold fscheck_block_device:blk_file rw_file_perms;
-
-# Give vold the ability to read the RPx folder during mounting via fstab
-allow vold rpx_file:dir r_dir_perms;
-
 # upnpfuse
 allow vold self:capability { setuid setgid };
-allow vold upnpfuse_cache_file:dir create_dir_perms;
 
 allow vold sysfs_mmc_host:file rw_file_perms;
 r_dir_file(vold, sysfs_mmc_host)

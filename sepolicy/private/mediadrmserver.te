@@ -28,6 +28,3 @@ allow mediadrmserver gpu_device:chr_file { open read write };
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# fstab formattable flag
-allow init rpx_block_device:blk_file rw_file_perms;

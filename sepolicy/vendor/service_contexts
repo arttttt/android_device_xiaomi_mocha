@@ -12,29 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-input-cfboost		u:object_r:system_app_service:s0
-nvcpl			u:object_r:system_app_service:s0
-set_hwui_params		u:object_r:system_app_service:s0
-ShieldStats		u:object_r:system_app_service:s0
-shield_virtual_remote	u:object_r:shield_remote_service:s0
-thermalstats		u:object_r:system_app_service:s0
-fanstats		u:object_r:system_app_service:s0
-ndiscoveryservice           u:object_r:system_app_service:s0
-NvRemotePlaybackService     u:object_r:system_app_service:s0
-com.smartcom.root.APNWidgetRootService	u:object_r:system_app_service:s0
-
-nvwifi			u:object_r:wifi_service:s0
-xlanwifi		u:object_r:wifi_service:s0
-xlanwifip2p		u:object_r:wifip2p_service:s0
-
-RpxServer		u:object_r:rpx_service:s0
-
 PHS			u:object_r:ussrd_service:s0
 
-android.display.hwcomposer	u:object_r:surfaceflinger_service:s0
-
-nvidia.inputservice         u:object_r:input_service:s0
-
-RemoteControlService		u:object_r:accessibility_service:s0
-
-com.smartthings.service.IHubCore	u:object_r:hubcore:s0

@@ -40,18 +40,8 @@ r_dir_file(untrusted_app, sysfs_zram)
 allow untrusted_app asec_public_file:dir r_dir_perms;
 allow untrusted_app asec_public_file:file r_file_perms;
 
-# Video apps: access shared oem media assets
-allow untrusted_app oem_media_file:dir r_dir_perms;
-allow untrusted_app oem_media_file:file r_file_perms;
-
 # Dont allow untrusted apps to access MAC address
 dontauditxperm untrusted_app self:udp_socket ioctl SIOCGIFHWADDR;
-
-# Allow untrusted_app to access hubcore. In this case, we have the
-# SmartThings app from the playstore which needs to access the
-# service published through hubcore.
-allow untrusted_app hubcore_domain:service_manager find;
-binder_call(untrusted_app, hubcore_domain)
 
 # Allow untrusted_app to access gamestreaming_prop
 get_prop(untrusted_app, gamestreaming_prop)

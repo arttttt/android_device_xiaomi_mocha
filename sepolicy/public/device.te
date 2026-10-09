@@ -18,9 +18,6 @@ type quadd_device, dev_type;
 # /dev/quadd_auth
 type quadd_auth_device, dev_type;
 
-# /dev/hidraw[0-9]
-type hidraw_device, dev_type;
-
 # Tsec device
 type tsec_device, dev_type, mlstrustedobject;
 
@@ -33,35 +30,13 @@ type tegradc_device, dev_type;
 # /dev/block/mmcblk0rpmb
 type rpmb_block_device, dev_type;
 
-# User calibration partion(UCB) block device
-type usercalib_block_device, dev_type;
-
 # Bootloader partition block device
 type bootloader_block_device, dev_type;
-
-# Factory calibration partion(FCT) block device
-type factorycalib_block_device, dev_type;
-
-# fscheck partiton block device
-type fscheck_block_device, dev_type;
-
-# /dev/tegra_cpc
-type cpc_device, dev_type;
-
-# /dev/touch
-type touch_device, dev_type;
-
-# RP3 partition
-type rpx_block_device, dev_type;
-
-# /dev/cy8c-led-boot
-type cy8c_device, dev_type;
 
 # /dev/nvhost-msenc -- the video encoder. It used to be labelled camera_device
 # along with the capture nodes, which Q refuses: only the camera HAL may touch
 # camera_device, and the encoder is reached by the codec HAL instead.
 type nvhost_msenc_device, dev_type;
-type gps_device, dev_type;
 
 # /dev/brcm_bt_drv
 type brcm_bt_device, dev_type;

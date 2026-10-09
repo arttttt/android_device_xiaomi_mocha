@@ -14,8 +14,6 @@
 
 # upnpfuse
 allow priv_app vold:fifo_file { read write getattr };
-allow priv_app upnpfuse_cache_file:dir create_dir_perms;
-allow priv_app upnpfuse_cache_file:file create_file_perms;
 
 allow priv_app storage_stub_file:dir getattr;
 

@@ -32,9 +32,6 @@ r_dir_file(dumpstate, wifi_data_file);
 # Allow dumpstate to get attribute from below block devices
 allow dumpstate block_device:blk_file getattr;
 allow dumpstate userdata_block_device:blk_file getattr;
-allow dumpstate factorycalib_block_device:blk_file getattr;
-allow dumpstate usercalib_block_device:blk_file getattr;
-allow dumpstate user_calib_file:dir getattr;
 
 # allow dumpstate to access suspend_time
 allow dumpstate debugfs_suspend_time_stats:file r_file_perms;
@@ -44,6 +41,3 @@ allow dumpstate debugfs_wake_irq_stats:file r_file_perms;
 
 # allow dumpstate to access emc/avg_activity
 allow dumpstate debugfs_emc_load:file r_file_perms;
-
-# allow dumpstate to access /data/misc/frostlog
-r_dir_file(dumpstate, frostlog_file)

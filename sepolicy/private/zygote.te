@@ -15,9 +15,6 @@
 allow zygote gpu_device:chr_file rw_file_perms;
 binder_use(zygote);
 
-# allow zygote (for media_profile.xml) to read files/dirs in /data/camera_config/
-r_dir_file(zygote, camera_config_file)
-
 #allow zygote zygote_tmpfs:file execute;
 # Copyright (C) 2018 The LineageOS Project
 #

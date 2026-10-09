@@ -12,5 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-allow fsck rpx_block_device:blk_file rw_file_perms;
-allow fsck usercalib_block_device:blk_file rw_file_perms;

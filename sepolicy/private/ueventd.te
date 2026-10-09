@@ -17,17 +17,12 @@
 #
 
 allow ueventd sysfs_sysedp:file rw_file_perms;
-allow ueventd sysfs_radio:file rw_file_perms;
 allow ueventd sysfs_gpio:file rw_file_perms;
 allow ueventd sysfs_bus_usb:file w_file_perms;
-allow ueventd sysfs_pmic:file rw_file_perms;
 allow ueventd sysfs_soc:file rw_file_perms;
 allow ueventd sysfs_thermal:file rw_file_perms;
 allow ueventd sysfs_ozmo:file rw_file_perms;
 allow ueventd sysfs_nvi2c:file rw_file_perms;
 allow ueventd tegradc_device:file rw_file_perms;
-allow ueventd sysfs_lightbar:file rw_file_perms;
 allow ueventd sysfs_mmc_host:file rw_file_perms;
 r_dir_file(ueventd, sysfs_mmc_host)
-allow ueventd sysfs_pci_device:file rw_file_perms;
-r_dir_file(ueventd, sysfs_pci_device)

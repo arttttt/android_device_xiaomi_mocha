@@ -16,10 +16,6 @@
 allow cameraserver gpu_device:chr_file rw_file_perms;
 allow cameraserver camera_device:chr_file rw_file_perms;
 
-# NVSensor socket files
-allow cameraserver nvs_socket:dir rw_dir_perms;
-allow cameraserver nvs_socket:sock_file rw_file_perms;
-
 # cameraserver searches through sysfs, so we need to allow it to search all dirs we retag
 r_dir_file(cameraserver, sysfs)
 r_dir_file(cameraserver, sysfs_soc)
@@ -38,7 +34,6 @@ binder_call(cameraserver, system_server)
 
 allow_use_phs(cameraserver)
 
-r_dir_file(cameraserver, factory_file)
 r_dir_file(cameraserver, proc)
 r_dir_file(cameraserver, proc_meminfo)
 allow cameraserver media_data_file:dir create_dir_perms;
@@ -54,9 +49,6 @@ allow cameraserver ussrd_service:service_manager find;
 allow cameraserver sensorservice_service:service_manager find;
 allow cameraserver power_service:service_manager find;
 
-# Allow access to blake video files
-allow cameraserver oem_media_file:file { read getattr };
-
 # Allow to write to nvfeedback log file
 allow cameraserver anr_data_file:file write;
 
@@ -70,7 +62,6 @@ allow_use_phs(cameraserver);
 allow cameraserver sysfs_gpu:file r_file_perms;
 
 # allow cameraserver to read files/dirs in /data/camera_config/
-r_dir_file(cameraserver, camera_config_file)
 # Copyright (C) 2018 The LineageOS Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

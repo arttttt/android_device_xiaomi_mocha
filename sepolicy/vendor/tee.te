@@ -19,4 +19,3 @@ allow tee tee_exec:file execute_no_trans;
 allow tee self:capability { setuid setgid sys_rawio };
 allow tee block_device:dir search;
 allow tee rpmb_block_device:blk_file rw_file_perms;
-allow tee cpc_device:chr_file rw_file_perms;

@@ -16,25 +16,12 @@
 type sysfs_sysedp, fs_type, sysfs_type;
 
 # /sys/devices/platform/tegra_usb_modem_power/...
-# /sys/devices/platform/sysedp_modem/...
-type sysfs_radio, fs_type, sysfs_type;
-
-# /sys/devices/platform/tegra_usb_modem_power/...
 # /sys/devices/platform/.../gpio/gpio../...
 type sysfs_gpio, fs_type, sysfs_type;
-
-#/sys/class/gps_wake/gps_device/gps_enable
-type sysfs_gps_wake, fs_type, sysfs_type;
 
 # /sys/bus/usb/...
 # /sys/devices/platform/tegra-ehci../...
 type sysfs_bus_usb, fs_type, sysfs_type;
-
-# /sys/devices/platform/tegra-sata.*/...
-type sysfs_sata, fs_type, sysfs_type;
-
-# /sys/devices/virtual/misc/uhid/0005:0955:7213.*/timeout
-type sysfs_pepper_timeout, fs_type, sysfs_type;
 
 # sepolicy_tests requires every type labelled through genfscon on proc to
 # carry proc_type, and every type labelled under /data to carry both
@@ -46,12 +33,6 @@ type proc_wmem_default_writable, fs_type, proc_type;
 
 # /proc/sys/net/core/wmem_max
 type proc_wmem_max_writable, fs_type, proc_type;
-
-# /proc/device-tree/chosen/nvidia,bluetooth-mac
-type proc_bluetooth_mac, fs_type, proc_type;
-
-# /data/misc/nvsipc
-type nvs_socket, file_type, data_file_type, core_data_file_type;
 
 # /data/core
 type coredump_data_file, file_type, data_file_type, core_data_file_type;
@@ -74,9 +55,6 @@ type sysfs_smartdimmer, fs_type, sysfs_type;
 # /sys/devices/platform/host1x/tegradc.0/cmu_enable
 type sysfs_cmu, fs_type, sysfs_type;
 
-# /sys/devices/platform/pwm-fan.*
-type sysfs_pwm_fan, fs_type, sysfs_type;
-
 # /sys/module/input_cfboost/parameters/...
 type sysfs_cfboost, fs_type, sysfs_type;
 
@@ -86,20 +64,8 @@ type sysfs_sound, fs_type, sysfs_type;
 # /sys/class/ozmo_wpan
 type sysfs_ozmo, fs_type, sysfs_type;
 
-# /sys/devices/platform/ozwpan/.../mode
-type sysfs_blake, fs_type, sysfs_type;
-
-# /sys/bus/hid/drivers/Jarvis/hid_miss_stats
-type sysfs_jarvis_stats, fs_type, sysfs_type;
-
-# /sys/devices/virtual/misc/touch/slowscan_enable
-type sysfs_slowscan, fs_type, sysfs_type;
-
 # /dev/ozwpan
 type ozmo_device, dev_type;
-
-# /sys/kernel/pmic/...
-type sysfs_pmic, fs_type, sysfs_type;
 
 # sys/devices/soc*/...
 type sysfs_soc, fs_type, sysfs_type;
@@ -114,43 +80,15 @@ type sysfs_throughput, fs_type, sysfs_type;
 # /sys/module/bcmdhd/parameters/firmware_path
 type sysfs_wifi, fs_type, sysfs_type;
 
-# /sys/devices/platform/pwm-leds(.*)/leds/led_lightbar(/.*)
-type sysfs_lightbar, fs_type, sysfs_type;
-
-# Graphics
-type sysfs_graphics, fs_type, sysfs_type;
-
 # sys/devices/platform/gpu.0/devfreq/gpu.0/available_frequencies
 type sysfs_devfreq, fs_type, sysfs_type;
 
 # Tegra Info
 type sysfs_tegra_info, fs_type, sysfs_type;
 
-# /mnt/tmp/fc[0-9] files.
-type surfaceflinger_fc, file_type;
-
-# /mnt/factory
-type factory_file, fs_type, contextmount_type;
-
-# /usercalib
-type user_calib_file, file_type, data_file_type, core_data_file_type;
-
-# /hubcore
-type hubcore_data_file, file_type, data_file_type, core_data_file_type;
-
 # /sys/devices/platform/tegra.*i2c\.[0-9]+(/.*)?
 # /sys/devices/platform/[0-9a-f]+\.i2c(/.*)?
 type sysfs_nvi2c, fs_type, sysfs_type, mlstrustedobject;
-
-# /data/misc/cvc(/.*)
-type cvc_data_file, file_type, data_file_type, core_data_file_type;
-type sysfs_cvc, fs_type, sysfs_type;
-
-# /sys/module/tcp_output/parameters
-type sysfs_tcp_window_divisor, fs_type, sysfs_type;
-
-# /sys/devices/platform/gamepad.*/gamepad_reset
-type sysfs_gamepad, fs_type, sysfs_type;
 
 # /sys/devices/platform/sdhci-tegra.*/mmc_host
 type sysfs_mmc_host, fs_type, sysfs_type;
@@ -158,17 +96,8 @@ type sysfs_mmc_host, fs_type, sysfs_type;
 # /sys/class/net
 type sysfs_netcfg, fs_type, sysfs_type;
 
-# PCI devices
-type sysfs_pci_device, fs_type, sysfs_type;
-
-# /factory/wifi_config
-type rpx_file, file_type;
-
 # /sys/devices/platform/host1x/tegradc.0/vrr/...
 type sysfs_vrr, fs_type, sysfs_type;
-
-# /sys/devices/virtual/misc/touch/log
-type sysfs_touch_log, fs_type, sysfs_type;
 
 # /sys/devices/platform/host1x/gpu\.0/ptimer_scale_factor
 type sysfs_gpu, fs_type, sysfs_type;
@@ -180,32 +109,14 @@ type sysfs_gpu_power_knobs, fs_type, sysfs_type;
 # /sys/devices/platform/psy_extcon.*/power_supply/ac/online
 type sysfs_power_supply, fs_type, sysfs_type;
 
-# usb convertible mode: host or device
-type sysfs_usb_convertible, fs_type, sysfs_type;
-
 # Tegra gpu info
 type sysfs_tegra_gpu, fs_type, sysfs_type;
 
 # Tegra emc info
 type sysfs_tegra_emc, fs_type, sysfs_type;
 
-# NVSI sysfs node
-type sysfs_tegrafuse_aid, fs_type, sysfs_type;
-
-# /vendor/oem/media
-type oem_media_file, file_type;
-
-# /data/stats_share
-type stats_share_file, file_type, data_file_type, core_data_file_type;
-
 # /data/misc/hwc(/.*)
 type hwc_data_file, file_type, data_file_type, core_data_file_type;
-
-# /vendor/bin/upnpfuse
-type upnpfused_exec, exec_type, file_type;
-
-# /data/upnpfuse(/.*)
-type upnpfuse_cache_file, file_type, data_file_type, core_data_file_type;
 
 # /sys/kernel/debugfs/clock
 type debugfs_clock, fs_type, debugfs_type, mlstrustedobject;
@@ -222,31 +133,10 @@ type debugfs_emc_load, fs_type, debugfs_type, mlstrustedobject;
 # /sys/kernel/debug/wake_irq
 type debugfs_wake_irq_stats, fs_type, debugfs_type, mlstrustedobject;
 
-# /data/misc/bluedroid_log
-type bluetooth_log_file, file_type, data_file_type, core_data_file_type;
-
 typeattribute property_socket mlstrustedobject;
-
-# /data/camera_config(/.*)?
-type camera_config_file, file_type, data_file_type, core_data_file_type;
 
 # UART debug port for reading current buffer count
 type debugfs_serial_ttybuffercount, fs_type, debugfs_type, mlstrustedobject;
-
-# /sys/kernel/debug/cpuidle_t210/fast_cluster_states_enable
-type debugfs_cluster, fs_type, debugfs_type, mlstrustedobject;
-
-# /data/system/devices/keylayout(/.*)?
-type keylayout_data_file, file_type, data_file_type, core_data_file_type;
-
-# /cache/last_boot_(.*).txt
-type cache_log_dumper_file, file_type, mlstrustedobject;
-
-# /data/misc/frostlog(/.*)?
-type frostlog_file, file_type, data_file_type, core_data_file_type;
-
-# /data/provTest(/.*)?
-type dx_data_file, file_type, data_file_type, core_data_file_type;
 
 # /sys/module/xhci_hcd/parameters/...
 type sysfs_usb_blacklist, fs_type, sysfs_type;
@@ -266,10 +156,6 @@ type sysfs_usb_blacklist, fs_type, sysfs_type;
 
 # /sys/devices/platform/7000c000.i2c/i2c-0/0-002c
 type sysfs_pwm_backlight, fs_type, sysfs_type;
-
-# /data/gps
-type gps_data_file, file_type, data_file_type, core_data_file_type;
-type gps_socket, file_type;
 
 # /sys/kernel/debug/nvmap/handles_by_pid
 type debugfs_nvmap, fs_type, debugfs_type, mlstrustedobject;

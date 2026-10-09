@@ -16,9 +16,6 @@ set_prop(audioserver, audio_prop)
 
 r_dir_file(audioserver, sysfs)
 
-allow audioserver stats_share_file:dir create_dir_perms;
-allow audioserver stats_share_file:file create_file_perms;
-
 # audioserver searches through sysfs, so we need to allow it to search all dirs we retag
 r_dir_file(audioserver, sysfs_ozmo);
 

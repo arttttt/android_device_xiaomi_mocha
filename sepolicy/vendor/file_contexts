@@ -61,8 +61,6 @@
 # Tegra System Profiler
 /dev/quadd				u:object_r:quadd_device:s0
 /dev/quadd_auth				u:object_r:quadd_auth_device:s0
-# Hidraw
-/dev/hidraw[0-9]			u:object_r:hidraw_device:s0
 # Tsec
 /dev/nvhost-tsec			u:object_r:tsec_device:s0
 /dev/nvhost-tsecb			u:object_r:tsec_device:s0
@@ -85,10 +83,7 @@
 # setup_fs emmc
 /dev/block/platform/sdhci-tegra(.*)/by-name/UDA		u:object_r:userdata_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/CAC		u:object_r:cache_block_device:s0
-/dev/block/platform/sdhci-tegra(.*)/by-name/UCB		u:object_r:usercalib_block_device:s0
-/dev/block/platform/sdhci-tegra(.*)/by-name/FCT		u:object_r:factorycalib_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/BKB		u:object_r:bkb_block_device:s0
-/dev/block/platform/sdhci-tegra(.*)/by-name/RP3		u:object_r:rpx_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/LNX		u:object_r:boot_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/SOS		u:object_r:recovery_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/MDA		u:object_r:metadata_block_device:s0
@@ -120,32 +115,19 @@
 /dev/block/platform/sdhci-tegra(.*)/by-name/RP1-A		u:object_r:bootloader_block_device:s0
 /dev/block/platform/sdhci-tegra(.*)/by-name/RP1-B		u:object_r:bootloader_block_device:s0
 /dev/block/mmcblk0boot0					u:object_r:bootloader_block_device:s0
-# fscheck emmc
-/dev/block/platform/sdhci-tegra(.*)/by-name/RP4         u:object_r:fscheck_block_device:s0
 # setup_fs sata
 /dev/block/platform/tegra-sata(.*)/by-name/UDA		u:object_r:userdata_block_device:s0
 /dev/block/platform/tegra-sata(.*)/by-name/CAC		u:object_r:cache_block_device:s0
-/dev/block/platform/tegra-sata(.*)/by-name/UCB		u:object_r:usercalib_block_device:s0
-/dev/block/platform/tegra-sata(.*)/by-name/FCT		u:object_r:factorycalib_block_device:s0
-/dev/block/platform/tegra-sata(.*)/by-name/RP3		u:object_r:rpx_block_device:s0
 /dev/block/platform/tegra-sata(.*)/by-name/LNX		u:object_r:boot_block_device:s0
 /dev/block/platform/tegra-sata(.*)/by-name/SOS		u:object_r:recovery_block_device:s0
 /dev/block/platform/tegra-sata(.*)/by-name/MDA		u:object_r:metadata_block_device:s0
-/dev/block/platform/tegra-sata(.*)/by-name/RP4  	u:object_r:fscheck_block_device:s0
 # external usb
 /dev/block/platform/tegra-xhci/by-name/UDA              u:object_r:userdata_block_device:s0
 /dev/block/platform/tegra-xhci/by-name/CAC              u:object_r:cache_block_device:s0
 /dev/block/platform/tegra-xhci/by-name/SOS              u:object_r:recovery_block_device:s0
 /dev/block/platform/tegra-xhci/by-name/LNX              u:object_r:boot_block_device:s0
-# cpc char device
-/dev/tegra_cpc				u:object_r:cpc_device:s0
-# IKEv2 daemon
-# touch
-/dev/touch				u:object_r:touch_device:s0
 # zram
 /dev/block/zram0			u:object_r:swap_block_device:s0
-# /dev/cy8c-led-boot devices
-/dev/cy8c-led-boot			u:object_r:cy8c_device:s0
 
 #############################
 # System files
@@ -155,46 +137,17 @@
 (/system)?/vendor/bin/eks2_client	u:object_r:tee_exec:s0
 (/system)?/vendor/bin/ss_status		u:object_r:tee_exec:s0
 (/system)?/vendor/bin/run_ss_status.sh	u:object_r:tee_exec:s0
-# diag
-(/system)?/vendor/bin/stress_test.sh	u:object_r:diag_exec:s0
-(/system)?/vendor/bin/diag_perm.sh	u:object_r:diag_exec:s0
-# gpload
-(/system)?/vendor/bin/gpload		u:object_r:gpload_exec:s0
-# hubcore
-(/system)?/vendor/bin/hubcore		u:object_r:hubcore_exec:s0
-# ctload
-(/system)?/vendor/bin/ctload		u:object_r:ctload_exec:s0
 # phs
 (/system)?/vendor/bin/ussrd		u:object_r:ussrd_exec:s0
 (/system)?/vendor/bin/ussr_setup.sh	u:object_r:ussr_setup_exec:s0
-# cvc
-(/system)?/vendor/bin/cvc		u:object_r:cvc_exec:s0
-# upnpfused
-(/system)?/vendor/bin/upnpfuse		u:object_r:upnpfused_exec:s0
-# Blake video files
-(/system)?/vendor/oem/media(/.*)?	u:object_r:oem_media_file:s0
-# service to dump logs
-(/system)?/vendor/bin/cac_log_dumper	u:object_r:cac_log_dumper_exec:s0
-# factory_tests
-(/system)?/vendor/bin/factory_tests	u:object_r:factory_tests_exec:s0
 
 #############################
 # Data files
 
-# camera config folder
-/data/camera_config(/.*)?		u:object_r:camera_config_file:s0
 # tlk data folder
 /data/tlk(/.*)?				u:object_r:tee_data_file:s0
 # tlk ss data folder
 /data/ss(/.*)?				u:object_r:tee_data_file:s0
-# user calibration
-/data/touchscreen(/.*)?			u:object_r:user_calib_file:s0
-# stats data share folder
-/data/stats_share(/.*)?                 u:object_r:stats_share_file:s0
-# Keyboard layout files
-/data/system/devices/keylayout(/.*)?		u:object_r:keylayout_data_file:s0
-# dx_provTest data folder
-/data/provTest(/.*)?			u:object_r:dx_data_file:s0
 
 # Misc data
 # phs data
@@ -202,26 +155,10 @@
 # dual wifi
 /data/misc/wifi[0-9]			u:object_r:wifi_data_file:s0
 /data/misc/wifi[0-9]/sockets		u:object_r:wpa_socket:s0
-# cvc data folder
-/data/misc/cvc(/.*)?			u:object_r:cvc_data_file:s0
 # mediaserver EGL blob cache
 /data/misc/mediaserver(/.*)?		u:object_r:media_data_file:s0
-#GPS
-/data/system/gps(/.*)?			u:object_r:gps_data_file:s0
-# NVSensor socket file
-/data/misc/nvsipc(/.*)?			u:object_r:nvs_socket:s0
 # HWComposer data
 /data/misc/hwc(/.*)?			u:object_r:hwc_data_file:s0
-# upnpfuse cache file
-/data/upnpfuse(/.*)?			u:object_r:upnpfuse_cache_file:s0
-# bluedroid_log
-/data/misc/bluedroid_log(/.*)?		u:object_r:bluetooth_log_file:s0
-# hubcore
-/data/misc/smartthings(/.*)?		u:object_r:hubcore_data_file:s0
-# cac_log_dumper data file
-/cache/logs(/.*)?			u:object_r:cache_log_dumper_file:s0
-# Frost's log files
-/data/misc/frostlog(/.*)? 		u:object_r:frostlog_file:s0
 # Coredump
 /data/core(/.*)?			u:object_r:coredump_data_file:s0
 
@@ -231,39 +168,19 @@
 # modem sysfs
 /sys/power/sysedp(/.*)?					u:object_r:sysfs_sysedp:s0
 /sys/class/gpio(/.*)?					u:object_r:sysfs_gpio:s0
-/sys/class/gps_wake(/.*)?				u:object_r:sysfs_gps_wake:s0
 /sys/devices/platform/.*/gpio/gpio[^/]+/[^/]*		u:object_r:sysfs_gpio:s0
-/sys/devices/platform/tegra_usb_modem_power(/.*)?	u:object_r:sysfs_radio:s0
-/sys/devices/platform/sysedp_modem(/.*)?		u:object_r:sysfs_radio:s0
 /sys/bus/usb(/.*)?					u:object_r:sysfs_bus_usb:s0
 /sys/devices/platform/tegra-ehci\.[0-9](/.*)?		u:object_r:sysfs_bus_usb:s0
 /sys/devices/tegra-ehci\.[0-9](/.*)?			u:object_r:sysfs_bus_usb:s0
 # LED sysfs
 /sys/devices/platform/tegra-xhci(/.*)?			u:object_r:sysfs_bus_usb:s0
-# SATA sysfs
-/sys/devices/platform/tegra-sata.*/ata1/power/control					u:object_r:sysfs_sata:s0
-/sys/devices/platform/tegra-sata.*/ata1/host0/target.*/0.*/power/autosuspend_delay_ms	u:object_r:sysfs_sata:s0
-/sys/devices/platform/tegra-sata.*/ata1/host0/target.*/0.*/power/control		u:object_r:sysfs_sata:s0
 # PMQoS files for NvCplSvc
 /sys/devices/virtual/thermal(/.*)		u:object_r:sysfs_thermal:s0
 /sys/class/thermal(/.*)?				u:object_r:sysfs_thermal:s0
 /sys/devices/platform/host1x/tegradc.[0-1]/smartdimmer(/.*)	u:object_r:sysfs_smartdimmer:s0
 /sys/devices/platform/host1x/tegradc\.[0-1]/cmu_enable		u:object_r:sysfs_cmu:s0
-/sys/devices/platform/host1x/tegradc.0/graphics/fb0/modes			u:object_r:sysfs_graphics:s0
 /sys/devices/platform/gpu.0/devfreq/gpu.0/available_frequencies		u:object_r:sysfs_devfreq:s0
 /sys/devices/platform/psy_extcon\..*/power_supply(/.*)?			u:object_r:sysfs_power_supply:s0
-
-# pwm-fan sysfs nodes
-/sys/devices/platform/pwm-fan(.*)/pwm_cap   		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/pwm_state_map		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/state_cap 		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/cur_pwm   		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/pwm_rpm_table		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/rpm_measured		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/step_time 	    	u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/tach_enable		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/target_pwm		u:object_r:sysfs_pwm_fan:s0
-/sys/devices/platform/pwm-fan(.*)/temp_control		u:object_r:sysfs_pwm_fan:s0
 
 # cfboost sysfs, for ussrd
 /sys/module/input_cfboost/parameters/boost_freq		u:object_r:sysfs_cfboost:s0
@@ -271,19 +188,13 @@
 # phs sysfs
 /sys/devices/virtual/misc/tegra-throughput/fps			u:object_r:sysfs_throughput:s0
 /sys/devices/virtual/misc/tegra-throughput/framecount		u:object_r:sysfs_throughput:s0
-# Jarvis sysfs
-/sys/bus/hid/drivers/Jarvis/hid_miss_stats		u:object_r:sysfs_jarvis_stats:s0
 # Sound sysfs nodes
 /sys/class/sound(/.*)?			u:object_r:sysfs_sound:s0
 # Configure Ozmo driver
 /sys/class/ozmo_wpan(/.*)?		u:object_r:sysfs_ozmo:s0
 /sys/devices/virtual/ozmo_wpan(/.*)?	u:object_r:sysfs_ozmo:s0
-# Configure Foster LED lightbar
-/sys/devices/platform/pwm-leds(.*)/leds/led_lightbar(/.*)	u:object_r:sysfs_lightbar:s0
 # soc sysfs
 /sys/devices/soc[0-9]+(/.*)?		u:object_r:sysfs_soc:s0
-# pmic sysfs
-/sys/kernel/pmic			u:object_r:sysfs_pmic:s0
 # wifi sysfs
 /sys/module/bcmdhd/parameters/firmware_path	u:object_r:sysfs_wifi:s0
 /sys/module/bcmdhd/parameters/nvram_path	u:object_r:sysfs_wifi:s0
@@ -299,26 +210,9 @@
 # Tegra i2c devices sysfs
 /sys/devices/platform/tegra.*i2c\.[0-9]+(/.*)?	u:object_r:sysfs_nvi2c:s0
 /sys/devices/platform/[0-9a-f]+\.i2c(/.*)?	u:object_r:sysfs_nvi2c:s0
-# cvc sysfs
-/sys/kernel/tegra_volt_cap(/.*)?		u:object_r:sysfs_cvc:s0
-# Blake touchpad setting
-/sys/devices/platform/ozwpan/.*/mode            u:object_r:sysfs_blake:s0
-/sys/devices/platform/tegra-xhci/.*/mode	u:object_r:sysfs_blake:s0
-# Gamepad reset sysfs
-/sys/devices/platform/gamepad_reset(.*)/gamepad_reset       u:object_r:sysfs_gamepad:s0
-# touch slowscan sysfs
-/sys/devices/virtual/misc/touch/slowscan_enable			u:object_r:sysfs_slowscan:s0
-# Touch sysfs for touch service
-/sys/devices/virtual/misc/touch/log	u:object_r:sysfs_touch_log:s0
-# TCP Window Divisor
-/sys/module/tcp_output/parameters/tcp_window_divisor		u:object_r:sysfs_tcp_window_divisor:s0
-# usb convertible host and device mode sysfs
-/sys/devices/platform/extcon.*/.*/extcon/ID/connect	u:object_r:sysfs_usb_convertible:s0
 # wifi loader access
 /sys/devices/platform/sdhci-tegra.*/mmc_host(/.*)?		u:object_r:sysfs_mmc_host:s0
 /sys/bus/sdio/devices(/.*)?			u:object_r:sysfs_mmc_host:s0
-/sys/devices/platform/(.*)\.pcie-controller(/.*)?		u:object_r:sysfs_pci_device:s0
-/sys/bus/pci/devices(/.*)?			u:object_r:sysfs_pci_device:s0
 # Nodes used by GL driver
 /sys/devices/platform/gpu\.0/ptimer_scale_factor			u:object_r:sysfs_gpu:s0
 /sys/devices/platform/gk20a\.0/ptimer_scale_factor			u:object_r:sysfs_gpu:s0
@@ -330,10 +224,6 @@
 /sys/kernel/tegra_gpu/gpu_available_rates			u:object_r:sysfs_tegra_gpu:s0
 # Tegra emc info
 /sys/kernel/tegra_emc/emc_available_rates			u:object_r:sysfs_tegra_emc:s0
-# NVSI sysfs node
-/sys/devices/platform/tegra-fuse/aid			u:object_r:sysfs_tegrafuse_aid:s0
-# Sysfs node for Pepper timeout
-/sys/devices/virtual/misc/uhid/0005:0955:7213.*/timeout		u:object_r:sysfs_pepper_timeout:s0
 # GPU power knobs exposed to system app
 /sys/devices/platform/gpu.0/[aebs]*l[cp]g_enable	u:object_r:sysfs_gpu_power_knobs:s0
 # USB 3.0 blacklist
@@ -345,7 +235,6 @@
 #
 /sys/kernel/debug/clock(/.*)?          u:object_r:debugfs_clock:s0
 /sys/kernel/debug/edp(/.*)?          u:object_r:debugfs_edp:s0
-/sys/kernel/debug/cpuidle_t210/fast_cluster_states_enable   u:object_r:debugfs_cluster:s0
 
 # suspend time and wakeup irq stats
 /sys/kernel/debug/suspend_time  u:object_r:debugfs_suspend_time_stats:s0
@@ -358,13 +247,6 @@
 /sys/kernel/debug/(.*)\.serial/tty_buffer_count	u:object_r:debugfs_serial_ttybuffercount:s0
 
 #############################
-# SurfaceFlinger to PHS pagefiles
-/mnt/tmp/fc[0-9]			u:object_r:surfaceflinger_fc:s0
-# user calibration
-/usercalib(/.*)?			u:object_r:user_calib_file:s0
-
-# wifi config
-/factory/wifi_config(/.*)?		u:object_r:rpx_file:s0
 
 # Variable refresh rate sysfs
 /sys/devices/platform/host1x/tegradc.[0-1]/vrr(/.*)    u:object_r:sysfs_vrr:s0
@@ -397,7 +279,6 @@
 /sys/devices/platform/pwmleds\.43/leds/button-backlight/brightness	u:object_r:sysfs_pwm_backlight:s0
 /sys/devices/platform/pwmleds\.43/leds/button-backlight/max_brightness	u:object_r:sysfs_pwm_backlight:s0
 
-/(vendor|system/vendor)/bin/conn_init                                               u:object_r:conn_wifi_exec:s0
 # R's software gatekeeper; system/sepolicy labels only the plain 1.0 service.
 /(vendor|system/vendor)/bin/hw/android\.hardware\.gatekeeper@1\.0-service\.software  u:object_r:hal_gatekeeper_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.light@2\.0-service\.mocha         u:object_r:hal_light_default_exec:s0

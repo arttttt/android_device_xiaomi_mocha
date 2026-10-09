@@ -19,10 +19,6 @@ r_dir_file(platform_app, sysfs_thermal)
 # Access service manager
 allow platform_app system_app_service:service_manager find;
 
-# Sku files and RP3 partition
-r_dir_file(platform_app, rpx_block_device)
-r_dir_file(platform_app, rpx_file)
-
 # Allow to write to nvfeedback log file
 allow platform_app anr_data_file:file write;
 

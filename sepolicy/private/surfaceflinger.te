@@ -42,9 +42,6 @@ allow surfaceflinger tmpfs:dir rw_dir_perms;
 #allow surfaceflinger surfaceflinger_tmpfs:dir rw_dir_perms;
 allow surfaceflinger tmpfs:file create_file_perms;
 
-allow surfaceflinger surfaceflinger_fc:dir rw_dir_perms;
-allow surfaceflinger surfaceflinger_fc:file create_file_perms;
-
 allow surfaceflinger tegradc_device:chr_file { read ioctl open write };
 
 # Needed to call NvPHSSendThroughputHints() from surfaceflinger

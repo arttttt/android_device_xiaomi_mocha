@@ -12,30 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Allow bluetooth to read a custom MAC address from /mnt/factory/<bluetooth>
-r_dir_file(bluetooth, factory_file)
-
-# Allow bluetooth to read a ibundled TS MAC address from /factory/wifi_config/*
-r_dir_file(bluetooth, rpx_file)
-
 allow bluetooth ussrd_service:service_manager find;
 
 # Allow bluetooth to access system app services using service manager
 allow bluetooth system_app_service:service_manager find;
 allow bluetooth debugfs_serial_ttybuffercount:file r_file_perms;
 
-# Allow to read BT mac address
-allow bluetooth proc_bluetooth_mac:file r_file_perms;
-
 # Allow to write to nvfeedback log file
 allow bluetooth anr_data_file:file write;
 
 # Access bdaddr_path_prop
 get_prop(bluetooth, bdaddr_path_prop)
-
-# Bluedroid logs
-allow bluetooth bluetooth_log_file:file create_file_perms;
-allow bluetooth bluetooth_log_file:dir { write search add_name };
 
 # Access storage_stub_file
 allow bluetooth storage_stub_file:dir getattr;

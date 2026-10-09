@@ -51,12 +51,9 @@ phs.therm.fan_trip               u:object_r:thermal_prop:s0
 
 phs.bql.perfmodes.mask		     u:object_r:phs_prop:s0
 
-
 ro.hardware.gps                     u:object_r:gpsd_prop:s0
 #dual wifi
 xlan.driver.status               u:object_r:system_prop:s0
-
-# hwui properties
 
 # locality properties
 user.language			u:object_r:locality_prop:s0

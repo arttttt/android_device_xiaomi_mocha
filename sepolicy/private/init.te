@@ -17,15 +17,11 @@ allow init sysfs_nvi2c:lnk_file read;
 
 allow init functionfs:dir mounton;
 allow init pstorefs:dir mounton;
-allow init user_calib_file:dir mounton;
-allow init rpx_file:dir mounton;
-allow init factory_file:dir mounton;
 
 allow init kernel:system module_request;
 
 allow init self:capability sys_nice;
 
-allow init fscheck_block_device:blk_file rw_file_perms;
 allow init tmpfs:lnk_file { create_file_perms relabelfrom };
 
 # Access to write debugfs
@@ -41,7 +37,6 @@ allow init sysfs_mmc_host:lnk_file rw_file_perms;
 
 # allow init to change power hints node
 allow init sysfs_netcfg:lnk_file rw_file_perms;
-allow init debugfs_cluster:file rw_file_perms;
 # Copyright (C) 2017 The LineageOS Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,9 +50,6 @@ allow init debugfs_cluster:file rw_file_perms;
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# fstab formattable flag
-allow init rpx_block_device:blk_file rw_file_perms;
 
 allow init sysfs_mmc_host:file rw_file_perms;
 

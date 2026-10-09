@@ -32,21 +32,12 @@ allow system_app sysfs_devices_system_cpu:file rw_file_perms;
 # /sys/devices/platform/host1x/tegradc.0/smartdimmer/...
 allow system_app sysfs_smartdimmer:file rw_file_perms;
 
-#/sys/devices/platform/pwm-leds(.*)/leds/led_lightbar(/.*)
-allow system_app sysfs_lightbar:file rw_file_perms;
-
-# /sys/devices/platform/pwm-fan.*
-allow system_app sysfs_pwm_fan:file rw_file_perms;
-
 # /sys/devices/platform/host1x/tegradc.0/cmu_enable
 allow system_app sysfs_cmu:file rw_file_perms;
 
 # sys/devices/soc*/...
 allow system_app sysfs_soc:file r_file_perms;
 allow system_app sysfs_soc:dir r_dir_perms;
-
-# /sys/devices/virtual/misc/uhid/0005:0955:7213.*/timeout
-allow system_app sysfs_pepper_timeout:file rw_file_perms;
 
 # /dev/tegra_dc_*
 allow system_app tegradc_device:chr_file rw_file_perms;
@@ -64,16 +55,9 @@ allow system_app sysfs_ozmo:dir r_dir_perms;
 allow system_app sysfs_ozmo:file rw_file_perms;
 allow system_app sysfs_hid:dir r_dir_perms;
 allow system_app sysfs_hid:file rw_file_perms;
-allow system_app hidraw_device:chr_file rw_file_perms;
 #allow system_app input_device:dir r_dir_perms;
 #allow system_app input_device:chr_file r_file_perms;
 allow system_app ozmo_device:chr_file rw_file_perms;
-allow system_app sysfs_blake:file rw_file_perms;
-allow system_app oem_media_file:dir r_dir_perms;
-allow system_app oem_media_file:file rw_file_perms;
-
-# Jarvis
-allow system_app sysfs_jarvis_stats:file rw_file_perms;
 
 # NvEsrd specific
 allow system_app sysfs_sysedp:dir r_dir_perms;
@@ -82,23 +66,10 @@ allow system_app sysfs_nvi2c:dir r_dir_perms;
 allow system_app sysfs_nvi2c:{ file lnk_file } rw_file_perms;
 
 # NvCPLSvc
-allow system_app cvc_data_file:dir r_dir_perms;
-allow system_app cvc_data_file:file rw_file_perms;
 allow system_app system_app_service:service_manager add;
-allow system_app sysfs_tcp_window_divisor:file rw_file_perms;
-allow system_app keylayout_data_file:file rw_file_perms;
-allow system_app keylayout_data_file:file create_file_perms;
-allow system_app keylayout_data_file:dir rw_dir_perms;
 
 # Read and write /data/data subdirectory.
 allow system_app system_app_data_file:lnk_file create_file_perms;
-
-# Gamepad reset
-allow system_app sysfs_gamepad:file rw_file_perms;
-
-# Sku files and RP3 partition
-r_dir_file(system_app, rpx_block_device)
-r_dir_file(system_app, rpx_file)
 
 # Variable refresh rate
 allow system_app sysfs_vrr:file rw_file_perms;
@@ -108,8 +79,6 @@ allow system_app uhid_device:chr_file rw_file_perms;
 
 # usb mode setting for Darcy
 set_prop(system_app, usb_mode_prop);
-allow system_app sysfs_usb_convertible:file rw_file_perms;
-allow system_app sysfs_usb_convertible:lnk_file { read write };
 
 # nvfeedback to use dumpstate in order to collect full bugreport
 allow system_app ctl_default_prop:property_service set;
@@ -117,14 +86,8 @@ allow system_app dumpstate_exec:file { read getattr open execute execute_no_tran
 allow system_app anr_data_file:dir remove_name;
 allow system_app media_rw_data_file:dir { read getattr open search };
 
-# stats share files
-r_dir_file(system_app, stats_share_file)
-
 # ShieldBluetoothManager share ts_config.conf bluetooth data file
 r_dir_file(system_app, bluetooth_data_file)
-
-# Bluedroid log
-r_dir_file(system_app, bluetooth_log_file)
 
 # Allow GL to access ptimer_scale_factor
 allow system_app sysfs_gpu:file r_file_perms;
@@ -156,10 +119,6 @@ r_dir_file(system_app, sysfs_netcfg)
 
 # Allow Settings to recover after resolution changes
 dontaudit system_app self:capability2 { block_suspend };
-
-# Allow frostmanager to r/w the /data/misc/frostlog(/.*)?
-allow system_app frostlog_file:dir create_dir_perms;
-allow system_app frostlog_file:file create_file_perms;
 
 # Allow access to audio.frost_routing.priority
 set_prop(system_app, frost_routing_prop)

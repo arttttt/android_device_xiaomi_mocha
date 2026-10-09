@@ -51,7 +51,6 @@ allow ussrd phsd_data:file create_file_perms;
 
 # /mnt/tmp/fc[0-9] files.
 allow ussrd tmpfs:file r_file_perms;
-allow ussrd surfaceflinger_fc:file r_file_perms;
 
 # thermal
 # Read only: sysfs dirs take no new entries, and policy neverallows asking.
