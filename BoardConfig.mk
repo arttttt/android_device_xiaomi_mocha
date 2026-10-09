@@ -204,6 +204,10 @@ TARGET_HWC_TRACE := true
 
 TARGET_KERNEL_SOURCE := kernel/xiaomi/mocha
 TARGET_KERNEL_CONFIG := tegra12_android_defconfig
+# This 3.10 kernel is built with GCC. Lineage 19.1 made clang the default
+# (vendor/lineage 6d88852d) and keeps the toolchain below only for binutils,
+# so without this the kernel came out of clang without anyone asking.
+TARGET_KERNEL_CLANG_COMPILE := false
 # Relative to the tree root, which is where the build always runs from.
 # ANDROID_BUILD_TOP used to spell this and is now a hard error, so any build
 # that did not already carry KERNEL_TOOLCHAIN in its environment died in
