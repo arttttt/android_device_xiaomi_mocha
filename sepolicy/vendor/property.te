@@ -1,0 +1,31 @@
+# Copyright (c) 2014-2017, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# S wants every property type owned by one partition, and these are set and
+# read only by vendor domains: the codecs, ussrd and ussr_setup, the power
+# HAL and the composer. vendor_internal_prop keeps them from the system side
+# altogether.
+vendor_internal_prop(mediacodec_prop)
+vendor_internal_prop(thermal_prop)
+vendor_internal_prop(phs_prop)
+
+# for sys.vrr.min-refr-per-ns
+vendor_internal_prop(vrr_prop)
+
+# For sys.perf.profile
+vendor_internal_prop(perf_profile_prop)
+
+# For persist.vendor.hwc.display_saturation and display_profile: set by
+# LiveDisplay, read by the composer.
+vendor_internal_prop(hwc_display_prop)

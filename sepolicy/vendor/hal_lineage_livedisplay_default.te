@@ -8,6 +8,6 @@ type hal_lineage_livedisplay_default_exec, exec_type, vendor_file_type, file_typ
 init_daemon_domain(hal_lineage_livedisplay_default)
 
 # The whole of what this service does: name a saturation for the composer to
-# build a matrix from, and remember which profile that was. Both live in the
-# vendor half of the property namespace, which the platform already labels.
-set_prop(hal_lineage_livedisplay_default, vendor_default_prop)
+# build a matrix from, and remember which profile that was. Both properties
+# carry a type of their own: on S only init may set vendor_default_prop.
+set_prop(hal_lineage_livedisplay_default, hwc_display_prop)

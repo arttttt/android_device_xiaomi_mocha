@@ -27,9 +27,6 @@ allow platform_app batteryproperties_service:service_manager find;
 # Write to properties
 set_prop(platform_app, system_prop)
 
-# Allow platform_app to access gamestreaming_prop
-get_prop(platform_app, gamestreaming_prop)
-
 # Allow to find recovery_service to perform system upgrade
 allow platform_app recovery_service:service_manager find;
 

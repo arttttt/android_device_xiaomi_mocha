@@ -15,9 +15,6 @@
 allow system_app quadd_auth_device:chr_file rw_file_perms;
 allow system_app asec_apk_file:file r_file_perms;
 
-# Allow system_app to access gamestreaming_prop
-get_prop(system_app, gamestreaming_prop)
-
 # /sys/devices/virtual/thermal/...
 allow system_app sysfs_thermal:file rw_file_perms;
 allow system_app sysfs_thermal:lnk_file rw_file_perms;
@@ -77,9 +74,6 @@ allow system_app sysfs_vrr:file rw_file_perms;
 #Shield Remote
 allow system_app uhid_device:chr_file rw_file_perms;
 
-# usb mode setting for Darcy
-set_prop(system_app, usb_mode_prop);
-
 # nvfeedback to use dumpstate in order to collect full bugreport
 allow system_app ctl_default_prop:property_service set;
 allow system_app dumpstate_exec:file { read getattr open execute execute_no_trans };
@@ -119,12 +113,6 @@ r_dir_file(system_app, sysfs_netcfg)
 
 # Allow Settings to recover after resolution changes
 dontaudit system_app self:capability2 { block_suspend };
-
-# Allow access to audio.frost_routing.priority
-set_prop(system_app, frost_routing_prop)
-
-# Allow access to frost.oqa
-set_prop(system_app, frost_oqa_prop)
 
 # Allow stats to read wifi stats file
 # The file is /sys/class/net/wlan0/device/histogram/stat

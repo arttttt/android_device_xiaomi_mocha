@@ -18,6 +18,3 @@ r_dir_file(audioserver, sysfs)
 
 # audioserver searches through sysfs, so we need to allow it to search all dirs we retag
 r_dir_file(audioserver, sysfs_ozmo);
-
-# access to frost routing property audio.frost_routing.priority
-set_prop(audioserver, frost_routing_prop)

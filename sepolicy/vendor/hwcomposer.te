@@ -40,7 +40,14 @@ allow hal_graphics_composer_server pmqos_device:chr_file rw_file_perms;
 # In the power-saving profile the governor only wakes the engine and raises
 # nothing. The profile is what the power service publishes, and reading it
 # is the only thing the composer wants of that property.
-get_prop(hal_graphics_composer_server, perf_profile_prop)
+#
+# Granted to this composer's domain rather than to the HAL attribute: on S
+# the attribute also holds the platform's vr_hwc, a system domain, and a
+# vendor-internal property is closed to every system domain.
+get_prop(hal_graphics_composer_default, perf_profile_prop)
+
+# LiveDisplay's saturation, which the composer builds its matrix from.
+get_prop(hal_graphics_composer_default, hwc_display_prop)
 
 # The panel's power state is read back from the backlight device rather than
 # from the controller. That device sits on the first I2C bus, which carries

@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set_prop(system_server, gpsd_prop)
-set_prop(system_server, bdaddr_path_prop)
-set_prop(system_server, handshake_sys_vold_prop)
-
 # Blake specific
 allow system_server sysfs_bus_usb:file w_file_perms;
 allow system_server sysfs_sound:file r_file_perms;
@@ -47,17 +43,11 @@ allow system_server proc_wmem_max_writable:file rw_file_perms;
 # dc for cec
 allow system_server tegradc_device:chr_file { read ioctl open write };
 
-# locality property
-allow system_server locality_prop:property_service set;
-
 # Write to proc/sys/net/unix/max_dgram_qlen
 allow system_server proc_net:file rw_file_perms;
 
 # Access service manager
 allow system_server system_app_service:service_manager find;
-
-# hand shake property between system and vold
-allow system_server handshake_sys_vold_prop:property_service set;
 
 # configfs
 allow system_server configfs:dir r_dir_perms;

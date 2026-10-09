@@ -15,8 +15,3 @@
 # The chip is reached through a driver node of its own rather than through a
 # serial line, so the platform's rules for hci_attach do not cover it.
 allow hal_bluetooth_default brcm_bt_device:chr_file rw_file_perms;
-
-# The adapter's address is not in the chip. It lives in the device tree, and
-# the path to it arrives in a property, so the property has to be readable as
-# well as the node it names.
-get_prop(hal_bluetooth_default, bdaddr_path_prop)
