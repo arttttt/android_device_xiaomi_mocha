@@ -279,6 +279,7 @@
 /sys/devices/platform/pwmleds\.43/leds/button-backlight/brightness	u:object_r:sysfs_pwm_backlight:s0
 /sys/devices/platform/pwmleds\.43/leds/button-backlight/max_brightness	u:object_r:sysfs_pwm_backlight:s0
 
+/(vendor|system/vendor)/bin/conn_init                                               u:object_r:conn_wifi_exec:s0
 # R's software gatekeeper; system/sepolicy labels only the plain 1.0 service.
 /(vendor|system/vendor)/bin/hw/android\.hardware\.gatekeeper@1\.0-service\.software  u:object_r:hal_gatekeeper_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.light@2\.0-service\.mocha         u:object_r:hal_light_default_exec:s0
