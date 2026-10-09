@@ -24,4 +24,4 @@
 #
 # What does not come with it is which controller to bind the gadget to. That
 # is not ours to know -- the kernel names it and init publishes it.
-get_prop(hal_usb_gadget_default, exported2_system_prop)
+get_prop(hal_usb_gadget_default, usb_control_prop)
