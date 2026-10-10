@@ -264,13 +264,16 @@ config_191() {
 # probes of ART and perfetto without their kernel version test -- this 3.10
 # kernel has memfd backported, and without it system_server dies in the JIT
 # and every perfetto producer aborts when a trace starts. Trebuchet's
-# taskbar, which stands in for the navigation bar on this screen, also
-# leaves its grey background under the setup wizard. The rest of
+# taskbar, which stands in for the navigation bar on this screen, leaves
+# its grey background under the setup wizard and draws nav buttons beside
+# the navigation keys; LineageParts hides its switch while the keys are on.
+# lineage-sdk takes the battery percentage default from an overlay. The rest of
 # patches/ came over from 18.1 written against R, and is not applied until
 # each patch has been read against S.
 post_sync_191() {
     echo "==> post-sync patches (19.1)"
-    patch_trees external/tinyalsa_new art external/perfetto packages/apps/Trebuchet || return 1
+    patch_trees external/tinyalsa_new art external/perfetto packages/apps/Trebuchet \
+        packages/apps/LineageParts lineage-sdk || return 1
     echo "==> post-sync OK"
 }
 

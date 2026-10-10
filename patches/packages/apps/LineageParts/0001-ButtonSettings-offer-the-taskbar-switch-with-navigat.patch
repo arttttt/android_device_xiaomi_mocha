@@ -1,0 +1,78 @@
+From 113fa7a47ffd554a80687c211bc7695a1fae8235 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 10 Oct 2026 23:37:42 +0300
+Subject: [PATCH] ButtonSettings: offer the taskbar switch with navigation keys
+ on
+
+The taskbar switch only showed with a navigation bar, inside the
+navigation bar category. A tablet with navigation keys has a taskbar
+too, showing apps while the keys navigate, and had no way to turn it
+off: the switch was gone, and the category it sat in is disabled for
+as long as the keys are on.
+
+Show the switch on every tablet, at the top of the screen next to the
+navigation keys switch, and leave the navigation mode alone when the
+taskbar is turned on with the keys doing the navigation.
+---
+ res/xml/button_settings.xml                            |  8 ++++----
+ .../lineageos/lineageparts/input/ButtonSettings.java   | 10 +++++++---
+ 2 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/res/xml/button_settings.xml b/res/xml/button_settings.xml
+index 2c1f967..775163a 100644
+--- a/res/xml/button_settings.xml
++++ b/res/xml/button_settings.xml
+@@ -27,6 +27,10 @@
+         android:summary="@string/disable_navkeys_summary"
+         android:defaultValue="false" />
+ 
++    <SwitchPreference
++        android:key="enable_taskbar"
++        android:title="@string/navigation_bar_enable_taskbar_title" />
++
+     <SwitchPreference
+         android:key="swap_capacitive_keys"
+         android:title="@string/swap_capacitive_keys_title"
+@@ -43,10 +47,6 @@
+         android:key="navigation_bar_category"
+         android:title="@string/navigation_bar_category" >
+ 
+-        <SwitchPreference
+-                android:key="enable_taskbar"
+-                android:title="@string/navigation_bar_enable_taskbar_title" />
+-
+         <lineageos.preference.LineageSystemSettingSwitchPreference
+                 android:key="navigation_bar_menu_arrow_keys"
+                 android:title="@string/navigation_bar_arrow_keys_title"
+diff --git a/src/org/lineageos/lineageparts/input/ButtonSettings.java b/src/org/lineageos/lineageparts/input/ButtonSettings.java
+index a6fa54f..b1fb341 100644
+--- a/src/org/lineageos/lineageparts/input/ButtonSettings.java
++++ b/src/org/lineageos/lineageparts/input/ButtonSettings.java
+@@ -475,8 +475,10 @@ public class ButtonSettings extends SettingsPreferenceFragment
+ 
+         mEnableTaskbar = findPreference(KEY_ENABLE_TASKBAR);
+         if (mEnableTaskbar != null) {
+-            if (!isTablet(getContext()) || !hasNavigationBar()) {
+-                mNavigationPreferencesCat.removePreference(mEnableTaskbar);
++            // The taskbar shows apps on a device with navigation keys too, so it is not
++            // left to the navigation bar category, which is off while the keys are on.
++            if (!isTablet(getContext())) {
++                prefScreen.removePreference(mEnableTaskbar);
+             } else {
+                 mEnableTaskbar.setOnPreferenceChangeListener(this);
+                 mEnableTaskbar.setChecked(LineageSettings.System.getInt(resolver,
+@@ -669,8 +671,10 @@ public class ButtonSettings extends SettingsPreferenceFragment
+             return true;
+         } else if (preference == mEnableTaskbar) {
+             toggleTaskBarDependencies((Boolean) newValue);
+-            if ((Boolean) newValue && is2ButtonNavigationEnabled(getContext())) {
++            if ((Boolean) newValue && hasNavigationBar()
++                    && is2ButtonNavigationEnabled(getContext())) {
+                 // Let's switch to gestural mode if user previously had 2 buttons enabled.
++                // Not with the keys on: the mode is theirs, and stays 3 buttons.
+                 setButtonNavigationMode(NAV_BAR_MODE_GESTURAL_OVERLAY);
+             }
+             LineageSettings.System.putInt(getContentResolver(),
+-- 
+2.56.0
+

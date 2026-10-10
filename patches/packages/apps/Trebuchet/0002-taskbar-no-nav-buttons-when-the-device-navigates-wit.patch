@@ -1,0 +1,196 @@
+From 9fb1845439e8ed1559877448ff43ef7627e6a2ae Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 10 Oct 2026 23:37:00 +0300
+Subject: [PATCH] taskbar: no nav buttons when the device navigates with keys
+
+On a large screen the taskbar takes the place of the navigation bar,
+and with 3-button navigation it draws back, home and recents whether
+the device has a navigation bar or not. A tablet with navigation keys
+then navigates from both at once: the taskbar buttons and the keys,
+which only go off when the navigation bar is forced on
+(FORCE_SHOW_NAVBAR, through the key disabler).
+
+Keep the nav buttons, including the back button shown with the IME,
+for a device with a navigation bar, and let a device without one show
+only apps on the taskbar, its keys doing the navigation. The test is
+the one DisplayPolicy makes, done here rather than asked of the window
+manager, since the taskbar is recreated as soon as FORCE_SHOW_NAVBAR
+changes and the window manager may not have read it yet.
+---
+ .../taskbar/NavbarButtonsViewController.java  | 18 ++++++----
+ .../taskbar/TaskbarActivityContext.java       | 33 +++++++++++++++++++
+ .../launcher3/taskbar/TaskbarManager.java     | 16 +++++++++
+ 3 files changed, 60 insertions(+), 7 deletions(-)
+
+diff --git a/quickstep/src/com/android/launcher3/taskbar/NavbarButtonsViewController.java b/quickstep/src/com/android/launcher3/taskbar/NavbarButtonsViewController.java
+index 50637a12ce..a934658d0d 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/NavbarButtonsViewController.java
++++ b/quickstep/src/com/android/launcher3/taskbar/NavbarButtonsViewController.java
+@@ -167,7 +167,9 @@ public class NavbarButtonsViewController {
+ 
+         // Force nav buttons (specifically back button) to be visible during setup wizard.
+         boolean isInSetup = !mContext.isUserSetupComplete();
+-        boolean alwaysShowButtons = isThreeButtonNav || isInSetup;
++        // Without a navigation bar the navigation keys take the place of the nav buttons.
++        boolean hasNavigationBar = mContext.hasNavigationBar();
++        boolean alwaysShowButtons = hasNavigationBar && (isThreeButtonNav || isInSetup);
+ 
+         // Make sure to remove nav bar buttons translation when notification shade is expanded or
+         // IME is showing (add separate translation for IME).
+@@ -233,12 +235,14 @@ public class NavbarButtonsViewController {
+             mControllers.rotationButtonController.setRotationButton(mFloatingRotationButton,
+                     mRotationButtonListener);
+ 
+-            View imeDownButton = addButton(R.drawable.ic_sysbar_back, BUTTON_BACK,
+-                    mStartContextualContainer, mControllers.navButtonController, R.id.back);
+-            imeDownButton.setRotation(Utilities.isRtl(mContext.getResources()) ? 90 : -90);
+-            // Rotate when Ime visible
+-            mPropertyHolders.add(new StatePropertyHolder(imeDownButton,
+-                    flags -> (flags & FLAG_IME_VISIBLE) != 0));
++            if (hasNavigationBar) {
++                View imeDownButton = addButton(R.drawable.ic_sysbar_back, BUTTON_BACK,
++                        mStartContextualContainer, mControllers.navButtonController, R.id.back);
++                imeDownButton.setRotation(Utilities.isRtl(mContext.getResources()) ? 90 : -90);
++                // Rotate when Ime visible
++                mPropertyHolders.add(new StatePropertyHolder(imeDownButton,
++                        flags -> (flags & FLAG_IME_VISIBLE) != 0));
++            }
+         }
+ 
+         applyState();
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarActivityContext.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarActivityContext.java
+index c612a845a5..abd44b28dc 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarActivityContext.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarActivityContext.java
+@@ -78,6 +78,8 @@ import com.android.systemui.shared.system.ActivityManagerWrapper;
+ import com.android.systemui.shared.system.WindowManagerWrapper;
+ import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
+ 
++import lineageos.providers.LineageSettings;
++
+ /**
+  * The {@link ActivityContext} with which we inflate Taskbar-related Views. This allows UI elements
+  * that are used by both Launcher and Taskbar (such as Folder) to reference a generic
+@@ -110,6 +112,7 @@ public class TaskbarActivityContext extends ContextThemeWrapper implements Activ
+ 
+     private final boolean mIsSafeModeEnabled;
+     private final boolean mIsUserSetupComplete;
++    private final boolean mHasNavigationBar;
+     private boolean mIsDestroyed = false;
+     // The flag to know if the window is excluded from magnification region computation.
+     private boolean mIsExcludeFromMagnificationRegion = false;
+@@ -125,6 +128,7 @@ public class TaskbarActivityContext extends ContextThemeWrapper implements Activ
+                 () -> getPackageManager().isSafeMode());
+         mIsUserSetupComplete = SettingsCache.INSTANCE.get(this).getValue(
+                 Settings.Secure.getUriFor(Settings.Secure.USER_SETUP_COMPLETE), 0);
++        mHasNavigationBar = hasNavigationBar(windowContext);
+ 
+         final Resources resources = getResources();
+         updateIconSize(resources);
+@@ -232,6 +236,35 @@ public class TaskbarActivityContext extends ContextThemeWrapper implements Activ
+         return mNavMode == Mode.THREE_BUTTONS;
+     }
+ 
++    /**
++     * Returns whether the device navigates on screen. Without a navigation bar it has
++     * navigation keys, and the taskbar shows apps only.
++     */
++    public boolean hasNavigationBar() {
++        return mHasNavigationBar;
++    }
++
++    /**
++     * The test DisplayPolicy makes, done here rather than asked of the window manager: the
++     * taskbar is recreated as soon as the setting changes, and the window manager may not have
++     * seen the change by then.
++     */
++    private static boolean hasNavigationBar(Context context) {
++        if (LineageSettings.System.getInt(context.getContentResolver(),
++                LineageSettings.System.FORCE_SHOW_NAVBAR, 0) == 1) {
++            return true;
++        }
++        String navBarOverride = SystemProperties.get("qemu.hw.mainkeys");
++        if ("1".equals(navBarOverride)) {
++            return false;
++        } else if ("0".equals(navBarOverride)) {
++            return true;
++        }
++        Resources res = Resources.getSystem();
++        int id = res.getIdentifier("config_showNavigationBar", "bool", "android");
++        return id != 0 && res.getBoolean(id);
++    }
++
+     public int getLeftCornerRadius() {
+         return mLeftCorner == null ? 0 : mLeftCorner.getRadius();
+     }
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarManager.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarManager.java
+index c4ca2b36cb..64845e3cf7 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarManager.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarManager.java
+@@ -27,6 +27,7 @@ import android.content.Context;
+ import android.content.Intent;
+ import android.content.pm.ActivityInfo;
+ import android.content.res.Configuration;
++import android.database.ContentObserver;
+ import android.hardware.display.DisplayManager;
+ import android.net.Uri;
+ import android.os.Handler;
+@@ -53,6 +54,8 @@ import com.android.quickstep.TouchInteractionService;
+ import com.android.systemui.unfold.UnfoldTransitionProgressProvider;
+ import com.android.systemui.unfold.util.ScopedUnfoldTransitionProgressProvider;
+ 
++import lineageos.providers.LineageSettings;
++
+ /**
+  * Class to manage taskbar lifecycle
+  */
+@@ -61,12 +64,16 @@ public class TaskbarManager implements DisplayController.DisplayInfoChangeListen
+ 
+     private static final Uri USER_SETUP_COMPLETE_URI = Settings.Secure.getUriFor(
+             Settings.Secure.USER_SETUP_COMPLETE);
++    private static final Uri FORCE_SHOW_NAVBAR_URI = LineageSettings.System.getUriFor(
++            LineageSettings.System.FORCE_SHOW_NAVBAR);
+ 
+     private final Context mContext;
+     private final DisplayController mDisplayController;
+     private final SysUINavigationMode mSysUINavigationMode;
+     private final TaskbarNavButtonController mNavButtonController;
+     private final SettingsCache.OnChangeListener mUserSetupCompleteListener;
++    // The nav buttons come and go with the navigation bar, see TaskbarActivityContext.
++    private final ContentObserver mForceShowNavbarObserver;
+     private final ComponentCallbacks mComponentCallbacks;
+     private final SimpleBroadcastReceiver mShutdownReceiver;
+ 
+@@ -96,6 +103,12 @@ public class TaskbarManager implements DisplayController.DisplayInfoChangeListen
+         mNavButtonController = new TaskbarNavButtonController(service,
+                 SystemUiProxy.INSTANCE.get(mContext), new Handler());
+         mUserSetupCompleteListener = isUserSetupComplete -> recreateTaskbar();
++        mForceShowNavbarObserver = new ContentObserver(new Handler()) {
++            @Override
++            public void onChange(boolean selfChange) {
++                recreateTaskbar();
++            }
++        };
+         mComponentCallbacks = new ComponentCallbacks() {
+             private Configuration mOldConfig = mContext.getResources().getConfiguration();
+ 
+@@ -132,6 +145,8 @@ public class TaskbarManager implements DisplayController.DisplayInfoChangeListen
+         mSysUINavigationMode.addModeChangeListener(this);
+         SettingsCache.INSTANCE.get(mContext).register(USER_SETUP_COMPLETE_URI,
+                 mUserSetupCompleteListener);
++        mContext.getContentResolver().registerContentObserver(FORCE_SHOW_NAVBAR_URI, false,
++                mForceShowNavbarObserver);
+         mContext.registerComponentCallbacks(mComponentCallbacks);
+         mShutdownReceiver.register(mContext, Intent.ACTION_SHUTDOWN);
+ 
+@@ -293,6 +308,7 @@ public class TaskbarManager implements DisplayController.DisplayInfoChangeListen
+         mSysUINavigationMode.removeModeChangeListener(this);
+         SettingsCache.INSTANCE.get(mContext).unregister(USER_SETUP_COMPLETE_URI,
+                 mUserSetupCompleteListener);
++        mContext.getContentResolver().unregisterContentObserver(mForceShowNavbarObserver);
+         mContext.unregisterComponentCallbacks(mComponentCallbacks);
+         mContext.unregisterReceiver(mShutdownReceiver);
+     }
+-- 
+2.56.0
+
