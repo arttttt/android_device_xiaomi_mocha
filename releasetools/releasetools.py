@@ -56,11 +56,16 @@ both are refused here:
 Written in InstallBegin rather than InstallEnd so that a failure stops the
 install before the system image has been touched.
 
-The write is unconditional. Guarding it on the partition's current contents
-was considered and dropped: the image is 1.6 MB in a 4 MB partition, and
-past it a device can still hold most of an older and larger image -- so a
-hash of the partition says nothing portable, and edify cannot hash a slice.
+The write is skipped when TOS already holds this image. The partition is
+4 MB and the image 1.6 MB, and past the image a board can still hold most of
+an older and larger one, so the whole partition's hash says nothing; what is
+compared is the image's length from the start of the partition, which
+patch_partition_check reads and hashes on its own. The hash is taken from
+the image in the target files at build time, so it follows the image
+rather than a constant someone has to remember to change.
 """
+
+import hashlib
 
 TOS_IMAGE = "install/firmware-update/tos-psci-0.2.img"
 
@@ -102,15 +107,26 @@ def _write_tos(info):
     on quietly: a ROM installed onto a board whose secure world was not
     written is the exact state this file exists to prevent.
     """
-    info.script.AppendExtra(
-        'ui_print("Writing the secure world (PSCI 0.2) to TOS...");')
+    image = info.input_zip.read("INSTALL/firmware-update/" +
+                                TOS_IMAGE.rsplit("/", 1)[1])
+    spec = "%d:%s" % (len(image), hashlib.sha1(image).hexdigest())
+    present = ' || '.join(
+        'patch_partition_check("EMMC:%s:%s", "EMMC:%s:%s")'
+        % (partition, spec, partition, spec)
+        for partition in TOS_PARTITIONS)
 
     attempts = ['package_extract_file("%s", "%s")' % (TOS_IMAGE, partition)
                 for partition in TOS_PARTITIONS]
     attempts.append('abort("TOS not found: looked at ' +
                     ', '.join(TOS_PARTITIONS) + '")')
 
-    info.script.AppendExtra(' ||\n    '.join(attempts) + ';')
+    info.script.AppendExtra(
+        'if ' + present + ' then\n'
+        '  ui_print("The secure world in TOS is already this one.");\n'
+        'else\n'
+        '  ui_print("Writing the secure world (PSCI 0.2) to TOS...");\n'
+        '  ' + ' ||\n    '.join(attempts) + ';\n'
+        'endif;')
 
 
 def FullOTA_InstallBegin(info):
