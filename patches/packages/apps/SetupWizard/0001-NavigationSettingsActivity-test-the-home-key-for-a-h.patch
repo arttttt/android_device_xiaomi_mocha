@@ -1,0 +1,42 @@
+From b9b237f00a0d383dad64f132c4c64993e0605420 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sun, 11 Oct 2026 00:10:11 +0300
+Subject: [PATCH] NavigationSettingsActivity: test the home key for a home key
+
+The page is skipped on a device that navigates with hardware keys and
+did not ask for the navigation bar, but hasHomeKey tested the app
+switch key. A device with home, back and menu keys and no app switch
+key was given the page, gestural navigation preselected and no way to
+keep the keys, and gestures on top of keys that stay on: the keys only
+go off when the navigation bar is asked for.
+
+Test KEY_MASK_HOME, as the name says.
+---
+ src/org/lineageos/setupwizard/NavigationSettingsActivity.java | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/org/lineageos/setupwizard/NavigationSettingsActivity.java b/src/org/lineageos/setupwizard/NavigationSettingsActivity.java
+index 20d1b48..7c8999e 100644
+--- a/src/org/lineageos/setupwizard/NavigationSettingsActivity.java
++++ b/src/org/lineageos/setupwizard/NavigationSettingsActivity.java
+@@ -20,7 +20,7 @@ import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_2BUTTON_OVE
+ import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_3BUTTON_OVERLAY;
+ import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_GESTURAL_OVERLAY;
+ 
+-import static org.lineageos.internal.util.DeviceKeysConstants.KEY_MASK_APP_SWITCH;
++import static org.lineageos.internal.util.DeviceKeysConstants.KEY_MASK_HOME;
+ import static org.lineageos.setupwizard.SetupWizardApp.DISABLE_NAV_KEYS;
+ import static org.lineageos.setupwizard.SetupWizardApp.NAVIGATION_OPTION_KEY;
+ 
+@@ -66,7 +66,7 @@ public class NavigationSettingsActivity extends BaseSetupWizardActivity {
+ 
+         int deviceKeys = getResources().getInteger(
+                 org.lineageos.platform.internal.R.integer.config_deviceHardwareKeys);
+-        boolean hasHomeKey = (deviceKeys & KEY_MASK_APP_SWITCH) != 0;
++        boolean hasHomeKey = (deviceKeys & KEY_MASK_HOME) != 0;
+ 
+         getGlifLayout().setDescriptionText(getString(R.string.navigation_summary));
+         setNextText(R.string.next);
+-- 
+2.56.0
+
