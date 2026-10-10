@@ -133,16 +133,21 @@ include $(BUILD_PREBUILT)
 
 include $(CLEAR_VARS)
 # ueventd has its own search list and the board's file is not part of it by
-# this name: it reads /ueventd.rc, /vendor/ueventd.rc and /odm/ueventd.rc.
-# The installed name has to be ueventd.rc, but the module name cannot be: R
-# defines a module ueventd.rc for the platform's own file in system/core, so
+# this name. On S it reads /system/etc/ueventd.rc, which imports
+# /vendor/etc/ueventd.rc and /odm/etc/ueventd.rc; R's /vendor/ueventd.rc is
+# read only when ro.product.first_api_level is 31 or lower
+# (system/core/init/ueventd.cpp, GetConfiguration), and mocha sets none. A
+# file left there is never parsed -- /dev/nvmap and /dev/nvhost-* then keep
+# devtmpfs's root 0600, and SurfaceFlinger dies opening the GPU.
+# The installed name has to be ueventd.rc, but the module name cannot be: the
+# platform defines a module ueventd.rc for its own file in system/core, so
 # ours is named after the board (tn8) and installs under the stem.
 LOCAL_MODULE       := ueventd.tn8.rc
 LOCAL_MODULE_STEM  := ueventd.rc
 LOCAL_MODULE_TAGS  := optional
 LOCAL_MODULE_CLASS := ETC
 LOCAL_SRC_FILES    := ueventd.rc
-LOCAL_MODULE_PATH  := $(TARGET_OUT_VENDOR)
+LOCAL_MODULE_PATH  := $(TARGET_OUT_VENDOR_ETC)
 include $(BUILD_PREBUILT)
 
 include $(CLEAR_VARS)
