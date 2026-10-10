@@ -1,0 +1,730 @@
+{
+  "input_sha256": "a05195438bc84f0194def15df30b9f7a357aecbb2bd2d91c19430b2033d2fcf2",
+  "output_sha256": "544cc16b1b8c08bf1e9ac5d6f2fde1a58294465428de267a2bcb8c371fc0f6ba",
+  "image_size": 1667584,
+  "cave_bytes": 236,
+  "limits": {
+    "fuse_iterations": 8192,
+    "delay_stalled_samples": 65536,
+    "uart_tx_polls_per_character": 65536
+  },
+  "symbols": {
+    "image_base": "0x48000000",
+    "original_putchar": "0x48002a18",
+    "original_dputs": "0x4800a790",
+    "original_delay": "0x4800a730",
+    "original_delay_poll": "0x4800a748",
+    "original_delay_return": "0x4800a760",
+    "fuse_delay_call": "0x48002b58",
+    "fuse_store_result": "0x48002b7c",
+    "console_inhibit_literal": "0x48002a8c",
+    "console_index_literal": "0x48002a90",
+    "console_table_literal": "0x48002a94",
+    "bounded_putchar": "0x48002a18",
+    "bounded_tx": "0x48002a64",
+    "tx_poll": "0x48002a68",
+    "bounded_putchar_end": "0x48002a84",
+    "fuse_delay_shim": "0x48002a84",
+    "fuse_delay_shim_end": "0x48002a8c",
+    "marker_dispatch": "0x4800ef10",
+    "mark_welcome": "0x4800ef50",
+    "mark_post_welcome": "0x4800ef5c",
+    "mark_bootstrap": "0x4800ef68",
+    "mark_init_complete": "0x4800ef74",
+    "mark_fuse_begin": "0x4800ef80",
+    "fuse_begin": "0x4800ef98",
+    "mark_fuse_ready": "0x4800ef8c",
+    "fuse_ready_replay": "0x4800efa4",
+    "fuse_guard": "0x4800efb0",
+    "fuse_message_literal": "0x4800efcc",
+    "fuse_message": "0x4800efd0",
+    "delay_guard": "0x4800efe0",
+    "marker_dispatch_end": "0x4800effc"
+  },
+  "markers": [
+    {
+      "address": "0x48004e50",
+      "character": "W"
+    },
+    {
+      "address": "0x48004e54",
+      "character": "A"
+    },
+    {
+      "address": "0x48004e94",
+      "character": "F"
+    },
+    {
+      "address": "0x480084c0",
+      "character": "J"
+    },
+    {
+      "address": "0x48002b54",
+      "character": "1"
+    },
+    {
+      "address": "0x48002b6c",
+      "character": "2"
+    }
+  ],
+  "changes": [
+    {
+      "address": "0x48002a38",
+      "file_offset": "0x2c38",
+      "before": "0a0050e3",
+      "after": "000050e3",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a3c",
+      "file_offset": "0x2c3c",
+      "before": "0800001a",
+      "after": "1eff2f01",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a40",
+      "file_offset": "0x2c40",
+      "before": "4c209fe5",
+      "after": "01402de9",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a44",
+      "file_offset": "0x2c44",
+      "before": "032192e7",
+      "after": "48109fe5",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a48",
+      "file_offset": "0x2c48",
+      "before": "14c082e2",
+      "after": "031191e7",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a4c",
+      "file_offset": "0x2c4c",
+      "before": "0010dce5",
+      "after": "0a0050e3",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a50",
+      "file_offset": "0x2c50",
+      "before": "400011e3",
+      "after": "0d00a003",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a54",
+      "file_offset": "0x2c54",
+      "before": "fcffff0a",
+      "after": "0200000b",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a58",
+      "file_offset": "0x2c58",
+      "before": "0d10a0e3",
+      "after": "00009de5",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a5c",
+      "file_offset": "0x2c5c",
+      "before": "0010c2e5",
+      "after": "000000eb",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a60",
+      "file_offset": "0x2c60",
+      "before": "010000ea",
+      "after": "0180bde8",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a64",
+      "file_offset": "0x2c64",
+      "before": "000050e3",
+      "after": "0128a0e3",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a68",
+      "file_offset": "0x2c68",
+      "before": "1eff2f01",
+      "after": "1430d1e5",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a6c",
+      "file_offset": "0x2c6c",
+      "before": "20209fe5",
+      "after": "400013e3",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a70",
+      "file_offset": "0x2c70",
+      "before": "033192e7",
+      "after": "0000c115",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a74",
+      "file_offset": "0x2c74",
+      "before": "141083e2",
+      "after": "1eff2f11",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a78",
+      "file_offset": "0x2c78",
+      "before": "0020d1e5",
+      "after": "012052e2",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a7c",
+      "file_offset": "0x2c7c",
+      "before": "400012e3",
+      "after": "f9ffff1a",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a80",
+      "file_offset": "0x2c80",
+      "before": "fcffff0a",
+      "after": "1eff2fe1",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a84",
+      "file_offset": "0x2c84",
+      "before": "0000c3e5",
+      "after": "0100a0e3",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002a88",
+      "file_offset": "0x2c88",
+      "before": "1eff2fe1",
+      "after": "281f00ea",
+      "reason": "Bounded putchar and 1us FUSE delay shim"
+    },
+    {
+      "address": "0x48002ae8",
+      "file_offset": "0x2ce8",
+      "before": "73402de9",
+      "after": "f3412de9",
+      "reason": "FUSE: save counter registers with aligned frame"
+    },
+    {
+      "address": "0x48002b54",
+      "file_offset": "0x2d54",
+      "before": "0100a0e3",
+      "after": "093100ea",
+      "reason": "UART marker 1"
+    },
+    {
+      "address": "0x48002b58",
+      "file_offset": "0x2d58",
+      "before": "f41e00eb",
+      "after": "c9ffffeb",
+      "reason": "FUSE: always request exactly 1us"
+    },
+    {
+      "address": "0x48002b68",
+      "file_offset": "0x2d68",
+      "before": "f9ffff1a",
+      "after": "1031001a",
+      "reason": "FUSE: guard busy-state back edge"
+    },
+    {
+      "address": "0x48002b6c",
+      "file_offset": "0x2d6c",
+      "before": "38309fe5",
+      "after": "063100ea",
+      "reason": "UART marker 2"
+    },
+    {
+      "address": "0x48002b94",
+      "file_offset": "0x2d94",
+      "before": "7080bde8",
+      "after": "f081bde8",
+      "reason": "FUSE: restore enlarged frame after original add sp,#8"
+    },
+    {
+      "address": "0x48004e50",
+      "file_offset": "0x5050",
+      "before": "4e1600eb",
+      "after": "3e2800eb",
+      "reason": "UART marker W"
+    },
+    {
+      "address": "0x48004e54",
+      "file_offset": "0x5054",
+      "before": "821000eb",
+      "after": "402800eb",
+      "reason": "UART marker A"
+    },
+    {
+      "address": "0x48004e94",
+      "file_offset": "0x5094",
+      "before": "510c00eb",
+      "after": "332800eb",
+      "reason": "UART marker F"
+    },
+    {
+      "address": "0x480084c0",
+      "file_offset": "0x86c0",
+      "before": "28e8ffeb",
+      "after": "ab1a00eb",
+      "reason": "UART marker J"
+    },
+    {
+      "address": "0x4800a738",
+      "file_offset": "0xa938",
+      "before": "0050a0e3",
+      "after": "0158a0e3",
+      "reason": "Delay: 65536 consecutive stalled samples"
+    },
+    {
+      "address": "0x4800a754",
+      "file_offset": "0xa954",
+      "before": "050051e1",
+      "after": "000051e3",
+      "reason": "Delay: retain original high-word comparison against zero"
+    },
+    {
+      "address": "0x4800a75c",
+      "file_offset": "0xa95c",
+      "before": "f9ffff3a",
+      "after": "1f12003a",
+      "reason": "Delay: guard wait back edge; reset budget on progress"
+    },
+    {
+      "address": "0x4800ef10",
+      "file_offset": "0xf110",
+      "before": "00000000",
+      "after": "1f402de9",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef14",
+      "file_offset": "0xf114",
+      "before": "00000000",
+      "after": "00400fe1",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef18",
+      "file_offset": "0xf118",
+      "before": "00000000",
+      "after": "00109ee5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef1c",
+      "file_offset": "0xf11c",
+      "before": "00000000",
+      "after": "210ca0e1",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef20",
+      "file_offset": "0xf120",
+      "before": "00000000",
+      "after": "ff14c1e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef24",
+      "file_offset": "0xf124",
+      "before": "00000000",
+      "after": "121381e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef28",
+      "file_offset": "0xf128",
+      "before": "00000000",
+      "after": "18209de5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef2c",
+      "file_offset": "0xf12c",
+      "before": "00000000",
+      "after": "14208de5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef30",
+      "file_offset": "0xf130",
+      "before": "00000000",
+      "after": "18108de5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef34",
+      "file_offset": "0xf134",
+      "before": "00000000",
+      "after": "001306e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef38",
+      "file_offset": "0xf138",
+      "before": "00000000",
+      "after": "001047e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef3c",
+      "file_offset": "0xf13c",
+      "before": "00000000",
+      "after": "c8ceffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef40",
+      "file_offset": "0xf140",
+      "before": "00000000",
+      "after": "04f028e1",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef44",
+      "file_offset": "0xf144",
+      "before": "00000000",
+      "after": "1ce09de5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef48",
+      "file_offset": "0xf148",
+      "before": "00000000",
+      "after": "1f10bde8",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef4c",
+      "file_offset": "0xf14c",
+      "before": "00000000",
+      "after": "08f09de4",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef50",
+      "file_offset": "0xf150",
+      "before": "00000000",
+      "after": "00502de9",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef54",
+      "file_offset": "0xf154",
+      "before": "00000000",
+      "after": "edffffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef58",
+      "file_offset": "0xf158",
+      "before": "00000000",
+      "after": "90a70057",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef5c",
+      "file_offset": "0xf15c",
+      "before": "00000000",
+      "after": "00502de9",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef60",
+      "file_offset": "0xf160",
+      "before": "00000000",
+      "after": "eaffffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef64",
+      "file_offset": "0xf164",
+      "before": "00000000",
+      "after": "64900041",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef68",
+      "file_offset": "0xf168",
+      "before": "00000000",
+      "after": "00502de9",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef6c",
+      "file_offset": "0xf16c",
+      "before": "00000000",
+      "after": "e7ffffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef70",
+      "file_offset": "0xf170",
+      "before": "00000000",
+      "after": "e07f0046",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef74",
+      "file_offset": "0xf174",
+      "before": "00000000",
+      "after": "00502de9",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef78",
+      "file_offset": "0xf178",
+      "before": "00000000",
+      "after": "e4ffffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef7c",
+      "file_offset": "0xf17c",
+      "before": "00000000",
+      "after": "6825004a",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef80",
+      "file_offset": "0xf180",
+      "before": "00000000",
+      "after": "00502de9",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef84",
+      "file_offset": "0xf184",
+      "before": "00000000",
+      "after": "e1ffffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef88",
+      "file_offset": "0xf188",
+      "before": "00000000",
+      "after": "98ef0031",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef8c",
+      "file_offset": "0xf18c",
+      "before": "00000000",
+      "after": "00502de9",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef90",
+      "file_offset": "0xf190",
+      "before": "00000000",
+      "after": "deffffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef94",
+      "file_offset": "0xf194",
+      "before": "00000000",
+      "after": "a4ef0032",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef98",
+      "file_offset": "0xf198",
+      "before": "00000000",
+      "after": "027aa0e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800ef9c",
+      "file_offset": "0xf19c",
+      "before": "00000000",
+      "after": "0100a0e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efa0",
+      "file_offset": "0xf1a0",
+      "before": "00000000",
+      "after": "ecceffea",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efa4",
+      "file_offset": "0xf1a4",
+      "before": "00000000",
+      "after": "00300fe3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efa8",
+      "file_offset": "0xf1a8",
+      "before": "00000000",
+      "after": "003047e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efac",
+      "file_offset": "0xf1ac",
+      "before": "00000000",
+      "after": "efceffea",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efb0",
+      "file_offset": "0xf1b0",
+      "before": "00000000",
+      "after": "017057e2",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efb4",
+      "file_offset": "0xf1b4",
+      "before": "00000000",
+      "after": "e7ceff1a",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efb8",
+      "file_offset": "0xf1b8",
+      "before": "00000000",
+      "after": "0c009fe5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efbc",
+      "file_offset": "0xf1bc",
+      "before": "00000000",
+      "after": "f3edffeb",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efc0",
+      "file_offset": "0xf1c0",
+      "before": "00000000",
+      "after": "0030a0e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efc4",
+      "file_offset": "0xf1c4",
+      "before": "00000000",
+      "after": "000054e3",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efc8",
+      "file_offset": "0xf1c8",
+      "before": "00000000",
+      "after": "ebceffea",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efcc",
+      "file_offset": "0xf1cc",
+      "before": "00000000",
+      "after": "d0ef0048",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efd0",
+      "file_offset": "0xf1d0",
+      "before": "00000000",
+      "after": "46555345",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efd4",
+      "file_offset": "0xf1d4",
+      "before": "00000000",
+      "after": "2074696d",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efd8",
+      "file_offset": "0xf1d8",
+      "before": "00000000",
+      "after": "656f7574",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efdc",
+      "file_offset": "0xf1dc",
+      "before": "00000000",
+      "after": "0a000000",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efe0",
+      "file_offset": "0xf1e0",
+      "before": "00000000",
+      "after": "00209de5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efe4",
+      "file_offset": "0xf1e4",
+      "before": "00000000",
+      "after": "020050e1",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efe8",
+      "file_offset": "0xf1e8",
+      "before": "00000000",
+      "after": "00008de5",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800efec",
+      "file_offset": "0xf1ec",
+      "before": "00000000",
+      "after": "0158a013",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800eff0",
+      "file_offset": "0xf1f0",
+      "before": "00000000",
+      "after": "01505502",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800eff4",
+      "file_offset": "0xf1f4",
+      "before": "00000000",
+      "after": "d3edff1a",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800eff8",
+      "file_offset": "0xf1f8",
+      "before": "00000000",
+      "after": "d8edffea",
+      "reason": "Audited cave: markers and timeout guards"
+    },
+    {
+      "address": "0x4800f010",
+      "file_offset": "0xf210",
+      "before": "01000000",
+      "after": "00000000",
+      "reason": "Route printf to UART"
+    }
+  ]
+}
