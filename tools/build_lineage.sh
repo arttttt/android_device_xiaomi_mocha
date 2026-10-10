@@ -281,14 +281,16 @@ config_191() {
 # taskbar, which stands in for the navigation bar on this screen, leaves
 # its grey background under the setup wizard and draws nav buttons beside
 # the navigation keys; LineageParts hides its switch while the keys are on,
-# and the setup wizard turns gestures on beside them.
+# and the setup wizard turns gestures on beside them. libbt must not
+# download the patchram a second time over the kernel's line discipline.
 # lineage-sdk takes the battery percentage default from an overlay. The rest of
 # patches/ came over from 18.1 written against R, and is not applied until
 # each patch has been read against S.
 post_sync_191() {
     echo "==> post-sync patches (19.1)"
     patch_trees external/tinyalsa_new art external/perfetto packages/apps/Trebuchet \
-        packages/apps/LineageParts packages/apps/SetupWizard lineage-sdk || return 1
+        packages/apps/LineageParts packages/apps/SetupWizard lineage-sdk \
+        hardware/broadcom/libbt || return 1
     echo "==> post-sync OK"
 }
 
