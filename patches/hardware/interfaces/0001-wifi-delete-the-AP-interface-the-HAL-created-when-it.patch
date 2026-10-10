@@ -1,0 +1,44 @@
+From 215f68a0d85113c8c68c87518746f3ac4a899f7b Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sun, 11 Oct 2026 01:19:17 +0300
+Subject: [PATCH] wifi: delete the AP interface the HAL created when it is
+ removed
+
+createApIface creates a virtual interface when the one it wants does not
+exist, and lists it in created_ap_ifaces_ so that removeApIface deletes
+it again -- as removeStaIface still does for its own. The deletion went
+missing for AP when the dynamic interface code met the bridged AP
+changes: removeApIface now only forgets the interface. On mocha the
+hotspot's wlan1 then stays, and with it its BSS in the firmware, which
+refuses P2P discovery afterwards (p2p_disc answers BCME_BUSY): Wi-Fi
+Direct finds nothing until Wi-Fi is switched off and on.
+
+Take the interface down and delete it, as R did.
+---
+ wifi/1.5/default/wifi_chip.cpp | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/wifi/1.5/default/wifi_chip.cpp b/wifi/1.5/default/wifi_chip.cpp
+index cf89215a1..a090caf57 100644
+--- a/wifi/1.5/default/wifi_chip.cpp
++++ b/wifi/1.5/default/wifi_chip.cpp
+@@ -1105,6 +1105,16 @@ WifiStatus WifiChip::removeApIfaceInternal(const std::string& ifname) {
+     // here and not make that assumption all over the place.
+     invalidateAndRemoveDependencies(ifname);
+     if (findUsingName(created_ap_ifaces_, ifname) != nullptr) {
++        // Delete the interface createApIface made, as removeStaIface does
++        // for its own and as R did here. Left in place, it stays a BSS in
++        // the firmware after the hotspot is gone.
++        iface_util_->setUpState(ifname, false);
++        legacy_hal::wifi_error legacy_status =
++            legacy_hal_.lock()->deleteVirtualInterface(ifname);
++        if (legacy_status != legacy_hal::WIFI_SUCCESS) {
++            LOG(ERROR) << "Failed to remove interface: " << ifname << " "
++                       << legacyErrorToString(legacy_status);
++        }
+         invalidateAndClear(created_ap_ifaces_, iface);
+     }
+     // Clear the bridge interface and the iface instance.
+-- 
+2.56.0
+

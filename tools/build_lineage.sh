@@ -284,7 +284,8 @@ config_191() {
 # and the setup wizard turns gestures on beside them. libbt must not
 # download the patchram a second time over the kernel's line discipline.
 # Codec2 must report a codec it could not configure instead of crashing
-# SystemUI.
+# SystemUI. The Wi-Fi HAL must delete the hotspot's interface again, or its
+# BSS keeps P2P discovery busy in the firmware.
 # lineage-sdk takes the battery percentage default from an overlay. The rest of
 # patches/ came over from 18.1 written against R, and is not applied until
 # each patch has been read against S.
@@ -292,7 +293,7 @@ post_sync_191() {
     echo "==> post-sync patches (19.1)"
     patch_trees external/tinyalsa_new art external/perfetto packages/apps/Trebuchet \
         packages/apps/LineageParts packages/apps/SetupWizard lineage-sdk \
-        hardware/broadcom/libbt frameworks/av || return 1
+        hardware/broadcom/libbt frameworks/av hardware/interfaces || return 1
     echo "==> post-sync OK"
 }
 
