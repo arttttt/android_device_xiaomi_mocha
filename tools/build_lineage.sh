@@ -90,7 +90,7 @@ patch_trees() {
         echo "  patches: none on this branch"
         return 0
     fi
-    local proj dir p idx expected
+    local proj dir p idx patches applied n tree
     for proj in $(find "$root" -name '*.patch' -exec dirname {} \; | sort -u); do
         proj=${proj#$root/}
         if [ "$only" != "  " ] && [ "${only#* $proj }" = "$only" ]; then
@@ -112,25 +112,39 @@ patch_trees() {
             done
             continue
         fi
+        # The tree is patched already: find how far into the series it is,
+        # by applying the series one patch at a time to a scratch index and
+        # comparing, and apply the rest. A series that grew since the last
+        # post-sync is the usual case; anything else is not ours to touch.
+        applied=-1 n=0
+        patches=$(find "$root/$proj" -maxdepth 1 -name '*.patch' | sort)
         idx=$(mktemp)
-        expected=
         if GIT_INDEX_FILE="$idx" git -C "$dir" read-tree HEAD; then
-            expected=ok
-            for p in $(find "$root/$proj" -maxdepth 1 -name '*.patch' | sort); do
-                if ! GIT_INDEX_FILE="$idx" git -C "$dir" apply --cached -p1 "$p" 2>/dev/null; then
-                    expected=
-                    break
-                fi
+            for p in $patches; do
+                GIT_INDEX_FILE="$idx" git -C "$dir" apply --cached -p1 "$p" 2>/dev/null \
+                    || break
+                n=$((n + 1))
+                tree=$(GIT_INDEX_FILE="$idx" git -C "$dir" write-tree)
+                git -C "$dir" diff --quiet "$tree" && applied=$n
             done
-            [ -n "$expected" ] && expected=$(GIT_INDEX_FILE="$idx" git -C "$dir" write-tree)
         fi
         rm -f "$idx"
-        if [ -n "$expected" ] && git -C "$dir" diff --quiet "$expected"; then
-            echo "  $proj: already applied"
-        else
+        if [ "$applied" -lt 1 ]; then
             echo "  $proj: FAILED - local changes that are not its patches" >&2
             return 1
         fi
+        n=0
+        for p in $patches; do
+            n=$((n + 1))
+            [ "$n" -le "$applied" ] && continue
+            if git -C "$dir" apply -p1 "$p" 2>/dev/null; then
+                echo "  $proj: applied $(basename "$p")"
+            else
+                echo "  $proj: FAILED to apply $(basename "$p")" >&2
+                return 1
+            fi
+        done
+        [ "$applied" -eq "$n" ] && echo "  $proj: already applied"
     done
     return 0
 }
