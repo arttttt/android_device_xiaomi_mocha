@@ -283,6 +283,8 @@ config_191() {
 # the navigation keys; LineageParts hides its switch while the keys are on,
 # and the setup wizard turns gestures on beside them. libbt must not
 # download the patchram a second time over the kernel's line discipline.
+# Codec2 must report a codec it could not configure instead of crashing
+# SystemUI.
 # lineage-sdk takes the battery percentage default from an overlay. The rest of
 # patches/ came over from 18.1 written against R, and is not applied until
 # each patch has been read against S.
@@ -290,7 +292,7 @@ post_sync_191() {
     echo "==> post-sync patches (19.1)"
     patch_trees external/tinyalsa_new art external/perfetto packages/apps/Trebuchet \
         packages/apps/LineageParts packages/apps/SetupWizard lineage-sdk \
-        hardware/broadcom/libbt || return 1
+        hardware/broadcom/libbt frameworks/av || return 1
     echo "==> post-sync OK"
 }
 
