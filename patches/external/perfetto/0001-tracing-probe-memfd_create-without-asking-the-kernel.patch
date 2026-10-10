@@ -1,0 +1,49 @@
+From 3df2163daabad6dad89d616d527a2eec9cfc649d Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 10 Oct 2026 20:49:04 +0300
+Subject: [PATCH] tracing: probe memfd_create() without asking the kernel
+ version
+
+HasMemfdSupport() answered "no memfd" on any kernel older than 3.17
+without trying, a guard against old kernels that crash on the syscall
+(b/116769556), and in-tree Android builds turn that answer into
+PERFETTO_CHECK(HasMemfdSupport()) in PosixSharedMemory::AttachToFd(): a
+producer handed the tracing buffer aborts. The mocha kernel is 3.10 with
+memfd_create and its seals backported, so the guard turns a working call
+into a crash as soon as a trace starts.
+
+The probe that follows the guard already makes the real call; a kernel
+without the syscall fails it with ENOSYS and the answer stays "no".
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ src/tracing/ipc/memfd.cc | 13 -------------
+ 1 file changed, 13 deletions(-)
+
+diff --git a/src/tracing/ipc/memfd.cc b/src/tracing/ipc/memfd.cc
+index 64025bf..9b0a0a5 100644
+--- a/src/tracing/ipc/memfd.cc
++++ b/src/tracing/ipc/memfd.cc
+@@ -49,19 +49,6 @@
+ namespace perfetto {
+ bool HasMemfdSupport() {
+   static bool kSupportsMemfd = [] {
+-    // Check kernel version supports memfd_create(). Some older kernels segfault
+-    // executing memfd_create() rather than returning ENOSYS (b/116769556).
+-    static constexpr int kRequiredMajor = 3;
+-    static constexpr int kRequiredMinor = 17;
+-    struct utsname uts;
+-    int major, minor;
+-    if (uname(&uts) == 0 && strcmp(uts.sysname, "Linux") == 0 &&
+-        sscanf(uts.release, "%d.%d", &major, &minor) == 2 &&
+-        ((major < kRequiredMajor ||
+-          (major == kRequiredMajor && minor < kRequiredMinor)))) {
+-      return false;
+-    }
+-
+     base::ScopedFile fd;
+     fd.reset(static_cast<int>(syscall(__NR_memfd_create, "perfetto_shmem",
+                                       MFD_CLOEXEC | MFD_ALLOW_SEALING)));
+-- 
+2.56.0
+
