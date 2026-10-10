@@ -26,6 +26,18 @@ the board off through the PMIC and never asks it to. The 2015 TLK this
 replaced answers neither PSCI_VERSION nor SYSTEM_RESET, so it cannot stand
 behind this kernel.
 
+It is not carried as NVIDIA built it. That TLK copies the encrypted keys
+into TZRAM with a length it reads from DRAM, in the word after the boot
+arguments' text -- a word the Shield's bootloader writes on every start and
+this board's does not: it puts the keys in TZRAM itself and leaves the word
+alone. After power-on the word is zero. After a reboot it is whatever the
+kernel left there, 0x0a000003 on this kernel, and the copy runs off the end
+of TZRAM's 64 KB: the board stops after "Welcome to TLK" until the battery
+is flat. The image here refuses a length beyond TZRAM and skips the copy.
+It also sends TLK's printf to the UART and prints a letter at each step of
+its start, which is how this was found and costs nothing. The original's
+sha256 is a0519543...d2fcf2, the patched one 00161e21...593300.
+
 A board whose TOS partition holds something else, or nothing, does not fail
 in a way anyone can read: it fails like a kernel, a driver, anything but
 firmware. Asking people to flash it separately has not worked, so the
