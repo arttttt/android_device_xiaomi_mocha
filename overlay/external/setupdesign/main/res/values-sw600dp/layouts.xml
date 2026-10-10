@@ -18,8 +18,8 @@
 <!--
      SetupDesign puts its GLIF screens in a fixed 560x672dp card on anything
      sw600dp or wider. The panel here is 768x1000dp, so the card takes the
-     middle of the screen, and the setup wizard's welcome page -- a large
-     logo and title -- does not fit in it: the page scrolls inside the card
+     middle of the screen, and the setup wizard's welcome page, a large
+     logo and title, does not fit in it: the page scrolls inside the card
      and its buttons are cut off at the card's bottom edge.
 
      The full-screen templates SetupDesign uses below sw600dp fit the panel
