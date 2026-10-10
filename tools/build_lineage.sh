@@ -263,12 +263,14 @@ config_191() {
 # took the place of the copy 18.1 kept in the device tree, and the memfd
 # probes of ART and perfetto without their kernel version test -- this 3.10
 # kernel has memfd backported, and without it system_server dies in the JIT
-# and every perfetto producer aborts when a trace starts. The rest of
+# and every perfetto producer aborts when a trace starts. Trebuchet's
+# taskbar, which stands in for the navigation bar on this screen, also
+# leaves its grey background under the setup wizard. The rest of
 # patches/ came over from 18.1 written against R, and is not applied until
 # each patch has been read against S.
 post_sync_191() {
     echo "==> post-sync patches (19.1)"
-    patch_trees external/tinyalsa_new art external/perfetto || return 1
+    patch_trees external/tinyalsa_new art external/perfetto packages/apps/Trebuchet || return 1
     echo "==> post-sync OK"
 }
 

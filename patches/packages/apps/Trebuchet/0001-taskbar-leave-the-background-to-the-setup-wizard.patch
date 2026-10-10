@@ -1,0 +1,59 @@
+From 0952e6e0d9125a10e5ceab939bd8dae8fd36f7b3 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 10 Oct 2026 22:18:18 +0300
+Subject: [PATCH] taskbar: leave the background to the setup wizard
+
+On a large screen the taskbar takes the place of the navigation bar.
+In an app it draws an opaque background under the nav buttons. During
+setup the wizard disables all of them but back, and on its first page
+back too, so with 3-button navigation an empty grey bar sits under the
+wizard. The wizard already colours the bar area itself, with the
+navigation bar colour of its own theme.
+
+The stashed taskbar Pixel uses in setup does not cover this case:
+stashing is only visual with gesture navigation, and the stashing
+during setup is still disabled here (b/204384193).
+
+Hide the taskbar background until setup completes, the same way it is
+hidden for the keyguard. The background drawn for the notification
+shade is left alone. The taskbar is recreated once setup completes,
+which brings the background back.
+---
+ .../launcher3/taskbar/TaskbarDragLayerController.java      | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarDragLayerController.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarDragLayerController.java
+index a918016cc6..1adb9439d2 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarDragLayerController.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarDragLayerController.java
+@@ -45,6 +45,8 @@ public class TaskbarDragLayerController {
+     private final AnimatedFloat mNotificationShadeBgTaskbar = new AnimatedFloat(
+             this::updateBackgroundAlpha);
+     private final AnimatedFloat mImeBgTaskbar = new AnimatedFloat(this::updateBackgroundAlpha);
++    // Used to hide our background color while the setup wizard draws its own.
++    private final AnimatedFloat mSetupBgTaskbar = new AnimatedFloat(this::updateBackgroundAlpha);
+     // Used to hide our background color when someone else (e.g. ScrimView) is handling it.
+     private final AnimatedFloat mBgOverride = new AnimatedFloat(this::updateBackgroundAlpha);
+ 
+@@ -76,6 +78,8 @@ public class TaskbarDragLayerController {
+         mKeyguardBgTaskbar.value = 1;
+         mNotificationShadeBgTaskbar.value = 1;
+         mImeBgTaskbar.value = 1;
++        // Taskbar is recreated once setup completes, so this does not need to be updated.
++        mSetupBgTaskbar.value = mActivity.isUserSetupComplete() ? 1 : 0;
+         mBgOverride.value = 1;
+         updateBackgroundAlpha();
+     }
+@@ -125,7 +129,8 @@ public class TaskbarDragLayerController {
+     private void updateBackgroundAlpha() {
+         final float bgNavbar = mBgNavbar.value;
+         final float bgTaskbar = mBgTaskbar.value * mKeyguardBgTaskbar.value
+-                * mNotificationShadeBgTaskbar.value * mImeBgTaskbar.value;
++                * mNotificationShadeBgTaskbar.value * mImeBgTaskbar.value
++                * mSetupBgTaskbar.value;
+         mLastSetBackgroundAlpha = mBgOverride.value * Math.max(bgNavbar, bgTaskbar);
+         mTaskbarDragLayer.setTaskbarBackgroundAlpha(mLastSetBackgroundAlpha);
+ 
+-- 
+2.56.0
+
