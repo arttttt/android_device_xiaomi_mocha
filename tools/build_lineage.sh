@@ -273,27 +273,14 @@ config_191() {
     export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
 }
 
-# Only what S needs: our three fixes to the platform's tinyalsa_new, which
-# took the place of the copy 18.1 kept in the device tree, and the memfd
-# probes of ART and perfetto without their kernel version test -- this 3.10
-# kernel has memfd backported, and without it system_server dies in the JIT
-# and every perfetto producer aborts when a trace starts. Trebuchet's
-# taskbar, which stands in for the navigation bar on this screen, leaves
-# its grey background under the setup wizard and draws nav buttons beside
-# the navigation keys; LineageParts hides its switch while the keys are on,
-# and the setup wizard turns gestures on beside them. libbt must not
-# download the patchram a second time over the kernel's line discipline.
-# Codec2 must report a codec it could not configure instead of crashing
-# SystemUI. The Wi-Fi HAL must delete the hotspot's interface again, or its
-# BSS keeps P2P discovery busy in the firmware.
-# lineage-sdk takes the battery percentage default from an overlay. The rest of
-# patches/ came over from 18.1 written against R, and is not applied until
-# each patch has been read against S.
+# Every series under patches/ is applied, as on 18.1: this branch carries
+# only patches written or read against S. What 18.1 needed and S already has
+# upstream -- the Wi-Fi Direct changes from Android 12, the FrameDecoder
+# retry count -- is gone from it, so a series that fails to apply here is a
+# real error, not a leftover.
 post_sync_191() {
     echo "==> post-sync patches (19.1)"
-    patch_trees external/tinyalsa_new art external/perfetto packages/apps/Trebuchet \
-        packages/apps/LineageParts packages/apps/SetupWizard lineage-sdk \
-        hardware/broadcom/libbt frameworks/av hardware/interfaces || return 1
+    patch_trees || return 1
     echo "==> post-sync OK"
 }
 
