@@ -581,6 +581,36 @@ do_mmm() {
         | sed "s|^$OUT/|    |" | sort
 }
 
+# Modules by name, for a change that lives in one library rather than a
+# directory of them (libartbase, say, when a patch touches ART). m builds
+# the named modules and whatever they depend on, through the same lunch and
+# environment as the full build; like mmm it repacks no image. What it
+# installed is listed at the end. A module that only lives inside an APEX
+# installs nothing of its own -- its file is in out/soong/.intermediates.
+do_m() {
+    if [ $# -eq 0 ]; then
+        echo "==> m needs at least one module name" >&2
+        return 1
+    fi
+    echo "==> m $* ($VER)"
+    check_kernel_toolchain || return 1
+    cd "$BUILD_DIR"
+    source build/envsetup.sh
+    lunch "lineage_${DEVICE}-userdebug" || return 1
+
+    local OUT="$BUILD_DIR/out/target/product/$DEVICE"
+    local stamp
+    stamp=$(mktemp)
+    trap 'rm -f "$stamp"' RETURN
+
+    m "$@" || return 1
+
+    echo "==> installed by this run:"
+    find "$OUT/system" "$OUT/vendor" "$OUT/root" "$OUT/recovery/root" \
+         -newer "$stamp" -type f 2>/dev/null \
+        | sed "s|^$OUT/|    |" | sort
+}
+
 do_status() {
     echo "==> last build ($VER)"
     local OUT="$BUILD_DIR/out/target/product/$DEVICE"
@@ -607,7 +637,8 @@ usage: $(basename "$0") [<version> <action>]
 
   version   17.1 | 18.1 | 19.1
   action    manifest | sync | post-sync | clean | installclean | build
-            | bootimage | mmm <dir>... | vintf | full | status
+            | bootimage | mmm <dir>... | m <module>... | vintf | full
+            | status
             manifest = install manifests/mocha-<ver>.xml as the local manifest
                        (sync does this first, so it is only needed on its own
                        when adding a repo without a full sync)
@@ -623,6 +654,8 @@ usage: $(basename "$0") [<version> <action>]
                        directories (relative to the tree), and list what
                        was installed. The audio HAL is
                        device/xiaomi/mocha/hidl/audio device/xiaomi/mocha/configmgr
+            m        = build the named modules and what they depend on, and
+                       list what was installed (libartbase for an ART patch)
             full     = sync -> post-sync -> build
 
 Without arguments the interactive menus below are shown, so this stays usable
@@ -659,6 +692,7 @@ run_action() {
         build)     do_build ;;
         bootimage) do_bootimage ;;
         mmm)       do_mmm "$@" ;;
+        m)         do_m "$@" ;;
         full)      do_full ;;
         status)    do_status ;;
         *) echo "unknown action: $action" >&2; return 1 ;;
@@ -670,8 +704,8 @@ case "${1:-}" in
 esac
 
 if [ $# -gt 0 ]; then
-    # Only mmm takes more than the action: its directories
-    if [ $# -lt 2 ] || { [ $# -gt 2 ] && [ "$2" != mmm ]; }; then
+    # Only mmm and m take more than the action: directories or module names
+    if [ $# -lt 2 ] || { [ $# -gt 2 ] && [ "$2" != mmm ] && [ "$2" != m ]; }; then
         usage >&2
         exit 1
     fi
@@ -712,6 +746,7 @@ cat <<EOF
   9) verify VINTF manifest
  10) boot.img only (m bootimage)
  11) modules by directory (mmm)
+ 12) modules by name (m)
   q) quit
 ==========================================================
 EOF
@@ -729,6 +764,8 @@ case "$ans" in
     10) run_action bootimage ;;
     11) read -p "directories: " -a dirs
         run_action mmm "${dirs[@]}" ;;
+    12) read -p "modules: " -a mods
+        run_action m "${mods[@]}" ;;
     q|Q|"") echo "bye" ;;
     *) echo "unknown: $ans"; exit 1 ;;
 esac
