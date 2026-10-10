@@ -1,0 +1,49 @@
+From 2880dde9d0e25ddfd2f5bf681a1719154d99c188 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 10 Oct 2026 23:38:05 +0300
+Subject: [PATCH] LineageSettingsProvider: let a device default the battery
+ percentage
+
+STATUS_BAR_SHOW_BATTERY_PERCENT had no default in the provider, so the
+percentage was hidden on every device, and a device could not overlay
+another choice in. Load it from def_show_battery_percent, 0 as before.
+---
+ packages/LineageSettingsProvider/res/values/defaults.xml   | 7 +++++++
+ .../lineageos/lineagesettings/LineageDatabaseHelper.java   | 3 +++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/packages/LineageSettingsProvider/res/values/defaults.xml b/packages/LineageSettingsProvider/res/values/defaults.xml
+index 9b52ce1a..1227f1c9 100644
+--- a/packages/LineageSettingsProvider/res/values/defaults.xml
++++ b/packages/LineageSettingsProvider/res/values/defaults.xml
+@@ -71,6 +71,13 @@
+     -->
+     <integer name="def_battery_style">0</integer>
+ 
++    <!-- Default for LineageSettings.System.STATUS_BAR_SHOW_BATTERY_PERCENT
++         * 0: Hide the battery percentage
++         * 1: Display the battery percentage inside the icon
++         * 2: Display the battery percentage next to the icon
++    -->
++    <integer name="def_show_battery_percent">0</integer>
++
+     <!-- Default clock position
+          * 0: show the clock in the right position (LTR)
+          * 1: show the clock in the center
+diff --git a/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java b/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
+index a7107ae1..df3860cc 100644
+--- a/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
++++ b/packages/LineageSettingsProvider/src/org/lineageos/lineagesettings/LineageDatabaseHelper.java
+@@ -546,6 +546,9 @@ public class LineageDatabaseHelper extends SQLiteOpenHelper{
+             loadIntegerSetting(stmt, LineageSettings.System.STATUS_BAR_BATTERY_STYLE,
+                     R.integer.def_battery_style);
+ 
++            loadIntegerSetting(stmt, LineageSettings.System.STATUS_BAR_SHOW_BATTERY_PERCENT,
++                    R.integer.def_show_battery_percent);
++
+             loadIntegerSetting(stmt, LineageSettings.System.STATUS_BAR_CLOCK,
+                     R.integer.def_clock_position);
+ 
+-- 
+2.56.0
+
