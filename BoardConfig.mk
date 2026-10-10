@@ -329,10 +329,3 @@ ZYGOTE_WHITELIST_PATH_EXTRA := \"/dev/nvhost-ctrl\",\"/dev/nvmap\",
 # (build/soong/ui/build/ninja.go), so the variable has to be named here to
 # reach apexer.
 BUILD_BROKEN_NINJA_USES_ENV_VARS := MKE2FS_CONFIG
-
-# memfd_create and its seals are backported into this 3.10 kernel (8659af1,
-# 2b20886, a208bb2). Without the flag perfetto trusts the kernel version
-# instead -- memfd only from 3.17 -- and its in-tree build asserts on it
-# (PERFETTO_CHECK(HasMemfdSupport()) in posix_shared_memory.cc), so the
-# tracing service dies at start. The flag only skips that version test.
-TARGET_HAS_MEMFD_BACKPORT := true

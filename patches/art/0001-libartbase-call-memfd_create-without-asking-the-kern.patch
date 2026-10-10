@@ -1,0 +1,55 @@
+From b3c6ddf1c91c2a36e20466dd0c51fc9ba2b326b7 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 10 Oct 2026 20:31:47 +0300
+Subject: [PATCH] libartbase: call memfd_create() without asking the kernel
+ version
+
+memfd_create() refused to make the call on any kernel older than 3.17 and
+returned ENOSYS on its behalf, a guard against old kernels that crash on
+the syscall (b/116769556). The mocha kernel is 3.10 with memfd_create and
+its seals backported and wired to ARM's syscall 385, so the guard turns a
+working call into a missing one.
+
+On S that is fatal. system_server's private JIT region is a dual mapping
+of one memfd and, with RWX forbidden to system_server, has no fallback:
+JitMemoryRegion::Initialize() fails, PostForkChildAction() only logs
+"Could not create private region after zygote fork", the JIT stays on, and
+the first compilation dereferences the missing mspace. system_server dies
+and zygote restarts with it in a loop.
+
+A kernel without the syscall answers ENOSYS by itself, which is the
+fallback the guard existed to fake.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ libartbase/base/memfd.cc | 14 --------------
+ 1 file changed, 14 deletions(-)
+
+diff --git a/libartbase/base/memfd.cc b/libartbase/base/memfd.cc
+index 8512a3a..526a29e 100644
+--- a/libartbase/base/memfd.cc
++++ b/libartbase/base/memfd.cc
+@@ -49,20 +49,6 @@ namespace art {
+ #if defined(__NR_memfd_create)
+ 
+ int memfd_create(const char* name, unsigned int flags) {
+-  // Check kernel version supports memfd_create(). Some older kernels segfault executing
+-  // memfd_create() rather than returning ENOSYS (b/116769556).
+-  static constexpr int kRequiredMajor = 3;
+-  static constexpr int kRequiredMinor = 17;
+-  struct utsname uts;
+-  int major, minor;
+-  if (uname(&uts) != 0 ||
+-      strcmp(uts.sysname, "Linux") != 0 ||
+-      sscanf(uts.release, "%d.%d", &major, &minor) != 2 ||
+-      (major < kRequiredMajor || (major == kRequiredMajor && minor < kRequiredMinor))) {
+-    errno = ENOSYS;
+-    return -1;
+-  }
+-
+   return syscall(__NR_memfd_create, name, flags);
+ }
+ 
+-- 
+2.56.0
+

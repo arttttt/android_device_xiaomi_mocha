@@ -259,13 +259,15 @@ config_191() {
     export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
 }
 
-# Only what S needs to build: our three fixes to the platform's tinyalsa_new,
-# which took the place of the copy 18.1 kept in the device tree. The rest of
-# patches/ came over from 18.1 written against R, and is not applied until
-# each patch has been read against S.
+# Only what S needs: our three fixes to the platform's tinyalsa_new, which
+# took the place of the copy 18.1 kept in the device tree, and ART's
+# memfd_create() without its kernel version test, without which
+# system_server dies in the JIT on this 3.10 kernel. The rest of patches/
+# came over from 18.1 written against R, and is not applied until each patch
+# has been read against S.
 post_sync_191() {
     echo "==> post-sync patches (19.1)"
-    patch_trees external/tinyalsa_new || return 1
+    patch_trees external/tinyalsa_new art || return 1
     echo "==> post-sync OK"
 }
 
