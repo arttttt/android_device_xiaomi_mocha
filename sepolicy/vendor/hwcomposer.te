@@ -57,6 +57,11 @@ allow hal_graphics_composer_server sysfs:dir r_dir_perms;
 allow hal_graphics_composer_server sysfs_nvi2c:dir search;
 allow hal_graphics_composer_server sysfs_nvi2c:file r_file_perms;
 
+# On S the panel's brightness is the composer's to set: the platform asks
+# for it through setDisplayBrightness, and the composer writes the backlight
+# device's brightness itself.
+allow hal_graphics_composer_server sysfs_pwm_backlight:file rw_file_perms;
+
 # The composer links libbinder, and in a vendor process libbinder's default
 # node is /dev/vndbinder. The platform gives a composer hwbinder and nothing
 # else, because a composer is not expected to want the other one.
