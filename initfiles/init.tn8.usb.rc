@@ -74,4 +74,9 @@ on fs
     # the ffs.adb created above -- "on init" has already run by now.
     mkdir /dev/usb-ffs 0770 shell shell
     mkdir /dev/usb-ffs/adb 0770 shell shell
-    mount functionfs adb /dev/usb-ffs/adb uid=2000,gid=2000
+    #
+    # rmode and fmode open the instance to the shell group as well as its
+    # owner. Without them its directory is 0500 and its endpoints 0600, and
+    # the gadget HAL, which watches the directory for adbd's endpoints and is
+    # in that group, only gets in by bypassing the permissions.
+    mount functionfs adb /dev/usb-ffs/adb rmode=0770,fmode=0660,uid=2000,gid=2000
