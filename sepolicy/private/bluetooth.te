@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-allow bluetooth ussrd_service:service_manager find;
-
 # Allow bluetooth to access system app services using service manager
 allow bluetooth system_app_service:service_manager find;
 allow bluetooth debugfs_serial_ttybuffercount:file r_file_perms;

@@ -30,9 +30,6 @@ allow mediaserver sensorservice_service:service_manager find;
 binder_call(mediaserver, system_server)
 binder_use(mediaserver)
 
-allow_use_phs(mediaserver)
-allow mediaserver ussrd_service:service_manager find;
-
 # Allow mediaserver to access system app services using service manager
 allow mediaserver system_app_service:service_manager find;
 
