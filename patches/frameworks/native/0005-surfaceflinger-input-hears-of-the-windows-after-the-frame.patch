@@ -1,0 +1,69 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Subject: [PATCH] surfaceflinger: input hears of the windows after the frame
+
+updateInputFlinger() ran between a frame's transactions and its
+composition. During an animation every frame moves windows, so every
+frame it rebuilt the info of every window and sent it to input: 0.8-1.7
+ms on the main thread, in the frames where the app-close animation
+already ran past the deadline on this device.
+
+It now runs after the refresh. The refresh clears mVisibleRegionsDirty,
+so the value is taken before it and handed over. Input learns of a
+change at most one frame later than before; nothing else changes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 1faf5a4..f2d8eb2 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -2024,7 +2024,11 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
+     ON_MAIN_THREAD(performSetActiveMode());
+ 
+     updateCursorAsync();
+-    updateInputFlinger();
++    // Input is told about the windows after the frame is composed, not before:
++    // during an animation every frame moves them, and building and sending
++    // their info stood between the frame's transactions and its present. The
++    // refresh clears mVisibleRegionsDirty, so its value is taken here.
++    const bool inputVisibleRegionsDirty = mVisibleRegionsDirty;
+ 
+     refreshNeeded |= mRepaintEverything;
+     if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
+@@ -2045,6 +2049,7 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
+         mRefreshPending = true;
+         onMessageRefresh();
+     }
++    updateInputFlinger(inputVisibleRegionsDirty);
+     notifyRegionSamplingThread();
+ }
+ 
+@@ -3121,13 +3126,13 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags) {
+     commitTransaction();
+ }
+ 
+-void SurfaceFlinger::updateInputFlinger() {
++void SurfaceFlinger::updateInputFlinger(bool visibleRegionsDirty) {
+     ATRACE_CALL();
+     if (!mInputFlinger) {
+         return;
+     }
+ 
+-    if (mVisibleRegionsDirty || mInputInfoChanged) {
++    if (visibleRegionsDirty || mInputInfoChanged) {
+         mInputInfoChanged = false;
+         notifyWindowInfos();
+     } else if (mInputWindowCommands.syncInputWindows) {
+diff --git a/services/surfaceflinger/SurfaceFlinger.h b/services/surfaceflinger/SurfaceFlinger.h
+index 750158d..a72dffe 100644
+--- a/services/surfaceflinger/SurfaceFlinger.h
++++ b/services/surfaceflinger/SurfaceFlinger.h
+@@ -813,7 +813,7 @@ private:
+     void handleTransaction(uint32_t transactionFlags);
+     void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
+ 
+-    void updateInputFlinger();
++    void updateInputFlinger(bool visibleRegionsDirty);
+     void notifyWindowInfos();
+     void commitInputWindowCommands() REQUIRES(mStateLock);
+     void updateCursorAsync();
