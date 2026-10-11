@@ -513,13 +513,25 @@ do_build() {
     cd "$BUILD_DIR"
     source build/envsetup.sh
 
+    local OUT="$BUILD_DIR/out/target/product/$DEVICE"
+
+    # Every partition's build.prop carries the build fingerprint, and with no
+    # BUILD_NUMBER that fingerprint is the time of this run: sysprop.mk writes
+    # it to build_fingerprint.txt at every run, but no build.prop depends on
+    # that file. An incremental build regenerates only the build.props whose
+    # own inputs changed, the system one stamped now and vendor's still with
+    # an earlier run, and on this non-Treble userdebug build
+    # Build.isBuildConsistent() compares the two and puts up "There's an
+    # internal problem with your device". Removing them makes this run write
+    # every one of them, with the one fingerprint.
+    find "$OUT/system" "$OUT/ramdisk" -name build.prop -delete 2>/dev/null
+
     # Not piped anywhere: the whole run is already captured by the pty wrapper
     # at the top of this script, and a pipe here would silence the build's own
     # progress exactly as it silenced repo sync. Its exit status is what
     # decides success -- a stale zip from an earlier run must not read as one.
     brunch "$DEVICE" || return 1
 
-    local OUT="$BUILD_DIR/out/target/product/$DEVICE"
     local ZIP=$(ls -t "$OUT"/lineage-$VER-*.zip 2>/dev/null | head -1)
     if [ -n "$ZIP" ]; then
         echo "==> ROM: $(ls -lh "$ZIP" | awk '{print $5, $NF}')"
