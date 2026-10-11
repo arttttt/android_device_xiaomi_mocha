@@ -25,6 +25,16 @@ r_dir_file({
   system_server
 }, sysfs_tegra_info)
 
+# The zygote's shim is attached by the linker, which TARGET_LD_SHIM_LIBS tells
+# to match on /system/bin/app_process32 (BoardConfig.mk). LineageOS's linker
+# resolves every path on that list in every process it starts, and probes it
+# with access() first (bionic/linker/linker.cpp, parse_LD_SHIM_LIBS). Only
+# the zygote's domains may read app_process32, so everything else is refused
+# the probe -- and then uses the path unresolved, which is already the real
+# one. Nothing is lost; only the probe is kept out of the log. audit_access
+# silences access() alone: an actual open or read is still reported.
+dontaudit domain zygote_exec:file audit_access;
+
 # Allow domains to search and create core files
 #userdebug_or_eng(`
 #allow { domain -recovery -untrusted_app -recovery_refresh -recovery_persist -logd } coredump_data_file:dir create_dir_perms;
