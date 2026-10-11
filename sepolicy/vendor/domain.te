@@ -1,0 +1,23 @@
+# Copyright (C) 2026 Artem Bambalov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# libnvrm reads the chip's identity from the fuse driver's parameters; see
+# private/domain.te. These are the vendor processes that load it.
+r_dir_file({
+  hal_graphics_allocator_server
+  hal_graphics_composer_server
+  hal_camera_default
+  mediacodec
+  ussrd
+}, sysfs_tegra_info)

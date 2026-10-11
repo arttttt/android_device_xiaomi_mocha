@@ -30,9 +30,6 @@ set_prop(platform_app, system_prop)
 # Allow to find recovery_service to perform system upgrade
 allow platform_app recovery_service:service_manager find;
 
-# Platform app access to debugfs_clock/debugfs_edp
-allow platform_app debugfs_clock:file r_file_perms;
-allow platform_app debugfs_edp:file r_file_perms;
 
 # Access to zram0
 r_dir_file(platform_app, sysfs_zram)

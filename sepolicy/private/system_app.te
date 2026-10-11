@@ -84,8 +84,6 @@ r_dir_file(system_app, bluetooth_data_file)
 # Allow GL to access ptimer_scale_factor
 allow system_app sysfs_gpu:file r_file_perms;
 
-# Allow system_app to access debugfs_clock
-allow system_app debugfs_clock:file r_file_perms;
 
 # allow system_app to access bluetooth_prop
 set_prop(system_app, bluetooth_prop)

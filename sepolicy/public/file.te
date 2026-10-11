@@ -110,8 +110,6 @@ type hwc_data_file, file_type, data_file_type, core_data_file_type;
 # /sys/kernel/debugfs/clock
 type debugfs_clock, fs_type, debugfs_type, mlstrustedobject;
 
-# /sys/kernel/debugfs/edp
-type debugfs_edp, fs_type, debugfs_type, mlstrustedobject;
 
 # /sys/kernel/debug/suspend_time
 type debugfs_suspend_time_stats, fs_type, debugfs_type, mlstrustedobject;

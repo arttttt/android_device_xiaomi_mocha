@@ -242,7 +242,6 @@
 # debugfs files
 #
 /sys/kernel/debug/clock(/.*)?          u:object_r:debugfs_clock:s0
-/sys/kernel/debug/edp(/.*)?          u:object_r:debugfs_edp:s0
 
 # suspend time and wakeup irq stats
 /sys/kernel/debug/suspend_time  u:object_r:debugfs_suspend_time_stats:s0
