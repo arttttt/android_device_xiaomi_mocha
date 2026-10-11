@@ -15,9 +15,10 @@
     limitations under the License.
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="profiles_tile_label">Производительность</string>
+    <string name="profiles_tile_label">Профиль</string>
     <string name="power_save_profile_text">Экономия энергии</string>
     <string name="balanced_profile_text">Сбалансированный</string>
     <string name="high_performance_profile_text">Высокая производительность</string>
     <string name="bias_power_save_profile_text">Энергоэффективный</string>
+    <string name="battery_saver_text">Энергосбережение</string>
 </resources>
