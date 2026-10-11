@@ -40,3 +40,7 @@ dontaudit domain zygote_exec:file audit_access;
 #allow { domain -recovery -untrusted_app -recovery_refresh -recovery_persist -logd } coredump_data_file:dir create_dir_perms;
 #allow { domain -recovery -untrusted_app -recovery_refresh -recovery_persist -logd } coredump_data_file:file create_file_perms;
 #')
+
+# Whether render compression is off. gralloc.nvgpu reads it in every process
+# that maps a buffer, and that is any process that draws or composes.
+get_prop(domain, gralloc_compression_prop)

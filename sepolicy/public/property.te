@@ -23,3 +23,10 @@ system_restricted_prop(charger_disabled_prop)
 # sys.perf.undervoltage: whether the core and GPU rails run below their
 # nominal voltage. power.mocha.rc acts on it; the system side will set it.
 system_restricted_prop(undervoltage_prop)
+
+# persist.tegra.compression and persist.tegra.decompression: render
+# compression off (system_prop.mk), which gralloc.nvgpu reads wherever it is
+# loaded -- the allocator, and the mapper in every process that touches a
+# buffer, system or vendor. Set from the system build.prop, read by both
+# sides: public.
+system_public_prop(gralloc_compression_prop)

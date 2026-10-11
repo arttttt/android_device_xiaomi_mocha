@@ -2,5 +2,9 @@
 persist.sys.perf.profile        u:object_r:perf_profile_user_prop:s0 exact int
 persist.sys.charger.disabled    u:object_r:charger_disabled_prop:s0 exact bool
 
+# Render compression, off; see public/property.te.
+persist.tegra.compression       u:object_r:gralloc_compression_prop:s0 exact int
+persist.tegra.decompression     u:object_r:gralloc_compression_prop:s0 exact string
+
 # The undervolt switch; see public/property.te.
 sys.perf.undervoltage           u:object_r:undervoltage_prop:s0 exact bool
