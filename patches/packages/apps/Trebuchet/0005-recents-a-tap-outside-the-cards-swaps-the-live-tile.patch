@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Mon, 12 Oct 2026 03:45:00 +0300
+Subject: [PATCH] recents: a tap outside the cards swaps the live tile for its
+ snapshot
+
+A tap on overview's empty space goes home through startHome(), which
+only changes the launcher's state. The running task is still the live
+tile then -- the app's own surface under the card's hole -- and the
+state change moves it with the card toward home without ever fading it;
+at the end, reset() finishes the recents animation and the surface goes
+in one frame. The app looked as if it started to open and then vanished.
+
+Swap the live tile for the task's snapshot first and finish the recents
+animation once a frame with it is drawn, as going home with a swipe
+already does (NavBarToHomeTouchController); the card then fades out with
+the rest of overview.
+---
+ .../com/android/quickstep/views/LauncherRecentsView.java  | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/quickstep/src/com/android/quickstep/views/LauncherRecentsView.java b/quickstep/src/com/android/quickstep/views/LauncherRecentsView.java
+--- a/quickstep/src/com/android/quickstep/views/LauncherRecentsView.java
++++ b/quickstep/src/com/android/quickstep/views/LauncherRecentsView.java
+@@ -21,6 +21,7 @@
+ import static com.android.launcher3.LauncherState.OVERVIEW_MODAL_TASK;
+ import static com.android.launcher3.LauncherState.OVERVIEW_SPLIT_SELECT;
+ import static com.android.launcher3.LauncherState.SPRING_LOADED;
++import static com.android.launcher3.config.FeatureFlags.ENABLE_QUICKSTEP_LIVE_TILE;
+ import static com.android.launcher3.testing.TestProtocol.BAD_STATE;
+ 
+ import android.annotation.TargetApi;
+@@ -72,6 +73,16 @@
+ 
+     @Override
+     public void startHome() {
++        // The running task is still the live tile: the app's own surface under the
++        // card's hole, which the state change moves with the card but never fades, and
++        // which goes all at once when the recents animation is finished at the end of it.
++        // Swapped for the snapshot first, as going home with a swipe does, the card fades
++        // out with the rest of overview.
++        if (ENABLE_QUICKSTEP_LIVE_TILE.get() && mEnableDrawingLiveTile
++                && mRecentsAnimationController != null) {
++            switchToScreenshot(null,
++                    () -> finishRecentsAnimation(true /* toRecents */, null));
++        }
+         mActivity.getStateManager().goToState(NORMAL);
+         AbstractFloatingView.closeAllOpenViews(mActivity, mActivity.isStarted());
+     }
+-- 
+2.43.0
+
