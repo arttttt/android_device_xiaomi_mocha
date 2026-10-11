@@ -29,16 +29,25 @@ allow hal_sensors_default sysfs_nvi2c:file rw_file_perms;
 allow hal_sensors_default sysfs:dir r_dir_perms;
 allow hal_sensors_default sysfs:file r_file_perms;
 
-# The second half is that the blob carries samples between its own threads
-# through named pipes it makes in /data. Opening and reading those is
-# granted here; it is wider than a sensor driver should need, because the
-# pipes sit in the system data directory rather than in one of their own.
-allow hal_sensors_default system_data_file:dir { create open getattr search read write add_name remove_name rmdir };
-allow hal_sensors_default system_data_file:fifo_file { create open getattr read write unlink };
-allow hal_sensors_default system_data_file:file r_file_perms;
+# The second half is the blob's files, at paths built into sensors.lsm6db0:
+# the calibration it keeps in /data/sensors (gyro.dat, acc.dat, magn.dat;
+# init.tn8.rc makes the directory) and the named pipes it carries samples
+# through between its own threads, in /data/sns_lsm6db0_pipes, a directory
+# it makes itself straight under /data at every start.
+#
+# Both get a type of their own. The pipes' directory would otherwise take
+# /data's label, system_data_root_file, and so would every pipe in it; it is
+# named in a transition so that it is born with the type instead, and the
+# blob may add and remove that one entry under /data.
+allow hal_sensors_default system_data_root_file:dir { write add_name remove_name };
+type_transition hal_sensors_default system_data_root_file:dir sensors_data_file "sns_lsm6db0_pipes";
 
-# What is deliberately not granted is how the blob makes and removes them: it
-# shells out to rm and mkfifo, and the boot log is full of it being denied a
+allow hal_sensors_default sensors_data_file:dir create_dir_perms;
+allow hal_sensors_default sensors_data_file:file create_file_perms;
+allow hal_sensors_default sensors_data_file:fifo_file create_file_perms;
+
+# What is deliberately not granted is how the blob clears the pipes at
+# start: it shells out to rm, and the boot log is full of it being denied a
 # shell and toybox.
 #
 # That is not an oversight. The platform forbids it outright -- no HAL may
@@ -51,5 +60,5 @@ allow hal_sensors_default system_data_file:file r_file_perms;
 # whatever the blob runs lands somewhere that may touch the pipes and nothing
 # else. That is a domain to design rather than a rule to add, and it is worth
 # doing when this blob is replaced or when this board goes enforcing. Until
-# then the shell-outs simply fail, which on a permissive device costs
-# nothing.
+# then, under enforcing the rm would be refused, the pipes of the previous
+# start would stay, and making them again would find them already there.

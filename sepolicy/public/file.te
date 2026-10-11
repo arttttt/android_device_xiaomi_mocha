@@ -107,6 +107,10 @@ type sysfs_tegra_emc, fs_type, sysfs_type;
 # /data/misc/hwc(/.*)
 type hwc_data_file, file_type, data_file_type, core_data_file_type;
 
+# /data/sensors and /data/sns_lsm6db0_pipes: the sensors blob's calibration
+# and its pipes, at paths it has built in
+type sensors_data_file, file_type, data_file_type, core_data_file_type;
+
 # /sys/kernel/debugfs/clock
 type debugfs_clock, fs_type, debugfs_type, mlstrustedobject;
 
