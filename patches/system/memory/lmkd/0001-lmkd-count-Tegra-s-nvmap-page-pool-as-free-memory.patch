@@ -1,0 +1,80 @@
+From 6a8f40fceadb2109d184565e3d7dd22fd41957ee Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sun, 11 Oct 2026 04:14:01 +0300
+Subject: [PATCH] lmkd: count Tegra's nvmap page pool as free memory
+
+nvmap keeps the pages of freed graphics buffers in a pool for reuse and
+gives them back to the system through the pool's shrinker. The kernel's
+low memory killer added the pool to free memory
+(nvmap_page_pool_get_unused_pages()), and NVIDIA kept that up to their
+4.9 kernels. With the kernel killer gone lmkd sees those pages as used:
+on mocha that is ~130 MB next to ~325 MB of MemFree, so lmkd would
+start killing well above the point the kernel killer did.
+
+Read NvMapMemFree from /proc/meminfo and add it to free memory where
+lmkd compares it with the zone watermarks and the minfree levels. It is
+kept out of the meminfo fields logged in killinfo, whose layout is
+fixed. Kernels without nvmap have no such line and nothing changes.
+---
+ lmkd.cpp | 20 ++++++++++++++++++--
+ 1 file changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/lmkd.cpp b/lmkd.cpp
+index 926a1d0..f3e02e2 100644
+--- a/lmkd.cpp
++++ b/lmkd.cpp
+@@ -447,10 +447,20 @@ union meminfo {
+         /* fields below are calculated rather than read from the file */
+         int64_t nr_file_pages;
+         int64_t total_gpu_kb;
++        /* read from the file, but kept out of the logged meminfo fields */
++        int64_t nvmap_free;
+     } field;
+     int64_t arr[MI_FIELD_COUNT];
+ };
+ 
++/*
++ * Tegra's nvmap keeps freed graphics buffer pages in a page pool for reuse
++ * and gives them back to the system through the pool's shrinker. The kernel's
++ * low memory killer counted that pool as free memory; this is the size of the
++ * pool as /proc/meminfo reports it on kernels with nvmap.
++ */
++#define NVMAP_FREE_FIELD "NvMapMemFree:"
++
+ /* Fields to parse in /proc/vmstat */
+ enum vmstat_field {
+     VS_FREE_PAGES,
+@@ -1797,6 +1807,11 @@ static bool meminfo_parse_line(char *line, union meminfo *mi) {
+         &val, &field_idx);
+     if (match_res == PARSE_SUCCESS) {
+         mi->arr[field_idx] = val / page_k;
++    } else if (match_res == NO_MATCH && !strcmp(cp, NVMAP_FREE_FIELD)) {
++        if (!parse_int64(ap, &val)) {
++            return false;
++        }
++        mi->field.nvmap_free = val / page_k;
+     }
+     return (match_res != PARSE_FAIL);
+ }
+@@ -2424,7 +2439,8 @@ struct zone_watermarks {
+ static enum zone_watermark get_lowest_watermark(union meminfo *mi,
+                                                 struct zone_watermarks *watermarks)
+ {
+-    int64_t nr_free_pages = mi->field.nr_free_pages - mi->field.cma_free;
++    int64_t nr_free_pages = mi->field.nr_free_pages - mi->field.cma_free +
++                            mi->field.nvmap_free;
+ 
+     if (nr_free_pages < watermarks->min_wmark) {
+         return WMARK_MIN;
+@@ -2881,7 +2897,7 @@ static void mp_event_common(int data, uint32_t events, struct polling_params *po
+     if (use_minfree_levels) {
+         int i;
+ 
+-        other_free = mi.field.nr_free_pages - zi.totalreserve_pages;
++        other_free = mi.field.nr_free_pages + mi.field.nvmap_free - zi.totalreserve_pages;
+         if (mi.field.nr_file_pages > (mi.field.shmem + mi.field.unevictable + mi.field.swap_cached)) {
+             other_file = (mi.field.nr_file_pages - mi.field.shmem -
+                           mi.field.unevictable - mi.field.swap_cached);
+-- 
+2.56.0
+
