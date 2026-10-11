@@ -36,3 +36,7 @@ set_prop(vendor_init, perf_profile_prop)
 get_prop(vendor_init, undervoltage_prop)
 allow vendor_init debugfs_clock:dir search;
 allow vendor_init debugfs_clock:file w_file_perms;
+
+# init.tn8.rc makes the sensors blob's two directories, /data/sensors and
+# /data/sns_lsm6db0_pipes, and sets their owner and mode at every boot.
+allow vendor_init sensors_data_file:dir { create search getattr setattr };
