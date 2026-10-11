@@ -12,15 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The battery is a gauge on the second I2C bus and the chargers are an extcon
-# device, so the health HAL reads two places the platform knows nothing
-# about. These were healthd's rules in this tree, from before the battery
-# moved behind a HAL of its own.
-
-# The gauge: charge, temperature, presence, chemistry.
+# The battery and the chargers are labelled sysfs_batteryinfo, which the
+# platform already lets the HAL read. The gauge sits behind the second I2C
+# bus's directories, and the path to it has to be walked.
 allow hal_health_default sysfs_nvi2c:dir search;
-allow hal_health_default sysfs_nvi2c:file r_file_perms;
-
-# Which supply is attached and what kind it is. The label used to cover only
-# the online flag; the type beside it was reaching the HAL as plain sysfs.
-allow hal_health_default sysfs_power_supply:file r_file_perms;

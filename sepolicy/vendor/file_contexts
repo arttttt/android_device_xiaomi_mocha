@@ -180,7 +180,12 @@
 /sys/devices/platform/host1x/tegradc.[0-1]/smartdimmer(/.*)	u:object_r:sysfs_smartdimmer:s0
 /sys/devices/platform/host1x/tegradc\.[0-1]/cmu_enable		u:object_r:sysfs_cmu:s0
 /sys/devices/platform/gpu.0/devfreq/gpu.0/available_frequencies		u:object_r:sysfs_devfreq:s0
-/sys/devices/platform/psy_extcon\..*/power_supply(/.*)?			u:object_r:sysfs_power_supply:s0
+
+# What the health HAL reads, under the type S gives it for that
+# (system/sepolicy/public/hal_health.te): the chargers, an extcon device, and
+# the gauge on the second I2C bus, which the bus-wide label would otherwise take.
+/sys/devices/platform/psy_extcon\..*/power_supply(/.*)?			u:object_r:sysfs_batteryinfo:s0
+/sys/devices/platform/7000c400\.i2c/i2c-1/1-0055/power_supply(/.*)?	u:object_r:sysfs_batteryinfo:s0
 
 # cfboost sysfs, for ussrd
 /sys/module/input_cfboost/parameters/boost_freq		u:object_r:sysfs_cfboost:s0
