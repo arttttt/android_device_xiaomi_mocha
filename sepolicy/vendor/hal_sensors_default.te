@@ -35,12 +35,12 @@ allow hal_sensors_default sysfs:file r_file_perms;
 # through between its own threads, in /data/sns_lsm6db0_pipes, a directory
 # it makes itself straight under /data at every start.
 #
-# Both get a type of their own. The pipes' directory would otherwise take
-# /data's label, system_data_root_file, and so would every pipe in it; it is
-# named in a transition so that it is born with the type instead, and the
-# blob may add and remove that one entry under /data.
-allow hal_sensors_default system_data_root_file:dir { write add_name remove_name };
-type_transition hal_sensors_default system_data_root_file:dir sensors_data_file "sns_lsm6db0_pipes";
+# Both get a type of their own, labelled by path.
+#
+# The blob may not make the pipes' directory itself: S lets no one but init
+# add or remove an entry straight under /data (system/sepolicy/public/init.te,
+# the neverallow on system_data_root_file). The directory has to be there
+# already, made by init, and the blob's attempt to make it again finds it.
 
 allow hal_sensors_default sensors_data_file:dir create_dir_perms;
 allow hal_sensors_default sensors_data_file:file create_file_perms;
