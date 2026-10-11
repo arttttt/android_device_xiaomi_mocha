@@ -33,3 +33,8 @@ vendor_internal_prop(power_low_power_prop)
 # For persist.vendor.hwc.display_saturation and display_profile: set by
 # LiveDisplay, read by the composer.
 vendor_internal_prop(hwc_display_prop)
+
+# For vendor.wlan.driver.version: the Wi-Fi HAL publishes the driver and
+# firmware versions it reads off the chip (hardware/interfaces/wifi,
+# wifi_chip.cpp). Under the vendor default type only init could set it.
+vendor_internal_prop(wifi_version_prop)

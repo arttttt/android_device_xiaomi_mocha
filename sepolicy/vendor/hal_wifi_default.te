@@ -17,3 +17,6 @@
 # brings the interface up. The directory is shared with wpa_supplicant and
 # carries the generic vendor label for that reason.
 allow hal_wifi_default vendor_data_file:file r_file_perms;
+
+# The driver and firmware versions it publishes when the chip comes up.
+set_prop(hal_wifi_default, wifi_version_prop)
