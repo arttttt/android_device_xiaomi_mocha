@@ -35,8 +35,6 @@ allow init kmsg_device:chr_file write;
 # alllow to write to sdhci node for init
 allow init sysfs_mmc_host:lnk_file rw_file_perms;
 
-# allow init to change power hints node
-allow init sysfs_netcfg:lnk_file rw_file_perms;
 # Copyright (C) 2017 The LineageOS Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

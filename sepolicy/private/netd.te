@@ -15,9 +15,6 @@
 # /sys/class/net/... links to USB platform device (mtu config)
 allow netd sysfs_bus_usb:file w_file_perms;
 
-# Allow netd access for sysfs_netcfg
-r_dir_file(netd, sysfs_netcfg)
-
 # Allow netd to access symlinks created by wifiloader
 allow netd wifi_data_file:lnk_file { getattr read write };
 

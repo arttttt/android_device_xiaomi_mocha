@@ -221,8 +221,11 @@
 # Nodes used by GL driver
 /sys/devices/platform/gpu\.0/ptimer_scale_factor			u:object_r:sysfs_gpu:s0
 /sys/devices/platform/gk20a\.0/ptimer_scale_factor			u:object_r:sysfs_gpu:s0
-# netcfg
-/sys/class/net(/.*)?		u:object_r:sysfs_netcfg:s0
+# The Wi-Fi interface's own directory, under the SDIO host it hangs off and
+# that host's label otherwise. S labels /sys/class/net and the virtual
+# interfaces sysfs_net itself (private/genfs_contexts); this is the one
+# interface it cannot know the path of.
+/sys/devices/platform/sdhci-tegra\.0/mmc_host/mmc[0-9]+/mmc[0-9]+:[0-9a-f]+/mmc[0-9]+:[0-9a-f]+:[0-9]+/net(/.*)?	u:object_r:sysfs_net:s0
 # Tegra info sysfs
 /sys/module/tegra_fuse/parameters(/.*)?				u:object_r:sysfs_tegra_info:s0
 # Tegra gpu info

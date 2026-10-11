@@ -28,9 +28,6 @@ dontaudit untrusted_app kernel:dir { search getattr };
 # Allow access to external storage
 allow untrusted_app storage_stub_file:dir getattr;
 
-# Allow netcfg for TegraZone apk
-r_dir_file(untrusted_app, sysfs_netcfg)
-
 # Allow untrusted app to search for sysfs_zram only on userdebug
 userdebug_or_eng(`
 r_dir_file(untrusted_app, sysfs_zram)

@@ -23,9 +23,6 @@ r_dir_file(dumpstate, hwc_data_file);
 r_dir_file(dumpstate, sysfs_mmc_host);
 allow dumpstate sysfs_mmc_host:file w_file_perms;
 
-# Allow dumpstate read permissions to netcfg
-r_dir_file(dumpstate, sysfs_netcfg);
-
 # Allow dumpstate to access WiFi status
 r_dir_file(dumpstate, wifi_data_file);
 

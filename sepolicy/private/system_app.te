@@ -105,9 +105,6 @@ allow system_app debugfs_wake_irq_stats:file r_file_perms;
 # allow system app to access emc avg_activity
 allow system_app debugfs_emc_load:file r_file_perms;
 
-# Allow netcfg access
-r_dir_file(system_app, sysfs_netcfg)
-
 # Allow system app to get kernel log to report issue
 #allow system_app kernel:system syslog_read;
 

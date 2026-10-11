@@ -18,5 +18,3 @@ allow hal_wifi_supplicant wifi_data_file:lnk_file { getattr read write };
 # Access to mmc_host
 r_dir_file(hal_wifi_supplicant, sysfs_mmc_host)
 
-# Access to sysfs_netcfg
-r_dir_file(hal_wifi_supplicant, sysfs_netcfg)

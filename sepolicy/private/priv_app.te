@@ -19,8 +19,7 @@ allow priv_app storage_stub_file:dir getattr;
 
 allow priv_app system_app_service:service_manager find;
 
-# Allow netcfg/mmc_host access
-r_dir_file(priv_app, sysfs_netcfg)
+# Allow mmc_host access
 r_dir_file(priv_app, sysfs_mmc_host)
 
 # Read /data/data subdirectory.
