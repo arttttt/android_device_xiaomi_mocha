@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Mon, 12 Oct 2026 03:10:00 +0300
+Subject: [PATCH] recents: the screenshot goes after a frame shows the
+ snapshot
+
+Going home from overview with the home key cancels the recents
+animation with the tasks' snapshots, and the system shows them in the
+running task's place until the launcher calls cleanupScreenshot(). The
+swipe handler called it at once, before the running task view had drawn
+a snapshot: for one to four frames the view's live tile hole was on
+screen, and the card blinked out and back in before fading. Whether it
+blinked depended on the launcher's next frame winning that race.
+
+Switch the running task view to the snapshots first and clean the
+screenshot up once a frame with them is drawn, as the swipe-to-home
+path already does with switchToScreenshot(); with a bound, so that a
+frame that never comes cannot leave the system's screenshot up.
+---
+ quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java | 24 ++++++++++++++++++++----
+ 1 file changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java b/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java
+--- a/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java
++++ b/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java
+@@ -426,10 +426,26 @@
+                 HashMap<Integer, ThumbnailData> snapshots =
+                         mGestureState.consumeRecentsAnimationCanceledSnapshot();
+                 if (snapshots != null) {
+-                    mRecentsView.onRecentsAnimationComplete();
+-                    if (mRecentsAnimationController != null) {
+-                        mRecentsAnimationController.cleanupScreenshot();
+-                    }
++                    // The system shows these snapshots in the task's place only until
++                    // cleanupScreenshot(). Taken away before the running task view has drawn
++                    // one of them, the view's live tile hole is on screen for a frame or more
++                    // and the card blinks out. So the view switches to the snapshots first,
++                    // and the screenshot goes once a frame with them is drawn -- or after a
++                    // bound, should no frame come.
++                    final RecentsAnimationController controller = mRecentsAnimationController;
++                    final boolean[] finished = {false};
++                    final Runnable finish = () -> {
++                        if (finished[0]) {
++                            return;
++                        }
++                        finished[0] = true;
++                        mRecentsView.onRecentsAnimationComplete();
++                        if (controller != null) {
++                            controller.cleanupScreenshot();
++                        }
++                    };
++                    mRecentsView.switchToScreenshot(snapshots, finish);
++                    MAIN_EXECUTOR.getHandler().postDelayed(finish, 200);
+                 }
+             });
+ 
+-- 
+2.43.0
+
