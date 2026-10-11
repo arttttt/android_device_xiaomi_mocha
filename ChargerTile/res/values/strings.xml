@@ -17,7 +17,6 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_name">Charger Tile</string>
     <string name="charger_tile_label">Battery charging</string>
-    <string name="charger_tile_state">Battery charging %s</string>
-    <string name="charger_state_enabled">enabled</string>
-    <string name="charger_state_disabled">disabled</string>
+    <string name="charger_state_enabled">On</string>
+    <string name="charger_state_disabled">Off</string>
 </resources>

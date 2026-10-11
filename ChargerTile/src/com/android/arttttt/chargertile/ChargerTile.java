@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 arttttt <artem-bambalov@yandex.ru>
+ * Copyright (C) 2017-2026 arttttt
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,51 +13,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
 package com.android.arttttt.chargertile;
 
-import com.android.arttttt.chargertile.Constants;
-import com.android.arttttt.chargertile.utils.PreferencesUtils;
-
+import android.graphics.drawable.Icon;
+import android.os.SystemProperties;
 import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
 
-import org.lineageos.internal.util.FileUtils;
-
+/*
+ * Whether the battery charges, as the user chooses it.
+ *
+ * The tile only records the choice, in persist.sys.charger.disabled;
+ * init.tegra.rc hands it to the charger, and loading the persistent
+ * properties at boot hands it over again after a reboot.
+ */
 public class ChargerTile extends TileService {
 
-    private int mChargingDisabledByUser;
-    private PreferencesUtils mPreferencesUtils;
+    private static final String PROPERTY = "persist.sys.charger.disabled";
 
     @Override
     public void onStartListening() {
         super.onStartListening();
-        
-        mPreferencesUtils = PreferencesUtils.getInstance(getApplicationContext());
-        mChargingDisabledByUser = mPreferencesUtils.getInt(Constants.PREF_CHARGING_DISABLED_KEY);
-        
         updateTile();
     }
-    
+
     @Override
     public void onClick() {
         super.onClick();
-        
-        mChargingDisabledByUser = mChargingDisabledByUser == 1 ? 0 : 1;
-        mPreferencesUtils.putInt(Constants.PREF_CHARGING_DISABLED_KEY, mChargingDisabledByUser);
-        FileUtils.writeLine(Constants.PROCFS_PROP_PATH, String.valueOf(mChargingDisabledByUser));
-        
+
+        SystemProperties.set(PROPERTY, isDisabled() ? "0" : "1");
         updateTile();
     }
-    
+
     private void updateTile() {
-	if (mChargingDisabledByUser == 1) {
-	    getQsTile().setLabel(getString(R.string.charger_tile_state, getString(R.string.charger_state_disabled)));
-	    getQsTile().setState(Tile.STATE_INACTIVE);
-	} else {
-	    getQsTile().setLabel(getString(R.string.charger_tile_state, getString(R.string.charger_state_enabled)));
-	    getQsTile().setState(Tile.STATE_ACTIVE);
-	}
-	getQsTile().updateTile();
+        final Tile tile = getQsTile();
+        if (tile == null) return;
+
+        final boolean disabled = isDisabled();
+        tile.setIcon(Icon.createWithResource(this, R.drawable.ic_charger));
+        tile.setLabel(getString(R.string.charger_tile_label));
+        tile.setSubtitle(getString(disabled ? R.string.charger_state_disabled
+                                            : R.string.charger_state_enabled));
+        tile.setState(disabled ? Tile.STATE_INACTIVE : Tile.STATE_ACTIVE);
+        tile.updateTile();
+    }
+
+    private static boolean isDisabled() {
+        return SystemProperties.getBoolean(PROPERTY, false);
     }
 }

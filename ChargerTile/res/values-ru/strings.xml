@@ -16,7 +16,6 @@
 -->
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="charger_tile_label">Зарядка</string>
-    <string name="charger_tile_state">Зарядка батареи %s</string>
-    <string name="charger_state_enabled">включена</string>
-    <string name="charger_state_disabled">отключена</string>
+    <string name="charger_state_enabled">Включена</string>
+    <string name="charger_state_disabled">Отключена</string>
 </resources>
