@@ -61,6 +61,13 @@ on init
     # node alone would imply -- matches nothing: writing it to UDC fails
     # with ENODEV and the gadget is built and never bound.
     setprop sys.usb.controller tegra-udc.0
+    # The gadget driver raises the CPU minimum to 1400 MHz on every USB
+    # request of 4 KiB or more and holds it for two seconds after the last
+    # one (CONFIG_TEGRA_GADGET_BOOST_CPU_FREQ). adbd and MTP keep such reads
+    # queued, so with a data cable in the floor never came down, and every
+    # adb read of cpufreq saw it. The clock is the power profiles' business,
+    # not the cable's.
+    write /sys/module/tegra_udc/parameters/boost_enable 0
 
 on fs
     # The mount attaches to the FunctionFS instance named adb, which is
