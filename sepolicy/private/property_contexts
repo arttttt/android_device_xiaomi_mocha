@@ -1,3 +1,6 @@
 # The quick settings tiles' choices; see public/property.te.
 persist.sys.perf.profile        u:object_r:perf_profile_user_prop:s0 exact int
 persist.sys.charger.disabled    u:object_r:charger_disabled_prop:s0 exact bool
+
+# The undervolt switch; see public/property.te.
+sys.perf.undervoltage           u:object_r:undervoltage_prop:s0 exact bool

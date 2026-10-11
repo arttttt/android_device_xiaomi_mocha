@@ -29,3 +29,10 @@ get_prop(vendor_init, charger_disabled_prop)
 set_prop(vendor_init, power_low_power_prop)
 # And the profile in force is theirs to set: power.mocha.rc is its writer.
 set_prop(vendor_init, perf_profile_prop)
+
+# The undervolt: power.mocha.rc triggers on sys.perf.undervoltage and writes
+# the rails' offsets, vdd_core_offs and vdd_gpu_offs, under debugfs's clock
+# directory. debugfs is no file_type, so nothing vendor_init holds reaches it.
+get_prop(vendor_init, undervoltage_prop)
+allow vendor_init debugfs_clock:dir search;
+allow vendor_init debugfs_clock:file w_file_perms;

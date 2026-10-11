@@ -19,3 +19,7 @@
 # public: the vendor side reads these and never writes them.
 system_restricted_prop(perf_profile_user_prop)
 system_restricted_prop(charger_disabled_prop)
+
+# sys.perf.undervoltage: whether the core and GPU rails run below their
+# nominal voltage. power.mocha.rc acts on it; the system side will set it.
+system_restricted_prop(undervoltage_prop)
