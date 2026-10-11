@@ -63,9 +63,6 @@ on post-fs-data
     # create directory for mediaserver EGL blob cache
     mkdir /data/misc/mediaserver 0770 media media
 
-# Set up HDCP
-import /vendor/etc/init/hw/init.hdcp.rc
-
 on boot
 
 # backlight

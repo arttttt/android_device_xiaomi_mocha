@@ -65,23 +65,6 @@ on init
     mkdir /mnt/tmp 0770 system system
     mount tmpfs tmpfs /mnt/tmp mode=0775,gid=1003
 
-    setprop sys.esrd.powermon_path /sys/bus/i2c/devices/1-0040/iio_device
-    setprop sys.esrd.powermon_channel 0
-    setprop sys.esrd.min_esr 95
-    setprop sys.esrd.max_esr 160
-    setprop sys.esrd.margin 42
-    setprop sys.esrd.nwindow 200
-    setprop sys.esrd.ntry 600
-    setprop sys.esrd.tsample 20
-    setprop sys.esrd.delay_start 900
-    setprop sys.esrd.delay_retry 900
-    setprop sys.esrd.delay_ok 604800
-    setprop sys.esrd.needed_coeff 0.97
-    setprop sys.esrd.needed_var 300
-    setprop sys.esrd.battery_thresh_high 60
-    setprop sys.esrd.battery_thresh_low 15
-    setprop sys.esrd.load_burst_duration 3
-    setprop sys.esrd.check_screen_off 1
     chown system system /sys/power/sysedp/batmon/esr
     chown system system /sys/bus/i2c/devices/1-0040/iio_device/running_mode
 

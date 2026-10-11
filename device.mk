@@ -245,7 +245,6 @@ PRODUCT_PACKAGES += \
     fstab.tn8 \
     fstab.tn8.vendor \
     init.comms.rc \
-    init.hdcp.rc \
     init.mocha.debug.rc \
     init.mocha.trace.rc \
     init.t124.rc \
