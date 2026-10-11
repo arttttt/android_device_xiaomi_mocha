@@ -26,6 +26,10 @@ vendor_internal_prop(vrr_prop)
 # For sys.perf.profile
 vendor_internal_prop(perf_profile_prop)
 
+# For vendor.power.low_power: the battery saver as the power HAL hears it,
+# so that power.mocha.rc can hold the profile at power save while it lasts.
+vendor_internal_prop(power_low_power_prop)
+
 # For persist.vendor.hwc.display_saturation and display_profile: set by
 # LiveDisplay, read by the composer.
 vendor_internal_prop(hwc_display_prop)

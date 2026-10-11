@@ -16,8 +16,6 @@
 #ifndef MOCHA_POWER_PROFILES_H
 #define MOCHA_POWER_PROFILES_H
 
-#include <mutex>
-
 namespace android {
 namespace hardware {
 namespace power {
@@ -25,40 +23,31 @@ namespace V1_3 {
 namespace implementation {
 
 /*
- * How hard this device should be trying, as the user chose it.
+ * How hard this device should be trying.
  *
- * The profile is a property rather than anything of ours: init reacts to it
- * and writes the governor's knobs, and the tile in the interface writes the
- * property. This only reads it, sets it, and remembers what it replaced.
+ * The profile in force is sys.perf.profile, and power.mocha.rc is its only
+ * writer: it reacts to the value by writing the governor's knobs, and it
+ * decides the value from two inputs -- what the user chose in the tile
+ * (persist.sys.perf.profile) and whether the battery saver is on. This
+ * reports the second input and reads the result.
  *
- * Remembering matters because the battery saver is expressed as a profile too
- * -- one notion of how hard to try rather than two that can disagree -- and
- * the framework says only "low power on" and "low power off". It does not
- * carry what was chosen before, so without this the user's choice would be
- * replaced for good by turning the saver on once.
+ * The battery saver is expressed as the power save profile -- one notion of
+ * how hard to try rather than two that can disagree -- and init, not this,
+ * remembers the user's choice across it: the choice lives in a persistent
+ * property, so a restarted HAL or a reboot in the middle of the saver does
+ * not lose it.
  */
 class Profiles {
   public:
     static constexpr int POWER_SAVE = 0;
     static constexpr int BALANCED = 1;
-    static constexpr int COUNT = 4;
 
     int current() const;
-    void set(int profile) const;
 
     bool isPowerSave() const { return current() == POWER_SAVE; }
 
-    /* The battery saver arriving and leaving. Entering twice does not forget
-     * what was chosen before the first time. */
-    void enterLowPower();
-    void leaveLowPower();
-
-  private:
-    std::mutex mLock;
-
-    /* What was in force before the saver took over, or below zero when it is
-     * not in force. */
-    int mBeforeLowPower = -1;
+    /* The battery saver arriving and leaving. */
+    void setLowPower(bool on) const;
 };
 
 }  // namespace implementation

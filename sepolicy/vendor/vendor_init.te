@@ -19,3 +19,13 @@
 # is the whole reason that domain exists. A first attempt granted this to
 # init and changed nothing, because init was never the one asking.
 allow vendor_init tmpfs:dir { create write add_name };
+
+# power.mocha.rc and init.tn8.rc carry the tiles' choices over to what the
+# board acts on: the profile into sys.perf.profile, the charger switch into
+# its node. Expanding ${persist.sys...} in those actions is a read made as
+# vendor_init. The battery saver flag is reset here at boot.
+get_prop(vendor_init, perf_profile_user_prop)
+get_prop(vendor_init, charger_disabled_prop)
+set_prop(vendor_init, power_low_power_prop)
+# And the profile in force is theirs to set: power.mocha.rc is its writer.
+set_prop(vendor_init, perf_profile_prop)

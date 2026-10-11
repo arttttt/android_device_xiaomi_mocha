@@ -20,39 +20,21 @@
 
 #include <cutils/properties.h>
 
-#include <string>
-
 namespace android {
 namespace hardware {
 namespace power {
 namespace V1_3 {
 namespace implementation {
 
-static const char PROPERTY[] = "sys.perf.profile";
+static const char PROFILE[] = "sys.perf.profile";
+static const char LOW_POWER[] = "vendor.power.low_power";
 
 int Profiles::current() const {
-    return property_get_int32(PROPERTY, BALANCED);
+    return property_get_int32(PROFILE, BALANCED);
 }
 
-void Profiles::set(int profile) const {
-    property_set(PROPERTY, std::to_string(profile).c_str());
-}
-
-void Profiles::enterLowPower() {
-    std::lock_guard<std::mutex> lock(mLock);
-
-    if (mBeforeLowPower < 0) mBeforeLowPower = current();
-
-    set(POWER_SAVE);
-}
-
-void Profiles::leaveLowPower() {
-    std::lock_guard<std::mutex> lock(mLock);
-
-    if (mBeforeLowPower < 0) return;
-
-    set(mBeforeLowPower);
-    mBeforeLowPower = -1;
+void Profiles::setLowPower(bool on) const {
+    property_set(LOW_POWER, on ? "1" : "0");
 }
 
 }  // namespace implementation

@@ -37,8 +37,10 @@ allow hal_power_default sysfs_gpu_power_knobs:file rw_file_perms;
 allow hal_power_default sysfs_nvi2c:dir search;
 allow hal_power_default sysfs_nvi2c:file rw_file_perms;
 
-# The profile in force, published as a property because power.mocha.rc keeps
-# a block of writes per value and init is what runs them. Its own type rather
-# than the system's: nothing outside this HAL sets it, and init may set any
-# property regardless of label.
-set_prop(hal_power_default, perf_profile_prop)
+# The profile in force. power.mocha.rc sets it from the tile's choice and the
+# battery saver; this only reads it, to hold back boosts under power save.
+get_prop(hal_power_default, perf_profile_prop)
+
+# The battery saver, told to power.mocha.rc, which then holds the profile at
+# power save until it ends and puts the user's choice back after.
+set_prop(hal_power_default, power_low_power_prop)

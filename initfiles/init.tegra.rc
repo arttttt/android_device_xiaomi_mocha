@@ -71,9 +71,6 @@ on boot
 # backlight
     chown system system /sys/class/backlight/lcd-backlight/brightness
     
-# charger
-    chown system system /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user
-
 # didim
     chown system system /sys/devices/platform/host1x/tegradc.0/smartdimmer/enable
     chown system system /sys/devices/platform/host1x/tegradc.0/smartdimmer/aggressiveness
@@ -192,3 +189,10 @@ import /vendor/etc/init/hw/init.ussrd.rc
 service watchdogd /system/bin/watchdogd 10 110
     class core
     seclabel u:r:watchdogd:s0
+
+# The charger switch from the quick settings tile. The tile stores the choice
+# as persist.sys.charger.disabled and this hands it to the charger. Loading
+# the persistent properties at boot sets it too, so the choice is back in
+# force after a reboot with nothing having to watch for boot completing.
+on property:persist.sys.charger.disabled=*
+    write /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user ${persist.sys.charger.disabled}

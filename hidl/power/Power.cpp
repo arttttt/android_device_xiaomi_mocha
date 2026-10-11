@@ -41,10 +41,6 @@ static const std::string TAP_TO_WAKE_NODE = "/proc/touchpanel/double_tap_enable"
 static const std::string IO_IS_BUSY_NODE =
         "/sys/devices/system/cpu/cpufreq/interactive/io_is_busy";
 
-/* Not declared by power.h on P; the LineageOS extension that used to provide
- * it is gone, and this still dispatches on it. */
-const static power_hint_t POWER_HINT_SET_PROFILE = (power_hint_t) 0x00000111;
-
 Power::Power() {
     ALOGI("power_init\n");
 }
@@ -80,12 +76,6 @@ Return<void> Power::powerHint(PowerHint hint, int32_t data) {
 }
 
 void Power::handleHint(PowerHint hint, int32_t data) {
-    if (static_cast<power_hint_t>(hint) == POWER_HINT_SET_PROFILE) {
-        ALOGI("set power profile = %d", data);
-        mProfiles.set(data);
-        return;
-    }
-
     switch (hint) {
         case PowerHint::INTERACTION:
         case PowerHint::LAUNCH:
@@ -116,17 +106,14 @@ void Power::handleHint(PowerHint hint, int32_t data) {
  *
  * It is the same thing the profile tile already expresses, so it is expressed
  * that way -- one notion of how hard this device should try, not two that can
- * disagree.
+ * disagree. power.mocha.rc holds the profile at power save while it lasts and
+ * puts the user's choice back after.
  */
 void Power::handleLowPower(bool on) {
     std::lock_guard<std::mutex> lock(mPolicyLock);
 
-    if (!on) {
-        mProfiles.leaveLowPower();
-        return;
-    }
-
-    mProfiles.enterLowPower();
+    mProfiles.setLowPower(on);
+    if (!on) return;
 
     /* And let go of anything already being spent. A floor raised a moment
      * before the battery saver came on is exactly what the battery saver is

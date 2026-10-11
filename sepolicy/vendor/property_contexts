@@ -66,5 +66,6 @@ persist.renderposition.delay     u:object_r:mediacodec_prop:s0
 factory.accessory.bundleinfo     u:object_r:system_prop:s0
 
 sys.perf.profile                 u:object_r:perf_profile_prop:s0
+vendor.power.low_power           u:object_r:power_low_power_prop:s0 exact bool
 persist.vendor.hwc.display_saturation  u:object_r:hwc_display_prop:s0
 persist.vendor.hwc.display_profile     u:object_r:hwc_display_prop:s0
