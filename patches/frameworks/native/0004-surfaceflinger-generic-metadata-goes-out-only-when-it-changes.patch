@@ -1,0 +1,53 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Subject: [PATCH] surfaceflinger: generic metadata goes out only when it changes
+
+OutputLayer writes a layer's generic metadata with its geometry, and an
+animation changes the geometry every frame, so the effects keys of
+0003 went to the composer for every layer of every animated frame,
+almost always with the values they already had. HWC2::Layer now keeps
+the last value sent under each key, as it does for the surface damage,
+and sends a key only when its value differs: a key keeps its value in
+the composer until it is sent again.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.cpp b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+index 27146ab..8ec8239 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.cpp
++++ b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+@@ -897,9 +897,20 @@ Error Layer::setLayerGenericMetadata(const std::string& name, bool mandatory,
+         return Error::BAD_DISPLAY;
+     }
+ 
++    // Sent with the geometry, which an animation changes every frame; the
++    // values themselves rarely change, so only a new one goes out.
++    const auto cached = mGenericMetadata.find(name);
++    if (cached != mGenericMetadata.end() && cached->second == value) {
++        return Error::NONE;
++    }
++
+     auto intError =
+             mComposer.setLayerGenericMetadata(mDisplay->getId(), mId, name, mandatory, value);
+-    return static_cast<Error>(intError);
++    Error error = static_cast<Error>(intError);
++    if (error == Error::NONE) {
++        mGenericMetadata[name] = value;
++    }
++    return error;
+ }
+ 
+ } // namespace impl
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.h b/services/surfaceflinger/DisplayHardware/HWC2.h
+index 871465d..19f3b9f 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.h
++++ b/services/surfaceflinger/DisplayHardware/HWC2.h
+@@ -347,6 +347,9 @@ private:
+     hal::Dataspace mDataSpace = hal::Dataspace::UNKNOWN;
+     android::HdrMetadata mHdrMetadata;
+     android::mat4 mColorMatrix;
++    // The last value sent under each generic metadata key: a key keeps its
++    // value in the composer until it is sent again.
++    std::unordered_map<std::string, std::vector<uint8_t>> mGenericMetadata;
+     uint32_t mBufferSlot;
+ };
+ 
