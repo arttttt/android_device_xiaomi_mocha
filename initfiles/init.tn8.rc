@@ -20,6 +20,10 @@ import /vendor/etc/init/hw/init.mocha.debug.rc
 on post-fs-data
     chmod 0644 /sys/kernel/cluster/active
     mkdir /data/sensors 0777 system system
+    # The sensors blob's pipes. It makes this directory itself at every start,
+    # but on S only init may add an entry straight under /data; made here,
+    # the blob's own mkdir finds it. The blob runs as system.
+    mkdir /data/sns_lsm6db0_pipes 0700 system system
 
 on init
     # Which cores each kind of work may run on.
