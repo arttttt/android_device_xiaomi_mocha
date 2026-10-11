@@ -90,6 +90,12 @@ PRODUCT_PROPERTY_OVERRIDES += \
     ro.surface_flinger.set_idle_timer_ms=2500 \
     ro.surface_flinger.set_touch_timer_ms=500
 
+# Rounded corners, shadows, blur and stretch no longer send a layer to the
+# GPU: SurfaceFlinger hands the corners to the composer as layer metadata
+# and the composer draws the effects (patches/frameworks/native/0003).
+PRODUCT_PROPERTY_OVERRIDES += \
+    ro.surface_flinger.hwc_draws_effects=true
+
 # Input
 #
 # Touch resampling off, as ro.input.noresample=1 had it before. R reads the

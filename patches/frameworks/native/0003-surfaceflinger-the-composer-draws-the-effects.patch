@@ -1,0 +1,136 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Subject: [PATCH] surfaceflinger: the composer draws the effects
+
+On this device SurfaceFlinger composed on the GPU for one reason only in
+the transition traces: rounded corners. The launcher's spring animation
+back to home rounds the closing application's leash, the radius is
+inherited by every child, and isClientCompositionForced hands the whole
+group to RenderEngine -- 27-35 frames a run, 2.6 ms each on the main
+thread, the commonest class of late frame left.
+
+With ro.surface_flinger.hwc_draws_effects set, the effects no longer
+force client composition: rounded corners in OutputLayer, shadows, blur
+and stretch in Layer. Only HDR Y410 still goes to the GPU. The corners
+are handed to the composer instead, as generic layer metadata under
+org.lineageos.mocha.rounded_corners -- the crop and radius in display
+space, five floats, all zero for no corners, since a key cannot be
+unset -- and only when the composer declared the key, so nothing is
+sent that it would refuse. A composer that has not declared it shows
+the layer with square corners.
+
+Shadows, blur and stretch get their own keys when the composer can
+draw them; until then, with the property set, they are not drawn.
+
+diff --git a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+index 87be750..7d7c937 100644
+--- a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+@@ -15,6 +15,7 @@
+  */
+ 
+ #include <DisplayHardware/Hal.h>
++#include <android-base/properties.h>
+ #include <android-base/stringprintf.h>
+ #include <compositionengine/DisplayColorProfile.h>
+ #include <compositionengine/LayerFECompositionState.h>
+@@ -692,8 +693,13 @@ void OutputLayer::detectDisallowedCompositionTypeChange(hal::Composition from,
+ }
+ 
+ bool OutputLayer::isClientCompositionForced(bool isPeekingThrough) const {
++    // With ro.surface_flinger.hwc_draws_effects the composer is told the
++    // corners through generic layer metadata and draws them itself; the
++    // GPU is not asked to compose the frame for them.
++    static const bool hwcDrawsEffects =
++            base::GetBoolProperty("ro.surface_flinger.hwc_draws_effects", false);
+     return getState().forceClientComposition ||
+-            (!isPeekingThrough && getLayerFE().hasRoundedCorners());
++            (!isPeekingThrough && !hwcDrawsEffects && getLayerFE().hasRoundedCorners());
+ }
+ 
+ void OutputLayer::applyDeviceCompositionTypeChange(hal::Composition compositionType) {
+diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
+index 45875c1..a9d23ba 100644
+--- a/services/surfaceflinger/Layer.cpp
++++ b/services/surfaceflinger/Layer.cpp
+@@ -36,6 +36,7 @@
+ #include <cutils/compiler.h>
+ #include <cutils/native_handle.h>
+ #include <cutils/properties.h>
++#include <cstring>
+ #include <gui/BufferItem.h>
+ #include <gui/LayerDebugInfo.h>
+ #include <gui/Surface.h>
+@@ -493,13 +494,58 @@ void Layer::preparePerFrameCompositionState() {
+     // Force client composition for special cases known only to the front-end.
+     // Rounded corners no longer force client composition, since we may use a
+     // hole punch so that the layer will appear to have rounded corners.
+-    if (isHdrY410() || drawShadows() || drawingState.blurRegions.size() > 0 ||
+-        compositionState->stretchEffect.hasEffect()) {
++    //
++    // With ro.surface_flinger.hwc_draws_effects the composer draws the
++    // effects itself, so only HDR Y410 is still left to the GPU.
++    static const bool hwcDrawsEffects =
++            base::GetBoolProperty("ro.surface_flinger.hwc_draws_effects", false);
++    const bool effects = drawShadows() || drawingState.blurRegions.size() > 0 ||
++            compositionState->stretchEffect.hasEffect();
++    if (isHdrY410() || (effects && !hwcDrawsEffects)) {
+         compositionState->forceClientComposition = true;
+     }
+     // If there are no visible region changes, we still need to update blur parameters.
+     compositionState->blurRegions = drawingState.blurRegions;
+     compositionState->backgroundBlurRadius = drawingState.backgroundBlurRadius;
++
++    if (hwcDrawsEffects) {
++        writeRoundedCornersMetadata(compositionState);
++    }
++}
++
++// The rounded corners as the composer needs them: in display space, five
++// little-endian floats -- left, top, right, bottom of the crop the corners
++// round, then the radius. All zero means no corners, and is sent too:
++// generic metadata has no way to unset a key, so a layer that loses its
++// corners has to say so. Only when the composer declared the key, so SF
++// never sends what the composer would refuse.
++void Layer::writeRoundedCornersMetadata(compositionengine::LayerFECompositionState* state) {
++    static constexpr const char* kKey = "org.lineageos.mocha.rounded_corners";
++    const auto& supported = mFlinger->getHwComposer().getSupportedLayerGenericMetadata();
++    const auto it = supported.find(kKey);
++    if (it == supported.end()) {
++        return;
++    }
++
++    float values[5] = {0.f, 0.f, 0.f, 0.f, 0.f};
++    const RoundedCornerState corners = getRoundedCornerState();
++    if (corners.radius > 0.f) {
++        const ui::Transform t = getTransform();
++        const FloatRect crop = t.transform(corners.cropRect);
++        const float scaleX = sqrtf(t[0][0] * t[0][0] + t[0][1] * t[0][1]);
++        const float scaleY = sqrtf(t[1][0] * t[1][0] + t[1][1] * t[1][1]);
++        values[0] = crop.left;
++        values[1] = crop.top;
++        values[2] = crop.right;
++        values[3] = crop.bottom;
++        values[4] = corners.radius * (scaleX + scaleY) / 2.0f;
++    }
++
++    std::vector<uint8_t> blob(sizeof(values));
++    memcpy(blob.data(), values, sizeof(values));
++    state->metadata.insert_or_assign(kKey,
++                                     compositionengine::GenericLayerMetadataEntry{it->second,
++                                                                                  std::move(blob)});
+ }
+ 
+ void Layer::prepareCursorCompositionState() {
+diff --git a/services/surfaceflinger/Layer.h b/services/surfaceflinger/Layer.h
+index 4085993..dca3162 100644
+--- a/services/surfaceflinger/Layer.h
++++ b/services/surfaceflinger/Layer.h
+@@ -916,6 +916,8 @@ protected:
+     virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
+             compositionengine::LayerFE::ClientCompositionTargetSettings&);
+     virtual void preparePerFrameCompositionState();
++    // The corners, for a composer that draws them itself; see Layer.cpp.
++    void writeRoundedCornersMetadata(compositionengine::LayerFECompositionState*);
+     virtual void commitTransaction(State& stateToCommit);
+     virtual void onSurfaceFrameCreated(const std::shared_ptr<frametimeline::SurfaceFrame>&) {}
+ 
