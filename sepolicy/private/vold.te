@@ -29,7 +29,6 @@
 #
 
 allow vold fuse_device:chr_file rw_file_perms;
-allow vold sysfs_bus_usb:file rw_file_perms;
 allow vold media_rw_data_file:dir { r_dir_perms mounton };
 
 # vold need to restart surfaceflinger so that hwcomposer gets correct prop

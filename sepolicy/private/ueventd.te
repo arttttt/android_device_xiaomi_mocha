@@ -18,7 +18,6 @@
 
 allow ueventd sysfs_sysedp:file rw_file_perms;
 allow ueventd sysfs_gpio:file rw_file_perms;
-allow ueventd sysfs_bus_usb:file w_file_perms;
 allow ueventd sysfs_soc:file rw_file_perms;
 allow ueventd sysfs_thermal:file rw_file_perms;
 allow ueventd sysfs_ozmo:file rw_file_perms;

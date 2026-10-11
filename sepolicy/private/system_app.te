@@ -41,8 +41,6 @@ allow system_app tegradc_device:chr_file rw_file_perms;
 
 allow system_app device:dir r_dir_perms;
 
-# Blake specific
-allow system_app sysfs_bus_usb:file w_file_perms;
 allow system_app sysfs_sound:{ file lnk_file } r_file_perms;
 allow system_app sysfs_sound:dir r_dir_perms;
 allow system_app sysfs_ozmo:lnk_file read;

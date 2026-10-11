@@ -19,10 +19,6 @@ type sysfs_sysedp, fs_type, sysfs_type;
 # /sys/devices/platform/.../gpio/gpio../...
 type sysfs_gpio, fs_type, sysfs_type;
 
-# /sys/bus/usb/...
-# /sys/devices/platform/tegra-ehci../...
-type sysfs_bus_usb, fs_type, sysfs_type;
-
 # sepolicy_tests requires every type labelled through genfscon on proc to
 # carry proc_type, and every type labelled under /data to carry both
 # data_file_type and core_data_file_type. The exemption is /data/vendor,
