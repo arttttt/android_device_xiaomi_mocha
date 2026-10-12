@@ -144,10 +144,16 @@ PRODUCT_PACKAGES += \
 # that carries it to SurfaceFlinger is declared with the other interfaces in
 # hidl/hidl.mk. The governor beside it is the policy library the composer
 # loads by name to raise the engine's clock ahead of a merge; the composer
-# runs without it, so shipping it is this line's decision.
+# runs without it, so shipping it is this line's decision. The Vulkan
+# library is the composer's own GPU path: with it present the composer
+# draws the client range itself instead of handing it to SurfaceFlinger.
+# Kept by the owner's decision after an interleaved A/B of three runs each
+# (3x Settings<->HOME): missed vsyncs 75 with it against 70 without, within
+# noise, but three-vsync stalls 8 against 18.
 PRODUCT_PACKAGES += \
     hwcomposer.tegra \
-    hwcgovernor.tegra
+    hwcgovernor.tegra \
+    hwcvk.tegra
 
 # The loader configuration for the software codec APEX.
 #
