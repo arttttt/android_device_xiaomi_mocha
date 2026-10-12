@@ -1,0 +1,238 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Subject: [PATCH] surfaceflinger: a layer reaches its parent without a promote
+
+The properties a layer takes from its parents -- alpha, layer stack,
+hidden by policy, rounded corners, colour transform, secure, trusted
+overlay, blur radius, window type -- each walk up to the root, and are
+asked for many times a frame. Every step promoted mDrawingParent: four
+atomic operations on the reference counts. On the app-close animation
+RefBase took about a fifth of the main thread (simpleperf, decStrong
+9.3%, decWeak 8.7%, attemptIncStrong 2.9%, incStrong 1.2%).
+
+A layer now keeps its drawing parent as a plain pointer for as long as
+that parent keeps the layer among its drawing children. The parent sets
+it when it takes its drawing children, and clears it before it lets go
+of them -- in commitChildList, when a clone rebuilds its children, and
+in its destructor -- so the pointer never outlives the parent. Wherever
+that is not known (a screenshot handing children to a parent that does
+not keep them, a layer committed offscreen under a new parent) the
+pointer is null and the parent is promoted as before, so every property
+comes out exactly as it did.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/services/surfaceflinger/BufferLayer.cpp b/services/surfaceflinger/BufferLayer.cpp
+index 8c97f12..3a4033f 100644
+--- a/services/surfaceflinger/BufferLayer.cpp
++++ b/services/surfaceflinger/BufferLayer.cpp
+@@ -252,7 +252,8 @@ std::optional<compositionengine::LayerFE::LayerSettings> BufferLayer::prepareCli
+          * of a camera where the buffer remains in native orientation,
+          * we want the pixels to always be upright.
+          */
+-        sp<Layer> p = mDrawingParent.promote();
++        sp<Layer> keep;
++        const Layer* p = drawingParent(keep);
+         if (p != nullptr) {
+             const auto parentTransform = p->getTransform();
+             tr = tr * inverseOrientation(parentTransform.getOrientation());
+diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
+index 45f0dad..35e7631 100644
+--- a/services/surfaceflinger/Layer.cpp
++++ b/services/surfaceflinger/Layer.cpp
+@@ -169,6 +169,8 @@ void Layer::onFirstRef() {
+ }
+ 
+ Layer::~Layer() {
++    releaseDrawingChildren();
++
+     sp<Client> c(mClientRef.promote());
+     if (c != 0) {
+         c->detachLayer(this);
+@@ -431,8 +433,9 @@ void Layer::prepareGeometryCompositionState() {
+ 
+     int type = drawingState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+     int appId = drawingState.metadata.getInt32(METADATA_OWNER_UID, 0);
+-    sp<Layer> parent = mDrawingParent.promote();
+-    if (parent.get()) {
++    sp<Layer> keep;
++    const Layer* parent = drawingParent(keep);
++    if (parent) {
+         auto& parentState = parent->getDrawingState();
+         const int parentType = parentState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+         const int parentAppId = parentState.metadata.getInt32(METADATA_OWNER_UID, 0);
+@@ -801,7 +804,8 @@ bool Layer::isSecure() const {
+         return true;
+     }
+ 
+-    const auto p = mDrawingParent.promote();
++    sp<Layer> keep;
++    const Layer* p = drawingParent(keep);
+     return (p != nullptr) ? p->isSecure() : false;
+ }
+ 
+@@ -992,7 +996,8 @@ bool Layer::isTrustedOverlay() const {
+     if (getDrawingState().isTrustedOverlay) {
+         return true;
+     }
+-    const auto& p = mDrawingParent.promote();
++    sp<Layer> keep;
++    const Layer* p = drawingParent(keep);
+     return (p != nullptr) && p->isTrustedOverlay();
+ }
+ 
+@@ -1193,7 +1198,8 @@ bool Layer::isLayerFocusedBasedOnPriority(int32_t priority) {
+ };
+ 
+ uint32_t Layer::getLayerStack() const {
+-    auto p = mDrawingParent.promote();
++    sp<Layer> keep;
++    const Layer* p = drawingParent(keep);
+     if (p == nullptr) {
+         return getDrawingState().layerStack;
+     }
+@@ -1457,7 +1463,8 @@ Layer::FrameRate Layer::getFrameRateForLayerTree() const {
+ 
+ bool Layer::isHiddenByPolicy() const {
+     const State& s(mDrawingState);
+-    const auto& parent = mDrawingParent.promote();
++    sp<Layer> keep;
++    const Layer* parent = drawingParent(keep);
+     if (parent != nullptr && parent->isHiddenByPolicy()) {
+         return true;
+     }
+@@ -1737,6 +1744,8 @@ ssize_t Layer::removeChild(const sp<Layer>& layer) {
+ void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
+     for (const sp<Layer>& child : mDrawingChildren) {
+         child->mDrawingParent = newParent;
++        // A screenshot hands the children to a parent that does not keep them.
++        child->mDrawingParentHolding = newParent == this ? this : nullptr;
+         child->computeBounds(newParent->mBounds, newParent->mEffectiveTransform,
+                              newParent->mEffectiveShadowRadius);
+     }
+@@ -1791,7 +1800,8 @@ bool Layer::setColorTransform(const mat4& matrix) {
+ 
+ mat4 Layer::getColorTransform() const {
+     mat4 colorTransform = mat4(getDrawingState().colorTransform);
+-    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
++    sp<Layer> keep;
++    if (const Layer* parent = drawingParent(keep); parent != nullptr) {
+         colorTransform = parent->getColorTransform() * colorTransform;
+     }
+     return colorTransform;
+@@ -1799,7 +1809,8 @@ mat4 Layer::getColorTransform() const {
+ 
+ bool Layer::hasColorTransform() const {
+     bool hasColorTransform = getDrawingState().hasColorTransform;
+-    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
++    sp<Layer> keep;
++    if (const Layer* parent = drawingParent(keep); parent != nullptr) {
+         hasColorTransform = hasColorTransform || parent->hasColorTransform();
+     }
+     return hasColorTransform;
+@@ -2017,7 +2028,8 @@ ui::Transform Layer::getTransform() const {
+ }
+ 
+ half Layer::getAlpha() const {
+-    const auto& p = mDrawingParent.promote();
++    sp<Layer> keep;
++    const Layer* p = drawingParent(keep);
+ 
+     half parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0_hf;
+     return parentAlpha * getDrawingState().color.a;
+@@ -2039,7 +2051,8 @@ half4 Layer::getColor() const {
+ }
+ 
+ int32_t Layer::getBackgroundBlurRadius() const {
+-    const auto& p = mDrawingParent.promote();
++    sp<Layer> keep;
++    const Layer* p = drawingParent(keep);
+ 
+     half parentAlpha = (p != nullptr) ? p->getAlpha() : 1.0_hf;
+     return parentAlpha * getDrawingState().backgroundBlurRadius;
+@@ -2057,7 +2070,8 @@ const std::vector<BlurRegion> Layer::getBlurRegions() const {
+ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
+     // Get parent settings
+     RoundedCornerState parentSettings;
+-    const auto& parent = mDrawingParent.promote();
++    sp<Layer> keep;
++    const Layer* parent = drawingParent(keep);
+     if (parent != nullptr) {
+         parentSettings = parent->getRoundedCornerState();
+         if (parentSettings.radius > 0) {
+@@ -2150,8 +2164,13 @@ void Layer::commitChildList() {
+         const auto& child = mCurrentChildren[i];
+         child->commitChildList();
+     }
++    releaseDrawingChildren();
+     mDrawingChildren = mCurrentChildren;
++    holdDrawingChildren();
+     mDrawingParent = mCurrentParent;
++    if (mDrawingParentHolding != mDrawingParent.unsafe_get()) {
++        mDrawingParentHolding = nullptr;
++    }
+     if (CC_UNLIKELY(usingRelativeZ(LayerVector::StateSet::Drawing))) {
+         auto zOrderRelativeOf = mDrawingState.zOrderRelativeOf.promote();
+         if (zOrderRelativeOf == nullptr) return;
+@@ -2693,6 +2712,7 @@ void Layer::updateClonedDrawingState(std::map<sp<Layer>, sp<Layer>>& clonedLayer
+ 
+ void Layer::updateClonedChildren(const sp<Layer>& mirrorRoot,
+                                  std::map<sp<Layer>, sp<Layer>>& clonedLayersMap) {
++    releaseDrawingChildren();
+     mDrawingChildren.clear();
+ 
+     if (!isClonedFromAlive()) {
+@@ -2770,6 +2790,23 @@ void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLa
+ void Layer::addChildToDrawing(const sp<Layer>& layer) {
+     mDrawingChildren.add(layer);
+     layer->mDrawingParent = this;
++    layer->mDrawingParentHolding = this;
++}
++
++void Layer::holdDrawingChildren() {
++    for (const sp<Layer>& child : mDrawingChildren) {
++        if (child->mDrawingParent.unsafe_get() == this) {
++            child->mDrawingParentHolding = this;
++        }
++    }
++}
++
++void Layer::releaseDrawingChildren() {
++    for (const sp<Layer>& child : mDrawingChildren) {
++        if (child->mDrawingParentHolding == this) {
++            child->mDrawingParentHolding = nullptr;
++        }
++    }
+ }
+ 
+ Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t compatibility) {
+diff --git a/services/surfaceflinger/Layer.h b/services/surfaceflinger/Layer.h
+index b9e5c0b..8fee2d1 100644
+--- a/services/surfaceflinger/Layer.h
++++ b/services/surfaceflinger/Layer.h
+@@ -1026,6 +1026,26 @@ protected:
+     wp<Layer> mCurrentParent;
+     wp<Layer> mDrawingParent;
+ 
++    // mDrawingParent as a plain pointer, while that parent keeps this layer
++    // among its drawing children: it clears this before it lets go of the
++    // layer or dies. Null whenever that is not known, and then the parent is
++    // promoted from mDrawingParent as before. The properties a layer takes
++    // from its parents are asked for many times a frame, each walking up to
++    // the root, and a promote on every step was a fifth of the main thread.
++    Layer* mDrawingParentHolding{nullptr};
++
++    // The drawing parent, read through mDrawingParentHolding when it is set;
++    // promoted into `keep` otherwise.
++    Layer* drawingParent(sp<Layer>& keep) const {
++        if (mDrawingParentHolding != nullptr) return mDrawingParentHolding;
++        keep = mDrawingParent.promote();
++        return keep.get();
++    }
++    // This layer, as the drawing parent of its drawing children that name it.
++    void holdDrawingChildren();
++    // No longer known as the drawing parent of its drawing children.
++    void releaseDrawingChildren();
++
+     // Window types from WindowManager.LayoutParams
+     const gui::WindowInfo::Type mWindowType;
+ 
