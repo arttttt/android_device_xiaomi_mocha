@@ -1,0 +1,23 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Subject: [PATCH] composer 2.4 service runs on every core
+
+The service put itself in system-background, which on mocha is cpus 0-1,
+together with SurfaceFlinger's main thread and most of the system. The
+composer is on the drawing's critical path: SurfaceFlinger waits on its
+validate and present every frame, and its own threads -- the binder
+thread, the GPU executor's, the governor's -- share those two cores with
+each other. Foreground is every core.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/graphics/composer/2.4/default/android.hardware.graphics.composer@2.4-service.rc b/graphics/composer/2.4/default/android.hardware.graphics.composer@2.4-service.rc
+--- a/graphics/composer/2.4/default/android.hardware.graphics.composer@2.4-service.rc
++++ b/graphics/composer/2.4/default/android.hardware.graphics.composer@2.4-service.rc
+@@ -4,4 +4,4 @@ service vendor.hwcomposer-2-4 /vendor/bin/hw/android.hardware.graphics.composer@
+     group graphics drmrpc
+     capabilities SYS_NICE
+     onrestart restart surfaceflinger
+-    writepid /dev/cpuset/system-background/tasks
++    writepid /dev/cpuset/foreground/tasks
+-- 
+2.43.0
