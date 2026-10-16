@@ -1,0 +1,105 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 17 Oct 2026 00:44:46 +0300
+Subject: [PATCH] WindowManager Jetpack: a placeholder waits for its primary to
+ resume
+
+When the launcher brings a split task to the front, the server clears
+the placeholder's TaskFragment. Its container is cleaned up and the
+primary's, now on top, is updated at once, which launches a new
+placeholder. That callback and the primary's own NewIntent+Resume both
+land on the main thread, in whichever order they arrived. When the
+callback wins, the placeholder is created, resumed and drawn before the
+primary resumes: Settings opens with its right pane alone and the
+launcher showing through the left for a few hundred milliseconds
+(216 ms on mocha, 1 launch in 24).
+
+A container made top by a cleanup is now updated once its top activity
+has resumed, from onActivityPostResumed, and at once if it already has.
+Android 13 and 14 launch the placeholder the same way and do not wait
+either.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../extensions/embedding/SplitController.java | 38 +++++++++++++++++++
+ .../extensions/embedding/SplitPresenter.java  |  2 +-
+ 2 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitController.java b/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitController.java
+index fc95592..272cc4c 100644
+--- a/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitController.java
++++ b/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitController.java
+@@ -68,6 +68,10 @@ public class SplitController implements JetpackTaskFragmentOrganizer.TaskFragmen
+     // We currently only support split activity embedding within the one root Task.
+     private final Rect mParentBounds = new Rect();
+ 
++    // A container whose update waits for its top activity to resume.
++    @Nullable
++    private TaskFragmentContainer mContainerAwaitingResume;
++
+     public SplitController() {
+         mPresenter = new SplitPresenter(new MainThreadExecutor(), this);
+         ActivityThread activityThread = ActivityThread.currentActivityThread();
+@@ -450,6 +454,35 @@ public class SplitController implements JetpackTaskFragmentOrganizer.TaskFragmen
+         mPresenter.updateSplitContainer(splitContainer, container, wct);
+     }
+ 
++    /**
++     * Updates the container the way {@link #updateContainer} does, but not before its top
++     * activity has resumed. Cleaning up a container makes the one below it top, and updating
++     * that one can launch its placeholder: when the launcher brings the task to the front, the
++     * placeholder's container is cleared and the primary is updated while its own resume is
++     * still on its way. Launched then, the placeholder is created, resumed and drawn before the
++     * primary resumes, and the split shows its secondary half alone for a few frames.
++     */
++    void updateContainerOnceResumed(@NonNull WindowContainerTransaction wct,
++            @NonNull TaskFragmentContainer container) {
++        final Activity topActivity = container.getTopNonFinishingActivity();
++        if (topActivity != null && !topActivity.isResumed()) {
++            mContainerAwaitingResume = container;
++            return;
++        }
++        updateContainer(wct, container);
++    }
++
++    private void onActivityResumed(@NonNull Activity activity) {
++        final TaskFragmentContainer container = mContainerAwaitingResume;
++        if (container == null || container.isFinished()
++                || container.getTopNonFinishingActivity() != activity) {
++            return;
++        }
++        mContainerAwaitingResume = null;
++        mPresenter.updateContainer(container);
++        updateCallbackIfNecessary();
++    }
++
+     /**
+      * Returns the top active split container that has the provided container, if available.
+      */
+@@ -771,6 +804,11 @@ public class SplitController implements JetpackTaskFragmentOrganizer.TaskFragmen
+             SplitController.this.onActivityCreated(activity);
+         }
+ 
++        @Override
++        public void onActivityPostResumed(Activity activity) {
++            SplitController.this.onActivityResumed(activity);
++        }
++
+         @Override
+         public void onActivityConfigurationChanged(Activity activity) {
+             SplitController.this.onActivityConfigurationChanged(activity);
+diff --git a/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitPresenter.java b/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitPresenter.java
+index ade5731..44ee22e 100644
+--- a/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitPresenter.java
++++ b/libs/WindowManager/Jetpack/src/androidx/window/extensions/embedding/SplitPresenter.java
+@@ -82,7 +82,7 @@ class SplitPresenter extends JetpackTaskFragmentOrganizer {
+ 
+         final TaskFragmentContainer newTopContainer = mController.getTopActiveContainer();
+         if (newTopContainer != null) {
+-            mController.updateContainer(wct, newTopContainer);
++            mController.updateContainerOnceResumed(wct, newTopContainer);
+         }
+ 
+         applyTransaction(wct);
+-- 
+2.56.0
+
