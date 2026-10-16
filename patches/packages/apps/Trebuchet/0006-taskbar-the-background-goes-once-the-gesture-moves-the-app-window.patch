@@ -1,0 +1,101 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 17 Oct 2026 02:09:59 +0300
+Subject: [PATCH] taskbar: the background goes once the gesture moves the app
+ window
+
+A gesture to overview hid the taskbar's background the moment the
+launcher's half of the animation started. The app window gets its
+first transform a frame or more later, and until then it is still full
+size: what the app draws under the taskbar showed through it. On mocha
+Settings' "Location" row showed for ~3 frames on every entry to
+overview -- 25 ms between the background going and the window's first
+move, measured.
+
+The background is now hidden from the swipe handler, once it has
+applied the gesture's first transform to the app window.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../taskbar/LauncherTaskbarUIController.java    | 17 ++++++++++++++++-
+ .../launcher3/taskbar/TaskbarUIController.java  |  7 +++++++
+ .../android/quickstep/AbsSwipeUpHandler.java    |  7 +++++++
+ 3 files changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java b/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java
+index 5e8db69..e1d1819 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java
++++ b/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java
+@@ -61,6 +61,7 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
+ 
+     // Initialized in init.
+     private AnimatedFloat mTaskbarOverrideBackgroundAlpha;
++    private boolean mHideBackgroundOnWindowMove;
+     private TaskbarKeyguardController mKeyguardController;
+     private final TaskbarLauncherStateController
+             mTaskbarLauncherStateController = new TaskbarLauncherStateController();
+@@ -244,6 +245,20 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
+         super.setSystemGestureInProgress(inProgress);
+         // Launcher's ScrimView will draw the background throughout the gesture. But once the
+         // gesture ends, start drawing taskbar's background again since launcher might stop drawing.
+-        forceHideBackground(inProgress);
++        // The background goes only once the gesture has moved the app window: until then the
++        // window is still full size, and what the app draws under the taskbar would show
++        // through it -- for several frames when the gesture's first frame is slow to come.
++        mHideBackgroundOnWindowMove = inProgress;
++        if (!inProgress) {
++            forceHideBackground(false);
++        }
++    }
++
++    @Override
++    public void onSystemGestureWindowMoved() {
++        if (mHideBackgroundOnWindowMove) {
++            mHideBackgroundOnWindowMove = false;
++            forceHideBackground(true);
++        }
+     }
+ }
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarUIController.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarUIController.java
+index abad906..6329c07 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarUIController.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarUIController.java
+@@ -67,4 +67,11 @@ public class TaskbarUIController {
+     public void setSystemGestureInProgress(boolean inProgress) {
+         mControllers.taskbarStashController.setSystemGestureInProgress(inProgress);
+     }
++
++    /**
++     * Called each time a system gesture has moved the app window, after its transform is
++     * applied.
++     */
++    public void onSystemGestureWindowMoved() {
++    }
+ }
+diff --git a/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java b/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java
+index 8367731..3dff23f 100644
+--- a/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java
++++ b/quickstep/src/com/android/quickstep/AbsSwipeUpHandler.java
+@@ -89,6 +89,7 @@ import com.android.launcher3.logging.StatsLogManager;
+ import com.android.launcher3.logging.StatsLogManager.StatsLogger;
+ import com.android.launcher3.statemanager.BaseState;
+ import com.android.launcher3.statemanager.StatefulActivity;
++import com.android.launcher3.taskbar.TaskbarUIController;
+ import com.android.launcher3.tracing.InputConsumerProto;
+ import com.android.launcher3.tracing.SwipeHandlerProto;
+ import com.android.launcher3.util.ActivityLifecycleCallbacksAdapter;
+@@ -2006,6 +2007,12 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
+                 taskViewSimulator.apply(remoteHandle.getTransformParams());
+             }
+         }
++        if (notSwipingPipToHome && mCurrentShift.value > 0) {
++            TaskbarUIController taskbarUIController = mActivityInterface.getTaskbarController();
++            if (taskbarUIController != null) {
++                taskbarUIController.onSystemGestureWindowMoved();
++            }
++        }
+         ProtoTracer.INSTANCE.get(mContext).scheduleFrameUpdate();
+     }
+ 
+-- 
+2.56.0
+
