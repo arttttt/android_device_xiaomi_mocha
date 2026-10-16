@@ -1,0 +1,139 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 17 Oct 2026 02:19:25 +0300
+Subject: [PATCH] taskbar: the background waits for the closing app window to
+ move
+
+Going home from an app, the launcher resumes first and the taskbar's
+background starts fading at once. The app's closing window starts
+moving 80-120 ms later; until then it is still full size, and what the
+app draws under the taskbar showed through the fading background. On
+mocha Settings' "Location" row showed for 2-4 frames on every return
+home -- resume at 0, fade from 38 ms, the window's first move at 119
+ms, measured.
+
+On resume the fade is now held until the closing window first moves,
+or for as long as the fade would have taken when no window closes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../launcher3/QuickstepTransitionManager.java |  7 ++++
+ .../taskbar/LauncherTaskbarUIController.java  |  5 +++
+ .../TaskbarLauncherStateController.java       | 40 ++++++++++++++++++-
+ 3 files changed, 50 insertions(+), 2 deletions(-)
+
+diff --git a/quickstep/src/com/android/launcher3/QuickstepTransitionManager.java b/quickstep/src/com/android/launcher3/QuickstepTransitionManager.java
+index 3b493bb..f59ec2a 100644
+--- a/quickstep/src/com/android/launcher3/QuickstepTransitionManager.java
++++ b/quickstep/src/com/android/launcher3/QuickstepTransitionManager.java
+@@ -1825,6 +1825,13 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
+ 
+         @Override
+         public void onUpdate(RectF currentRectF, float progress) {
++            if (progress > 0) {
++                LauncherTaskbarUIController taskbarUIController =
++                        mLauncher.getTaskbarUIController();
++                if (taskbarUIController != null) {
++                    taskbarUIController.onClosingAppWindowMoved();
++                }
++            }
+             SurfaceParams[] params = new SurfaceParams[mAppTargets.length];
+             for (int i = mAppTargets.length - 1; i >= 0; i--) {
+                 RemoteAnimationTargetCompat target = mAppTargets[i];
+diff --git a/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java b/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java
+index e1d1819..6a53f7d 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java
++++ b/quickstep/src/com/android/launcher3/taskbar/LauncherTaskbarUIController.java
+@@ -196,6 +196,11 @@ public class LauncherTaskbarUIController extends TaskbarUIController {
+         }
+     }
+ 
++    /** The app window closing over the launcher has started to move. */
++    public void onClosingAppWindowMoved() {
++        mTaskbarLauncherStateController.onClosingAppWindowMoved();
++    }
++
+     /**
+      * Sets whether the background behind the taskbar/nav bar should be hidden.
+      */
+diff --git a/quickstep/src/com/android/launcher3/taskbar/TaskbarLauncherStateController.java b/quickstep/src/com/android/launcher3/taskbar/TaskbarLauncherStateController.java
+index be5ab55..def1439 100644
+--- a/quickstep/src/com/android/launcher3/taskbar/TaskbarLauncherStateController.java
++++ b/quickstep/src/com/android/launcher3/taskbar/TaskbarLauncherStateController.java
+@@ -19,6 +19,7 @@ import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_APP;
+ import static com.android.launcher3.taskbar.TaskbarStashController.FLAG_IN_STASHED_LAUNCHER_STATE;
+ import static com.android.launcher3.taskbar.TaskbarStashController.TASKBAR_STASH_DURATION;
+ import static com.android.launcher3.taskbar.TaskbarViewController.ALPHA_INDEX_HOME;
++import static com.android.launcher3.util.Executors.MAIN_EXECUTOR;
+ 
+ import android.animation.Animator;
+ import android.animation.AnimatorListenerAdapter;
+@@ -73,6 +74,10 @@ import java.util.function.Supplier;
+     private boolean mIsAnimatingToLauncherViaGesture;
+     private boolean mIsAnimatingToLauncherViaResume;
+ 
++    // The background's fade out on resume, held until the closing app window moves.
++    private Animator mHeldBackgroundFade;
++    private final Runnable mReleaseBackgroundFade = this::releaseHeldBackgroundFade;
++
+     private final StateManager.StateListener<LauncherState> mStateListener =
+             new StateManager.StateListener<LauncherState>() {
+ 
+@@ -119,6 +124,7 @@ import java.util.function.Supplier;
+     }
+ 
+     public void onDestroy() {
++        dropHeldBackgroundFade();
+         mIconAlignmentForResumedState.finishAnimation();
+         mIconAlignmentForGestureState.finishAnimation();
+         mIconAlignmentForLauncherState.finishAnimation();
+@@ -288,8 +294,20 @@ import java.util.function.Supplier;
+ 
+         if (hasAnyFlag(changedFlags, FLAG_RESUMED | FLAG_RECENTS_ANIMATION_RUNNING)) {
+             boolean goingToLauncher = hasAnyFlag(FLAG_RESUMED | FLAG_RECENTS_ANIMATION_RUNNING);
+-            animatorSet.play(mTaskbarBackgroundAlpha.animateToValue(goingToLauncher ? 0 : 1)
+-                    .setDuration(duration));
++            dropHeldBackgroundFade();
++            Animator backgroundFade = mTaskbarBackgroundAlpha
++                    .animateToValue(goingToLauncher ? 0 : 1)
++                    .setDuration(duration);
++            if (goingToLauncher && start && duration > 0 && !isRecentsAnimationRunning()) {
++                // Resumed under a closing app: the app window is still full size, and what it
++                // draws under the taskbar would show through a fading background. Hold the
++                // fade until the window first moves; resumed with no window closing, it goes
++                // after the time it would have taken anyway.
++                mHeldBackgroundFade = backgroundFade;
++                MAIN_EXECUTOR.getHandler().postDelayed(mReleaseBackgroundFade, duration);
++            } else {
++                animatorSet.play(backgroundFade);
++            }
+         }
+ 
+         if (start) {
+@@ -298,6 +316,24 @@ import java.util.function.Supplier;
+         return animatorSet;
+     }
+ 
++    /** The app window closing over the launcher has started to move. */
++    public void onClosingAppWindowMoved() {
++        releaseHeldBackgroundFade();
++    }
++
++    private void releaseHeldBackgroundFade() {
++        Animator fade = mHeldBackgroundFade;
++        dropHeldBackgroundFade();
++        if (fade != null) {
++            fade.start();
++        }
++    }
++
++    private void dropHeldBackgroundFade() {
++        MAIN_EXECUTOR.getHandler().removeCallbacks(mReleaseBackgroundFade);
++        mHeldBackgroundFade = null;
++    }
++
+     /** Returns whether we're going to a state where taskbar icons should align with launcher. */
+     private boolean goingToUnstashedLauncherState() {
+         return !mControllers.taskbarStashController.isInStashedLauncherState();
+-- 
+2.56.0
+
