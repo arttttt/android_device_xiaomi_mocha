@@ -1,0 +1,62 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Subject: [PATCH] surfaceflinger: back-pressure can be switched off again
+
+Android 11 and earlier read debug.sf.disable_backpressure. Android 12
+removed the switch: a frame whose previous present fence has not fired
+within the 1 ms grace is always skipped when that frame was composed by
+the device. Only client composition still has a switch of its own.
+
+On mocha the composer draws part of the frame on the GPU itself (the
+Vulkan executor). SurfaceFlinger counts that as device composition, so
+when the composer's drawing finishes after vblank the flip slips one
+refresh, the present fence is late, and SurfaceFlinger then drops its
+own next frame as well. One late drawing costs two frames. In the
+recents trace v41 that happened 71 times.
+
+The switch is back, read once at start as before. It defaults to off,
+which leaves the Android 12 behaviour unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index f2d8eb2..4179462 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -473,6 +473,15 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
+     ALOGI_IF(mPropagateBackpressureClientComposition,
+              "Enabling backpressure propagation for Client Composition");
+ 
++    // Android 11 and earlier let a device turn back-pressure off; 12 dropped
++    // the switch and kept only the client-composition one. Brought back for
++    // a device whose composer draws part of the frame itself: there a late
++    // present fence means the composer's own drawing ran long, and skipping
++    // the next frame on top of it makes one late frame cost two.
++    property_get("debug.sf.disable_backpressure", value, "0");
++    mPropagateBackpressure = !atoi(value);
++    ALOGI_IF(!mPropagateBackpressure, "Disabling backpressure propagation");
++
+     property_get("ro.surface_flinger.supports_background_blur", value, "0");
+     bool supportsBlurs = atoi(value);
+     mSupportsBlur = supportsBlurs;
+@@ -1971,7 +1980,8 @@ void SurfaceFlinger::onMessageInvalidate(int64_t vsyncId, nsecs_t expectedVSyncT
+     }
+ 
+     if (framePending) {
+-        if ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition) {
++        if (mPropagateBackpressure &&
++            ((hwcFrameMissed && !gpuFrameMissed) || mPropagateBackpressureClientComposition)) {
+             signalLayerUpdate();
+             return;
+         }
+diff --git a/services/surfaceflinger/SurfaceFlinger.h b/services/surfaceflinger/SurfaceFlinger.h
+index a72dffe..5284564 100644
+--- a/services/surfaceflinger/SurfaceFlinger.h
++++ b/services/surfaceflinger/SurfaceFlinger.h
+@@ -1327,6 +1327,7 @@ private:
+     bool mLayerCachingEnabled = false;
+     volatile nsecs_t mDebugInTransaction = 0;
+     bool mForceFullDamage = false;
++    bool mPropagateBackpressure = true;
+     bool mPropagateBackpressureClientComposition = false;
+     sp<SurfaceInterceptor> mInterceptor;
+ 
