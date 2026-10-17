@@ -1,0 +1,198 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 17 Oct 2026 03:08:03 +0300
+Subject: [PATCH] surfaceflinger: the composer is told how to draw a turned
+ layer
+
+A layer turned by an angle HWC2 has no transform for -- every window in
+the screen rotation animation -- is forced to client composition and
+handed to the composer as its bounds: transform ROT_INVALID, the
+display frame the box around it, and a source crop cut to what of that
+box lies on the display, which drops whole ends of the layer still on
+the screen. A composer that draws the client's layers itself has
+nothing to turn it by, and draws the layer stretched into the box.
+
+The crop of the buffer the whole layer shows, and the display's pixels
+of that crop's top-left, top-right and bottom-left corners, now go with
+the geometry under the generic metadata key org.lineageos.mocha.turned,
+ten floats, all zero for a layer that is not so turned. They are found
+with calculateOutputSourceCrop's own mapping of the layer's bounds into
+the buffer, run backwards to the display through the layer's and the
+display's transforms. A composer that refuses the key is not sent it
+again.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../CompositionEngine/src/OutputLayer.cpp     | 142 ++++++++++++++++++
+ 1 file changed, 142 insertions(+)
+
+diff --git a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+index 7d7c937..17370c2 100644
+--- a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+@@ -25,7 +25,11 @@
+ #include <compositionengine/impl/OutputCompositionState.h>
+ #include <compositionengine/impl/OutputLayer.h>
+ #include <compositionengine/impl/OutputLayerCompositionState.h>
++#include <algorithm>
++#include <array>
+ #include <cstdint>
++#include <cstring>
++#include <optional>
+ 
+ // TODO(b/129481165): remove the #pragma below and fix conversion issues
+ #pragma clang diagnostic push
+@@ -52,6 +56,123 @@ FloatRect reduce(const FloatRect& win, const Region& exclude) {
+     return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
+ }
+ 
++// The key a composer declares to be told how to draw a layer turned by an
++// angle HWC2 cannot name: ten little-endian floats -- the crop of the buffer
++// the whole layer shows, left, top, right, bottom, and the display's pixels
++// where that crop's top-left, top-right and bottom-left corners land, the
++// bottom-right following, the mapping being affine. The crop is the layer's
++// own, not the source crop: that one is cut to what of the layer's bounds
++// lies on the display, which for a turned layer is a box that drops whole
++// ends of it still on the screen. All zero for a layer that is not turned
++// so; sent with the geometry, which is where it changes, since generic
++// metadata has no way to unset a key.
++constexpr const char* kTurnedKey = "org.lineageos.mocha.turned";
++
++// Cleared once the composer turns the key down; SurfaceFlinger's main thread
++// alone writes layer state, so a plain flag does.
++bool gTurnedKeySupported = true;
++
++// Where the buffer's point `b` lands on the display: the way
++// calculateOutputSourceCrop takes a layer-space point into the buffer, run
++// backwards, then the layer's and the display's transforms.
++vec2 bufferPointToDisplay(const LayerFECompositionState& layerState,
++                          const ui::Transform& layerToDisplay, uint32_t invTransform,
++                          float winWidth, float winHeight, vec2 b) {
++    const FloatRect crop = layerState.geomContentCrop.toFloatRect();
++    const float w = layerState.geomBufferSize.getWidth();
++    const float h = layerState.geomBufferSize.getHeight();
++    // Into the window's space, unscaled from the content crop.
++    const float wx = (b.x - crop.left) * winWidth / crop.getWidth();
++    const float wy = (b.y - crop.top) * winHeight / crop.getHeight();
++    // Rect::transform's flips then quarter turn, undone.
++    float x = wx;
++    float y = wy;
++    if (invTransform & HAL_TRANSFORM_ROT_90) {
++        x = wy;
++        y = h - wx;
++    }
++    if (invTransform & HAL_TRANSFORM_FLIP_H) {
++        x = w - x;
++    }
++    if (invTransform & HAL_TRANSFORM_FLIP_V) {
++        y = h - y;
++    }
++    return layerToDisplay.transform(vec2(x, y));
++}
++
++// Where the layer's point `p` lies in the buffer: calculateOutputSourceCrop's
++// own mapping, flips then quarter turn, then into the content crop.
++vec2 layerPointToBuffer(const LayerFECompositionState& layerState, uint32_t invTransform,
++                        float winWidth, float winHeight, vec2 p) {
++    const FloatRect crop = layerState.geomContentCrop.toFloatRect();
++    const float w = layerState.geomBufferSize.getWidth();
++    const float h = layerState.geomBufferSize.getHeight();
++    float x = (invTransform & HAL_TRANSFORM_FLIP_H) ? w - p.x : p.x;
++    float y = (invTransform & HAL_TRANSFORM_FLIP_V) ? h - p.y : p.y;
++    if (invTransform & HAL_TRANSFORM_ROT_90) {
++        const float turnedX = h - y;
++        y = x;
++        x = turnedX;
++    }
++    return vec2(crop.left + x * crop.getWidth() / winWidth,
++                crop.top + y * crop.getHeight() / winHeight);
++}
++
++// The layer's crop and corners for kTurnedKey, or nothing when it cannot be
++// told: a buffer inverse to the display, an unbounded or empty window.
++std::optional<std::array<float, 10>> turnedLayer(const LayerFECompositionState& layerState,
++                                                 const ui::Transform& displayTransform) {
++    if (layerState.geomBufferUsesDisplayInverseTransform || !layerState.geomUsesSourceCrop) {
++        return std::nullopt;
++    }
++    float winWidth = layerState.geomBufferSize.getWidth();
++    float winHeight = layerState.geomBufferSize.getHeight();
++    if (winWidth <= 0 || winHeight <= 0 || layerState.geomContentCrop.isEmpty()) {
++        return std::nullopt;
++    }
++    // The same orientation calculateOutputSourceCrop takes the crop by.
++    uint32_t invTransform = layerState.geomBufferTransform;
++    if (invTransform & HAL_TRANSFORM_ROT_90) {
++        const bool isHFlipped = (invTransform & HAL_TRANSFORM_FLIP_H) != 0;
++        const bool isVFlipped = (invTransform & HAL_TRANSFORM_FLIP_V) != 0;
++        if (isHFlipped == isVFlipped) {
++            invTransform ^= HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_FLIP_H;
++        }
++        std::swap(winWidth, winHeight);
++    }
++    // The buffer's crop under the whole of the layer's bounds -- not cut
++    // to the display -- and within the content.
++    const FloatRect& bounds = layerState.geomLayerBounds;
++    if (bounds.isEmpty()) {
++        return std::nullopt;
++    }
++    const FloatRect content = layerState.geomContentCrop.toFloatRect();
++    FloatRect crop{content.right, content.bottom, content.left, content.top};
++    for (const vec2 corner : {vec2(bounds.left, bounds.top), vec2(bounds.right, bounds.top),
++                              vec2(bounds.left, bounds.bottom),
++                              vec2(bounds.right, bounds.bottom)}) {
++        const vec2 b = layerPointToBuffer(layerState, invTransform, winWidth, winHeight, corner);
++        crop.left = std::min(crop.left, b.x);
++        crop.top = std::min(crop.top, b.y);
++        crop.right = std::max(crop.right, b.x);
++        crop.bottom = std::max(crop.bottom, b.y);
++    }
++    crop = crop.intersect(content);
++    if (crop.isEmpty()) {
++        return std::nullopt;
++    }
++
++    const ui::Transform layerToDisplay = displayTransform * layerState.geomLayerTransform;
++    const vec2 tl = bufferPointToDisplay(layerState, layerToDisplay, invTransform, winWidth,
++                                         winHeight, {crop.left, crop.top});
++    const vec2 tr = bufferPointToDisplay(layerState, layerToDisplay, invTransform, winWidth,
++                                         winHeight, {crop.right, crop.top});
++    const vec2 bl = bufferPointToDisplay(layerState, layerToDisplay, invTransform, winWidth,
++                                         winHeight, {crop.left, crop.bottom});
++    return std::array<float, 10>{crop.left, crop.top, crop.right, crop.bottom,
++                                 tl.x, tl.y, tr.x, tr.y, bl.x, bl.y};
++}
++
+ } // namespace
+ 
+ std::unique_ptr<OutputLayer> createOutputLayer(const compositionengine::Output& output,
+@@ -407,6 +528,27 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
+               sourceCrop.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
+     }
+ 
++    // Turned by an angle HWC2 has no transform for, the layer is the
++    // client's to draw, and a composer drawing the client's layers itself
++    // needs to know where its corners land; the display frame is only their
++    // bounds. Sent to a composer that declared the key: one that did not
++    // refuses it, and is not told again.
++    if (gTurnedKeySupported) {
++        std::array<float, 10> turned{};
++        if (outputDependentState.overrideInfo.buffer == nullptr &&
++            (outputDependentState.bufferTransform & ui::Transform::ROT_INVALID)) {
++            if (const auto layer = turnedLayer(*getLayerFE().getCompositionState(),
++                                               ui::Transform(getOutput().getState().transform))) {
++                turned = *layer;
++            }
++        }
++        std::vector<uint8_t> blob(sizeof(turned));
++        memcpy(blob.data(), turned.data(), blob.size());
++        if (hwcLayer->setLayerGenericMetadata(kTurnedKey, false, blob) != hal::Error::NONE) {
++            gTurnedKeySupported = false;
++        }
++    }
++
+ 
+     uint32_t z_udfps = z;
+     if ((strcmp(getLayerFE().getDebugName(), UDFPS_LAYER_NAME) == 0)
+-- 
+2.56.0
+
