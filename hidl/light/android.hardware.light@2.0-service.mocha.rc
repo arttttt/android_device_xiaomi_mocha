@@ -1,4 +1,9 @@
 service light-hal-2-0 /vendor/bin/hw/android.hardware.light@2.0-service.mocha
+    interface android.hardware.light@2.0::ILight default
     class hal
     user system
     group system
+    # init starts blank_screen on power-off and then stops every service that
+    # is not shutdown critical; without this the lights go mid-call and
+    # blank_screen aborts on the dead binder.
+    shutdown critical
