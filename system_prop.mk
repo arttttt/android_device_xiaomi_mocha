@@ -159,3 +159,10 @@ PRODUCT_PROPERTY_OVERRIDES += \
 # were listed as usable all the same.
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     ro.boot.wificountrycode=00
+
+# Settings shows one page at a time, as on a phone. 12L's two panes on a
+# large screen launch the right one by a race with the left (patches/
+# frameworks/base/0001 eased it) and are the rough half of the tablet UI;
+# the rest of the screen stays at the tablet's density.
+PRODUCT_PROPERTY_OVERRIDES += \
+    persist.sys.fflag.override.settings_support_large_screen=false
