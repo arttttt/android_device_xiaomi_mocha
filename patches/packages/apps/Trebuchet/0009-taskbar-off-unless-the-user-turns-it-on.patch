@@ -1,0 +1,33 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 17 Oct 2026 04:17:38 +0300
+Subject: [PATCH] taskbar: off unless the user turns it on
+
+On a large screen the taskbar was on until the user turned it off. On
+mocha, which navigates with its keys, the owner wants the phone's
+layout: the taskbar now starts off, and the switch in the button
+settings still turns it on.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/com/android/launcher3/DeviceProfile.java | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/com/android/launcher3/DeviceProfile.java b/src/com/android/launcher3/DeviceProfile.java
+index e61f7f9..516225f 100644
+--- a/src/com/android/launcher3/DeviceProfile.java
++++ b/src/com/android/launcher3/DeviceProfile.java
+@@ -272,8 +272,10 @@ public class DeviceProfile {
+         }
+ 
+         hotseatQsbHeight = res.getDimensionPixelSize(R.dimen.qsb_widget_height);
++        // Off unless chosen, on mocha's tablet as on a phone: the device navigates
++        // with its keys, and the taskbar is the user's to turn on.
+         boolean isTaskBarEnabled = LineageSettings.System.getInt(context.getContentResolver(),
+-                LineageSettings.System.ENABLE_TASKBAR, isTablet ? 1 : 0) == 1;
++                LineageSettings.System.ENABLE_TASKBAR, 0) == 1;
+         isTaskbarPresent = isTaskBarEnabled && ApiWrapper.TASKBAR_DRAWN_IN_PROCESS
+                 && FeatureFlags.ENABLE_TASKBAR.get();
+         if (isTaskbarPresent) {
+-- 
+2.56.0
+
