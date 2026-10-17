@@ -1,0 +1,32 @@
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 17 Oct 2026 04:17:38 +0300
+Subject: [PATCH] overview: recents are the phone's carousel, not the grid
+
+12L lays recents out as a grid on a large screen. On mocha the grid is
+the rough half of the tablet UI the owner wants gone, while the rest of
+the launcher stays at the tablet's density. The overview grid flag now
+defaults to off; release builds read the flag's default only.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/com/android/launcher3/config/FeatureFlags.java | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/com/android/launcher3/config/FeatureFlags.java b/src/com/android/launcher3/config/FeatureFlags.java
+index 2cc845e..bbc1f1c 100644
+--- a/src/com/android/launcher3/config/FeatureFlags.java
++++ b/src/com/android/launcher3/config/FeatureFlags.java
+@@ -200,8 +200,9 @@ public final class FeatureFlags {
+             "ENABLE_TASKBAR_POPUP_MENU", false, "Enables long pressing taskbar icons to show the"
+                     + " popup menu.");
+ 
++    // Off on mocha: the phone's carousel of recents rather than the grid.
+     public static final BooleanFlag ENABLE_OVERVIEW_GRID = getDebugFlag(
+-            "ENABLE_OVERVIEW_GRID", true, "Uses grid overview layout. "
++            "ENABLE_OVERVIEW_GRID", false, "Uses grid overview layout. "
+             + "Only applicable on large screen devices.");
+ 
+     public static final BooleanFlag ENABLE_TWO_PANEL_HOME = getDebugFlag(
+-- 
+2.56.0
+
