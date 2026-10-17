@@ -1,0 +1,63 @@
+From 8bce94366a27f57e90f8e4d1acfc3fa55cf1ad5f Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sat, 17 Oct 2026 18:56:15 +0300
+Subject: [PATCH] tethering: IPv4 ether offload loads on the mocha 3.10 kernel
+
+The IPv4 ether programs are gated on the kernel version, a stand-in for
+the kernel features they need: bpf_skb_change_head() for tc programs
+and bpf_ktime_get_boot_ns(). On anything older than 4.14 bpfloader
+pins the $stub variants (TC_ACT_OK) and IPv4 tethering stays on the
+iptables path. The mocha 3.10 kernel has the clsact qdisc, those
+helpers, and direct packet access from tc programs.
+
+The $4_14 variants (TCP only, as on 4.14-Q/R) now start at 3.10 and the
+ether $stub variants end there. The $opt variants (TCP and UDP,
+last_used refresh) keep their 4.14 floor: this kernel's verifier
+predates the 4.14 value-tracking rework and rejects them, so letting
+bpfloader try would only print a verifier dump on every boot. UDP keeps
+going through iptables. rawip is left alone: mocha has no modem.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ Tethering/bpf_progs/offload.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Tethering/bpf_progs/offload.c b/Tethering/bpf_progs/offload.c
+index 336d27a..bccca96 100644
+--- a/Tethering/bpf_progs/offload.c
++++ b/Tethering/bpf_progs/offload.c
+@@ -731,13 +731,13 @@ DEFINE_OPTIONAL_BPF_PROG_KVER_RANGE("schedcls/tether_upstream4_rawip$4_14",
+ // ETHER: Required for 4.14-Q/R, 4.19-Q/R & 5.4-R kernels.
+ 
+ DEFINE_BPF_PROG_KVER_RANGE("schedcls/tether_downstream4_ether$4_14", AID_ROOT, AID_NETWORK_STACK,
+-                           sched_cls_tether_downstream4_ether_4_14, KVER(4, 14, 0), KVER(5, 8, 0))
++                           sched_cls_tether_downstream4_ether_4_14, KVER(3, 10, 0), KVER(5, 8, 0))
+ (struct __sk_buff* skb) {
+     return do_forward4(skb, /* is_ethernet */ true, /* downstream */ true, /* updatetime */ false);
+ }
+ 
+ DEFINE_BPF_PROG_KVER_RANGE("schedcls/tether_upstream4_ether$4_14", AID_ROOT, AID_NETWORK_STACK,
+-                           sched_cls_tether_upstream4_ether_4_14, KVER(4, 14, 0), KVER(5, 8, 0))
++                           sched_cls_tether_upstream4_ether_4_14, KVER(3, 10, 0), KVER(5, 8, 0))
+ (struct __sk_buff* skb) {
+     return do_forward4(skb, /* is_ethernet */ true, /* downstream */ false, /* updatetime */ false);
+ }
+@@ -761,13 +761,13 @@ DEFINE_BPF_PROG_KVER_RANGE("schedcls/tether_upstream4_rawip$stub", AID_ROOT, AID
+ // ETHER: 4.9-P/Q kernel
+ 
+ DEFINE_BPF_PROG_KVER_RANGE("schedcls/tether_downstream4_ether$stub", AID_ROOT, AID_NETWORK_STACK,
+-                           sched_cls_tether_downstream4_ether_stub, KVER_NONE, KVER(4, 14, 0))
++                           sched_cls_tether_downstream4_ether_stub, KVER_NONE, KVER(3, 10, 0))
+ (struct __sk_buff* skb) {
+     return TC_ACT_OK;
+ }
+ 
+ DEFINE_BPF_PROG_KVER_RANGE("schedcls/tether_upstream4_ether$stub", AID_ROOT, AID_NETWORK_STACK,
+-                           sched_cls_tether_upstream4_ether_stub, KVER_NONE, KVER(4, 14, 0))
++                           sched_cls_tether_upstream4_ether_stub, KVER_NONE, KVER(3, 10, 0))
+ (struct __sk_buff* skb) {
+     return TC_ACT_OK;
+ }
+-- 
+2.56.0
+
