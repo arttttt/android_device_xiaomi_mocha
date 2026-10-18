@@ -35,6 +35,9 @@
 #define BT_MAC_PROP1 "persist.service.bdroid.bdaddr"
 #define BT_MAC_PROP2 "ro.boot.btmacaddr"
 
+#define RNDIS_HOST_PROP "ro.vendor.usb.rndis.host_addr"
+#define RNDIS_DEV_PROP  "ro.vendor.usb.rndis.dev_addr"
+
 #define NVRAM_SRC        "/vendor/etc/mocha_nvram.txt"
 #define NVRAM_DIR        "/data/vendor/wifi"
 #define NVRAM_DST        NVRAM_DIR "/nvram.txt"
@@ -317,6 +320,49 @@ static void set_wifi_addr(const char *addr)
 }
 
 /*
+ * Give USB tethering addresses that stay put.
+ *
+ * The gadget HAL creates the RNDIS function each time tethering is switched
+ * on, and the kernel gives a function with no addresses a random one for the
+ * tablet's end of the link and a random one per boot for the computer's. The
+ * computer names a network interface after the address it is given, so it
+ * saw a new one after every reboot.
+ *
+ * The computer's address is the one Android has always meant for RNDIS:
+ * UsbDeviceManager.initRndisAddress() derives it from the serial number --
+ * 0x02 for a locally administered address, then the serial XORed byte by
+ * byte across the other five -- and writes it where the old android_usb
+ * gadget took it. That gadget is gone, so the same address goes out from
+ * here. The tablet's end differs from it only in the first octet, 0x06,
+ * which is just as locally administered and keeps the two apart.
+ *
+ * Both go out as properties: the HAL writes them into the function each
+ * time it creates it, long after this has run.
+ */
+static void set_rndis_addr(const char *serial)
+{
+    unsigned char addr[ADDR_LEN] = { 0x02 };
+    char str[ADDR_STR_LEN];
+    size_t i, len;
+
+    if (serial == NULL || serial[0] == '\0') {
+        ALOGE("%s: no serial number, no USB tethering addresses", TAG);
+        return;
+    }
+
+    len = strlen(serial);
+    for (i = 0; i < len; i++)
+        addr[i % (ADDR_LEN - 1) + 1] ^= (unsigned char) serial[i];
+
+    addr_to_str(addr, str);
+    property_set(RNDIS_HOST_PROP, str);
+
+    addr[0] = 0x06;
+    addr_to_str(addr, str);
+    property_set(RNDIS_DEV_PROP, str);
+}
+
+/*
  * The serial number comes in as the first argument rather than from
  * ro.serialno. The platform keeps that property readable by a fixed list of
  * domains, for privacy, with a neverallow a device tree cannot join -- but
@@ -334,6 +380,8 @@ int main(int argc, char **argv)
     char wifi_str[ADDR_STR_LEN];
     int have_bt = -1;
     int have_wifi = -1;
+
+    set_rndis_addr(serial);
 
     if (read_bkb(bkb, sizeof(bkb)) == 0) {
         have_bt = addr_from_bkb(bkb, BT_REC_OFF, BT_MAC_TAG, bt);

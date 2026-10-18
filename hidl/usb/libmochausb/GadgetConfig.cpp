@@ -90,12 +90,41 @@ void GadgetConfig::removeFunction(const char* function) const {
         ALOGW("cannot remove %s: %s", path.c_str(), strerror(errno));
 }
 
+/*
+ * The addresses conn_init derives from the serial number, so that a computer
+ * tethered over USB sees the same network interface every time. u_ether takes
+ * them only between the function's creation and its first link -- after that
+ * the attributes answer EBUSY -- and without them it makes up both.
+ *
+ * A missing property is not worth failing tethering over: the link works with
+ * the kernel's addresses, it is only not the same link next time.
+ */
+void GadgetConfig::setRndisAddresses() const {
+    static constexpr const char* kAttrs[][2] = {
+            {"host_addr", "ro.vendor.usb.rndis.host_addr"},
+            {"dev_addr", "ro.vendor.usb.rndis.dev_addr"},
+    };
+
+    for (const auto& attr : kAttrs) {
+        std::string addr = GetProperty(attr[1], "");
+
+        if (addr.empty()) {
+            ALOGW("%s is not set; rndis keeps the kernel's %s", attr[1], attr[0]);
+            continue;
+        }
+
+        mocha::sysfs::write(StringPrintf("%s/functions/%s/%s", kGadget, kRndis, attr[0]), addr);
+    }
+}
+
 std::vector<std::string> GadgetConfig::link(uint64_t functions) {
     std::vector<std::string> endpoints;
     int index = 0;
 
     if (functions & function::kRndis) {
-        if (!createFunction(kRndis) || !linkOne(kRndis, index++)) return {};
+        if (!createFunction(kRndis)) return {};
+        setRndisAddresses();
+        if (!linkOne(kRndis, index++)) return {};
     }
     /*
      * MTP and PTP are FunctionFS functions like adb, and their daemon is

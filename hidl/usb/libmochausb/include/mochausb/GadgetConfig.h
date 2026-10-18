@@ -68,6 +68,7 @@ class GadgetConfig {
   private:
     bool linkOne(const char* function, int index) const;
     bool createFunction(const char* function) const;
+    void setRndisAddresses() const;
     void removeFunction(const char* function) const;
 };
 

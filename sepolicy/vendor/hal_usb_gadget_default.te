@@ -31,3 +31,6 @@ get_prop(hal_usb_gadget_default, usb_control_prop)
 allow hal_usb_gadget_default sysfs:dir r_dir_perms;
 allow hal_usb_gadget_default sysfs:lnk_file read;
 allow hal_usb_gadget_default sysfs_udc:file r_file_perms;
+
+# The addresses conn_init derives for the RNDIS function.
+get_prop(hal_usb_gadget_default, usb_rndis_prop)

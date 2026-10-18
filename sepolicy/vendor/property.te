@@ -38,3 +38,8 @@ vendor_internal_prop(hwc_display_prop)
 # firmware versions it reads off the chip (hardware/interfaces/wifi,
 # wifi_chip.cpp). Under the vendor default type only init could set it.
 vendor_internal_prop(wifi_version_prop)
+
+# For ro.vendor.usb.rndis.host_addr and dev_addr: conn_init derives the USB
+# tethering addresses from the serial number, the gadget HAL writes them into
+# the RNDIS function.
+vendor_internal_prop(usb_rndis_prop)
