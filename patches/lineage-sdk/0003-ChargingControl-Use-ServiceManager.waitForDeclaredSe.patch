@@ -1,0 +1,30 @@
+From c407667d383a419ed1abdb9745a0aea011a0dca4 Mon Sep 17 00:00:00 2001
+From: LuK1337 <priv.luk@gmail.com>
+Date: Mon, 10 Jul 2023 12:05:50 +0200
+Subject: [PATCH] ChargingControl: Use ServiceManager.waitForDeclaredService()
+
+It might take a while until health HAL is up, thus let's just wait for
+it.
+
+Change-Id: Ie929a25a2a774aedb4559662e9ad0a47f1b154e6
+---
+ .../platform/internal/health/ChargingControlController.java    | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java b/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java
+index e369f3e0..f922c165 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java
+@@ -142,7 +142,8 @@ public class ChargingControlController extends LineageHealthFeature {
+ 
+         mContentResolver = mContext.getContentResolver();
+         mChargingControl = IChargingControl.Stub.asInterface(
+-                ServiceManager.getService(IChargingControl.DESCRIPTOR + "/default"));
++                ServiceManager.waitForDeclaredService(
++                        IChargingControl.DESCRIPTOR + "/default"));
+ 
+         if (mChargingControl == null) {
+             Log.i(TAG, "Lineage Health HAL not found");
+-- 
+2.56.0
+

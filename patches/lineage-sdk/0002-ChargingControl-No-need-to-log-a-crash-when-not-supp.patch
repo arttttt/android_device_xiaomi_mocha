@@ -1,0 +1,30 @@
+From 9ed93717cbd7222cd4b59ff7657ed231e9754d11 Mon Sep 17 00:00:00 2001
+From: Michael W <baddaemon87@gmail.com>
+Date: Sun, 25 Jun 2023 18:38:00 +0200
+Subject: [PATCH] ChargingControl: No need to log a crash when not supported
+
+Instead of relying on catching the exception later on, check if
+ChargingControl is actually supported before checking if a specific
+mode is
+
+Change-Id: Icaf8d333842c9847bea00bedb4b302b7acd49bb3
+---
+ .../platform/internal/health/ChargingControlController.java     | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java b/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java
+index 6b315531..e369f3e0 100644
+--- a/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java
++++ b/lineage/lib/main/java/org/lineageos/platform/internal/health/ChargingControlController.java
+@@ -254,7 +254,7 @@ public class ChargingControlController extends LineageHealthFeature {
+ 
+     public boolean isChargingModeSupported(int mode) {
+         try {
+-            return (mChargingControl.getSupportedMode() & mode) != 0;
++            return isSupported() && (mChargingControl.getSupportedMode() & mode) != 0;
+         } catch (RemoteException e) {
+             throw new RuntimeException(e);
+         }
+-- 
+2.56.0
+
