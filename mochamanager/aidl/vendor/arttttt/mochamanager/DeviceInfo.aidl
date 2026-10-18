@@ -26,5 +26,4 @@ parcelable DeviceInfo {
     long memTotalKb;
     /* bcmdhd's info string: driver, firmware, chip. */
     @utf8InCpp String wifi;
-    @utf8InCpp String serial;
 }

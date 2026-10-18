@@ -53,7 +53,6 @@ ndk::ScopedAStatus MochaManager::getDeviceInfo(DeviceInfo* _aidl_return) {
     _aidl_return->kernel = d.kernel;
     _aidl_return->memTotalKb = d.memTotalKb;
     _aidl_return->wifi = d.wifi;
-    _aidl_return->serial = d.serial;
     return ndk::ScopedAStatus::ok();
 }
 

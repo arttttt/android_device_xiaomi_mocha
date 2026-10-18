@@ -25,7 +25,6 @@ hal_client_domain(hal_mochamanager_default, hal_power_stats)
 set_prop(hal_mochamanager_default, mocha_perf_profile_prop)
 set_prop(hal_mochamanager_default, mocha_charger_prop)
 get_prop(hal_mochamanager_default, perf_profile_prop)
-get_prop(hal_mochamanager_default, serialno_prop)
 
 # What it reports. Only reads.
 #

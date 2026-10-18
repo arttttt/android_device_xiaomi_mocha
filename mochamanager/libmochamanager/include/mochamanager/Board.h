@@ -32,7 +32,6 @@ struct DeviceInfo {
     std::string kernel;
     int64_t memTotalKb = 0;
     std::string wifi;
-    std::string serial;
 };
 
 struct BatteryInfo {

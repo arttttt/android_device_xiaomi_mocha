@@ -128,7 +128,6 @@ DeviceInfo Board::ReadDeviceInfo() const {
     ReadMeminfo(&m);
     d.memTotalKb = m.totalKb;
     d.wifi = ReadLine(kWifiInfo);
-    d.serial = android::base::GetProperty("ro.serialno", "");
     return d;
 }
 

@@ -38,5 +38,4 @@ parcelable DeviceInfo {
   @utf8InCpp String kernel;
   long memTotalKb;
   @utf8InCpp String wifi;
-  @utf8InCpp String serial;
 }
