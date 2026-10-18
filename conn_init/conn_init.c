@@ -104,14 +104,13 @@ static int addr_from_bkb(const unsigned char *bkb, size_t off, const char *tag,
     return 0;
 }
 
-static int serial_md5(char hex[MD5_HEX_LEN])
+static int serial_md5(const char *serial, char hex[MD5_HEX_LEN])
 {
-    char serial[PROPERTY_VALUE_MAX] = { 0 };
     unsigned char digest[MD5_DIGEST_LENGTH];
     int i;
 
-    if (property_get("ro.serialno", serial, "") <= 0) {
-        ALOGE("%s: ro.serialno is empty, nothing to derive an address from", TAG);
+    if (serial == NULL || serial[0] == '\0') {
+        ALOGE("%s: no serial number, nothing to derive an address from", TAG);
         return -1;
     }
 
@@ -317,8 +316,16 @@ static void set_wifi_addr(const char *addr)
         ALOGI("%s: wifi nvram is %s", TAG, NVRAM_DST);
 }
 
-int main(void)
+/*
+ * The serial number comes in as the first argument rather than from
+ * ro.serialno. The platform keeps that property readable by a fixed list of
+ * domains, for privacy, with a neverallow a device tree cannot join -- but
+ * init is on the list and expands properties in a service's arguments, so
+ * init.t124.rc passes it in.
+ */
+int main(int argc, char **argv)
 {
+    const char *serial = argc > 1 ? argv[1] : NULL;
     unsigned char bkb[BKB_LEN] = { 0 };
     unsigned char bt[ADDR_LEN] = { 0 };
     unsigned char wifi[ADDR_LEN] = { 0 };
@@ -340,7 +347,7 @@ int main(void)
      * there.
      */
     if (have_bt != 0 || have_wifi != 0) {
-        if (serial_md5(hex) != 0)
+        if (serial_md5(serial, hex) != 0)
             return 0;
 
         if (have_bt != 0) {

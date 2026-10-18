@@ -90,8 +90,9 @@ on init
     mount tmpfs tmpfs /mnt/tmp mode=0775,gid=1003
 
 # Loads the wifi and bt addresses: from the BKB partition when the factory
-# wrote them there, and derived from the serial number when it did not.
-service conn_wifi /system/vendor/bin/conn_init -op
+# wrote them there, and derived from the serial number when it did not. The
+# serial is passed in: conn_init may not read ro.serialno itself.
+service conn_wifi /system/vendor/bin/conn_init ${ro.serialno}
     class main
     user root
     group root
