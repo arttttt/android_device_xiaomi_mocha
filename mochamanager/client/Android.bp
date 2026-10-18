@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // How the tiles and MiPad Manager reach the mochamanager service.
-android_library {
+java_library {
     name: "MochaManagerClient",
     system_ext_specific: true,
     srcs: ["src/**/*.kt"],
