@@ -503,3 +503,8 @@
 /sys/devices/platform/7000c000.i2c/i2c-0/0-0068/iio:device* scan_elements/in_timestamp_index 0660 system system
 /sys/devices/platform/7000c000.i2c/i2c-0/0-0068/iio:device* scan_elements/in_timestamp_type 0660 system system
 /sys/devices/platform/7000c000.i2c/i2c-0/0-0068/iio:device* trigger/current_trigger 0660 system system
+
+# The battery line's INA231: the power.stats HAL, which runs as system, reads
+# one conversion of voltage and signed current from here. The driver leaves
+# it to root alone.
+/sys/devices/platform/7000c400.i2c/i2c-1/1-0040/iio:device* ui_input 0440 root system

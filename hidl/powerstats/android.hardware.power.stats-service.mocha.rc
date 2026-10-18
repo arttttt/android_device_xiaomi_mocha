@@ -1,0 +1,7 @@
+# system, because everything it reads -- the INA231 and the fuel gauge, the
+# cores' cpuidle states, tegra_rail_stats, suspend_stats -- is readable to
+# anyone; sepolicy is what limits it.
+service vendor.power.stats-mocha /vendor/bin/hw/android.hardware.power.stats-service.mocha
+    class hal
+    user system
+    group system

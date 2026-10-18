@@ -1,0 +1,33 @@
+// Copyright (C) 2026 Artem Bambalov
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// What the board can tell about its power, without an interface on it: the
+// battery's energy from the INA231 and where the time goes, from sysfs. The
+// power.stats service links it statically and only translates its IDL into
+// these calls, so a new version of the interface is a new wrapper and not a
+// new meter.
+cc_library_static {
+    name: "libmochapowerstats",
+    proprietary: true,
+    srcs: [
+        "BatteryMeter.cpp",
+        "Residency.cpp",
+    ],
+    export_include_dirs: ["include"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+}

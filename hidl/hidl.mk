@@ -143,6 +143,15 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.power@1.3-service.mocha
 
+# Power stats
+# The battery's energy, from the INA231 on its line, and where the time goes:
+# the cores' idle states, the GPU's rail, suspend. PowerStatsService serves
+# it to dumpsys powerstats, and Perfetto draws the rail as a counter beside
+# the scheduler. The board measures no subsystem apart from the rest, so
+# there are no energy consumers.
+PRODUCT_PACKAGES += \
+    android.hardware.power.stats-service.mocha
+
 # Renderscript
 PRODUCT_PACKAGES += \
     android.hardware.renderscript@1.0-impl

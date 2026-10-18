@@ -151,6 +151,10 @@
             <instance>default</instance>
         </interface>
     </hal>
+    <hal format="aidl">
+        <name>android.hardware.power.stats</name>
+        <fqname>IPowerStats/default</fqname>
+    </hal>
     <hal format="hidl">
         <name>android.hardware.renderscript</name>
         <transport arch="32">passthrough</transport>

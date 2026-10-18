@@ -20,3 +20,7 @@ genfscon cifs /					u:object_r:fuse:s0
 # Who is holding graphics memory, one file per process. Labelled here rather
 # than in file_contexts because debugfs is mounted after init has relabelled.
 genfscon debugfs /nvmap/handles_by_pid		u:object_r:debugfs_nvmap:s0
+
+# The power.stats HAL's GPU residency. The rest of /sys/power is the
+# platform's, and plain sysfs.
+genfscon sysfs /power/tegra_rail_stats		u:object_r:sysfs_rail_stats:s0

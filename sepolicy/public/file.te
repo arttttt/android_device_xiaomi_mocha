@@ -94,6 +94,10 @@ type sysfs_charger_control, fs_type, sysfs_type;
 # /sys/devices/platform/tegra-udc.0/udc/tegra-udc.0/current_speed
 type sysfs_udc, fs_type, sysfs_type;
 
+# Time each DVFS rail has spent at each voltage, for the power.stats HAL:
+# /sys/power/tegra_rail_stats
+type sysfs_rail_stats, fs_type, sysfs_type;
+
 # /sys/devices/platform/sdhci-tegra.*/mmc_host
 type sysfs_mmc_host, fs_type, sysfs_type;
 
