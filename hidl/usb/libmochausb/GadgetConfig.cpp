@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.usb.gadget@1.0-service.mocha"
+#define LOG_TAG "mochausb"
 
-#include "GadgetConfig.h"
+#include <mochausb/GadgetConfig.h>
+#include <mochausb/Functions.h>
 
 #include <SysfsNode.h>
 #include <android-base/properties.h>
@@ -30,12 +31,8 @@
 
 #include <log/log.h>
 
-namespace android {
-namespace hardware {
+namespace mocha {
 namespace usb {
-namespace gadget {
-namespace V1_0 {
-namespace implementation {
 
 using ::android::base::GetProperty;
 using ::android::base::StringPrintf;
@@ -91,15 +88,15 @@ std::vector<std::string> GadgetConfig::link(uint64_t functions) {
     std::vector<std::string> endpoints;
     int index = 0;
 
-    if (functions & GadgetFunction::RNDIS) {
+    if (functions & function::kRndis) {
         if (!createFunction(kRndis) || !linkOne(kRndis, index++)) return {};
     }
-    if ((functions & GadgetFunction::MTP) && !linkOne(kMtp, index++)) return {};
-    if ((functions & GadgetFunction::PTP) && !linkOne(kPtp, index++)) return {};
-    if ((functions & GadgetFunction::ACCESSORY) && !linkOne(kAccessory, index++)) return {};
-    if ((functions & GadgetFunction::AUDIO_SOURCE) && !linkOne(kAudioSource, index++)) return {};
+    if ((functions & function::kMtp) && !linkOne(kMtp, index++)) return {};
+    if ((functions & function::kPtp) && !linkOne(kPtp, index++)) return {};
+    if ((functions & function::kAccessory) && !linkOne(kAccessory, index++)) return {};
+    if ((functions & function::kAudioSource) && !linkOne(kAudioSource, index++)) return {};
 
-    if (functions & GadgetFunction::ADB) {
+    if (functions & function::kAdb) {
         if (!linkOne(kFfsAdb, index++)) return {};
 
         endpoints.push_back(std::string(kFfsAdbDir) + "ep1");
@@ -142,12 +139,12 @@ bool GadgetConfig::unlinkAll() const {
  * device it saw before the gadget moved to configfs.
  */
 bool GadgetConfig::setIdentity(uint64_t functions) const {
-    bool adb = functions & GadgetFunction::ADB;
+    bool adb = functions & function::kAdb;
     const char* pid;
 
-    if (functions & GadgetFunction::RNDIS)
+    if (functions & function::kRndis)
         pid = "0xCF08";
-    else if (functions & (GadgetFunction::MTP | GadgetFunction::PTP))
+    else if (functions & (function::kMtp | function::kPtp))
         pid = adb ? "0xCF05" : "0xCF07";
     else
         pid = "0xCF09";
@@ -157,14 +154,14 @@ bool GadgetConfig::setIdentity(uint64_t functions) const {
 }
 
 bool GadgetConfig::setConfigurationName(uint64_t functions) const {
-    bool adb = functions & GadgetFunction::ADB;
+    bool adb = functions & function::kAdb;
     const char* name;
 
-    if (functions & GadgetFunction::RNDIS) name = adb ? "rndis_adb" : "rndis";
-    else if (functions & GadgetFunction::MTP) name = adb ? "mtp_adb" : "mtp";
-    else if (functions & GadgetFunction::PTP) name = adb ? "ptp_adb" : "ptp";
-    else if (functions & GadgetFunction::ACCESSORY) name = adb ? "accessory_adb" : "accessory";
-    else if (functions & GadgetFunction::AUDIO_SOURCE) name = adb ? "audio_source_adb" : "audio_source";
+    if (functions & function::kRndis) name = adb ? "rndis_adb" : "rndis";
+    else if (functions & function::kMtp) name = adb ? "mtp_adb" : "mtp";
+    else if (functions & function::kPtp) name = adb ? "ptp_adb" : "ptp";
+    else if (functions & function::kAccessory) name = adb ? "accessory_adb" : "accessory";
+    else if (functions & function::kAudioSource) name = adb ? "audio_source_adb" : "audio_source";
     else name = "adb";
 
     return mocha::sysfs::write(
@@ -216,9 +213,5 @@ void GadgetConfig::resetDeviceClass() const {
     mocha::sysfs::write(StringPrintf("%s/bDeviceProtocol", kGadget), 0);
 }
 
-}  // namespace implementation
-}  // namespace V1_0
-}  // namespace gadget
 }  // namespace usb
-}  // namespace hardware
-}  // namespace android
+}  // namespace mocha

@@ -19,10 +19,7 @@
 #include <android/hardware/usb/gadget/1.0/IUsbGadget.h>
 #include <hidl/Status.h>
 
-#include <mutex>
-
-#include "FfsMonitor.h"
-#include "GadgetConfig.h"
+#include <mochausb/Gadget.h>
 
 namespace android {
 namespace hardware {
@@ -44,8 +41,7 @@ using ::android::hardware::Void;
  * rebuilt even when it is in both the old set and the new one. UsbHandlerHal
  * stops adbd only when the new configuration has no ADB in it.
  *
- * This decides what should be composed and in what order. GadgetConfig does
- * the composing, FfsMonitor waits for the daemons and binds.
+ * The gadget itself is libmochausb's. This only answers in HIDL.
  */
 struct UsbGadget : public IUsbGadget {
     Return<void> setCurrentUsbFunctions(uint64_t functions,
@@ -55,20 +51,7 @@ struct UsbGadget : public IUsbGadget {
     Return<void> getCurrentUsbFunctions(const sp<IUsbGadgetCallback>& callback) override;
 
   private:
-    Status tearDown();
-    Status compose(uint64_t functions, const sp<IUsbGadgetCallback>& callback,
-                   uint64_t timeoutMs);
-
-    GadgetConfig mConfig;
-    FfsMonitor mMonitor;
-
-    /* What was last asked for, and whether the controller has taken it. */
-    uint64_t mFunctions = 0;
-    bool mApplied = false;
-
-    /* One change at a time, whole: a second call arriving between the
-     * teardown and the composition would find a gadget that is neither. */
-    std::mutex mLock;
+    ::mocha::usb::Gadget mGadget;
 };
 
 }  // namespace implementation

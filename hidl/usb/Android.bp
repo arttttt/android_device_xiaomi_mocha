@@ -17,8 +17,6 @@ cc_binary {
     relative_install_path: "hw",
     init_rc: ["android.hardware.usb.gadget@1.0-service.mocha.rc"],
     srcs: [
-        "FfsMonitor.cpp",
-        "GadgetConfig.cpp",
         "service.cpp",
         "UsbGadget.cpp",
     ],
@@ -31,5 +29,6 @@ cc_binary {
         "libutils",
         "android.hardware.usb.gadget@1.0",
     ],
+    static_libs: ["libmochausb"],
     proprietary: true,
 }

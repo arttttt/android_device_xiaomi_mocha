@@ -16,18 +16,12 @@
 #ifndef MOCHA_USB_GADGET_CONFIG_H
 #define MOCHA_USB_GADGET_CONFIG_H
 
-#include <android/hardware/usb/gadget/1.0/types.h>
-
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace android {
-namespace hardware {
+namespace mocha {
 namespace usb {
-namespace gadget {
-namespace V1_0 {
-namespace implementation {
 
 /*
  * The gadget as configfs sees it: a directory of function instances, a
@@ -36,10 +30,10 @@ namespace implementation {
  *
  * Only the composing is here. Whether the controller may be bound yet is a
  * question about daemons and belongs to FfsMonitor; what should be composed
- * is a question about the framework and belongs to UsbGadget.
+ * is a question about the framework and belongs to Gadget.
  *
  * The skeleton itself -- the gadget, its strings, its configuration and every
- * function instance -- is made by init.tn8.usb.rc before this service starts,
+ * function instance -- is made by init.tn8.usb.rc before the service starts,
  * because nothing in system/core creates it and the service is started too
  * late to be first.
  */
@@ -69,11 +63,7 @@ class GadgetConfig {
     void removeFunction(const char* function) const;
 };
 
-}  // namespace implementation
-}  // namespace V1_0
-}  // namespace gadget
 }  // namespace usb
-}  // namespace hardware
-}  // namespace android
+}  // namespace mocha
 
 #endif  // MOCHA_USB_GADGET_CONFIG_H

@@ -26,14 +26,10 @@
 #include <thread>
 #include <vector>
 
-#include "GadgetConfig.h"
+#include <mochausb/GadgetConfig.h>
 
-namespace android {
-namespace hardware {
+namespace mocha {
 namespace usb {
-namespace gadget {
-namespace V1_0 {
-namespace implementation {
 
 using ::android::base::unique_fd;
 
@@ -90,11 +86,7 @@ class FfsMonitor {
     bool mBound = false;
 };
 
-}  // namespace implementation
-}  // namespace V1_0
-}  // namespace gadget
 }  // namespace usb
-}  // namespace hardware
-}  // namespace android
+}  // namespace mocha
 
 #endif  // MOCHA_USB_FFS_MONITOR_H

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.usb.gadget@1.0-service.mocha"
+#define LOG_TAG "mochausb"
 
-#include "FfsMonitor.h"
+#include <mochausb/FfsMonitor.h>
 
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
@@ -27,12 +27,8 @@
 
 #include <log/log.h>
 
-namespace android {
-namespace hardware {
+namespace mocha {
 namespace usb {
-namespace gadget {
-namespace V1_0 {
-namespace implementation {
 
 static constexpr char kFfsAdbDir[] = "/dev/usb-ffs/adb/";
 
@@ -222,9 +218,5 @@ void FfsMonitor::run(const GadgetConfig& config) {
     }
 }
 
-}  // namespace implementation
-}  // namespace V1_0
-}  // namespace gadget
 }  // namespace usb
-}  // namespace hardware
-}  // namespace android
+}  // namespace mocha
