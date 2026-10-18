@@ -38,7 +38,9 @@ on boot
     write /sys/module/workqueue/parameters/power_efficient 1
 
     # Little VM tweaks
-    write /proc/sys/vm/swappiness 80
+    # Swap is zram, so swapping out costs CPU, not flash wear: 100 weighs
+    # anonymous pages the same as file cache.
+    write /proc/sys/vm/swappiness 100
     write /proc/sys/vm/vfs_cache_pressure 100
     
     # Prepare CPU/EMC scaling based on DT

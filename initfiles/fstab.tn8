@@ -17,4 +17,7 @@
 /devices/platform/sdhci-tegra.2/mmc_host*               auto                auto      defaults                                               voldmanaged=sdcard1:auto,encryptable=userdata
 /devices/tegra-ehci.*/usb*								auto                auto      defaults                                               voldmanaged=usb:auto
 /dev/block/platform/sdhci-tegra.2/by-num/p1             /sdcard             vfat      defaults                                               recoveryonly
-/dev/block/zram0 none swap defaults zramsize=402653184
+# Swap in compressed RAM, nothing goes to eMMC. lz4 packs about three to one,
+# so a gigabyte of swap costs some 330 MB at its fullest. Four compression
+# streams, one per core: with one, every swapping task queues behind it.
+/dev/block/zram0 none swap defaults zramsize=1073741824,max_comp_streams=4
