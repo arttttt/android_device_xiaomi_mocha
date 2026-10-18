@@ -1,0 +1,26 @@
+// Copyright (C) 2017-2026 arttttt
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Platform-signed for the platform_app domain, which the sepolicy makes a
+// client of the mochamanager service, and for ServiceManager, which is
+// hidden API. It needs no privileged permission, so it is not a priv-app.
+android_app {
+    name: "PerformanceTile",
+    system_ext_specific: true,
+    srcs: ["src/**/*.kt"],
+    resource_dirs: ["res"],
+    platform_apis: true,
+    certificate: "platform",
+    static_libs: ["MochaManagerClient"],
+}

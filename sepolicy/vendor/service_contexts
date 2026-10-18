@@ -13,4 +13,4 @@
 # limitations under the License.
 
 PHS			u:object_r:ussrd_service:s0
-
+vendor.arttttt.mochamanager.IMochaManager/default  u:object_r:hal_mochamanager_service:s0

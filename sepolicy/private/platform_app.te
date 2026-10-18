@@ -37,7 +37,6 @@ r_dir_file(platform_app, sysfs_zram)
 # Access to change user photo using Nvcamera
 allow platform_app system_app_data_file:file { read write getattr};
 
-# The performance profile and charger tiles store the user's choice as a
-# property each; vendor init applies it.
-set_prop(platform_app, perf_profile_user_prop)
-set_prop(platform_app, charger_disabled_prop)
+# The performance profile and charger tiles: both switches are the board's
+# mochamanager service's to set.
+hal_client_domain(platform_app, hal_mochamanager)

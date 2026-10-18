@@ -1,0 +1,51 @@
+# Copyright (C) 2026 Artem Bambalov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+type hal_mochamanager_default, domain;
+hal_server_domain(hal_mochamanager_default, hal_mochamanager)
+
+type hal_mochamanager_default_exec, exec_type, vendor_file_type, file_type;
+init_daemon_domain(hal_mochamanager_default)
+
+# The battery's energy since boot, which the power.stats HAL integrates.
+hal_client_domain(hal_mochamanager_default, hal_power_stats)
+
+# The switches, and the profile in force, which only power.mocha.rc writes.
+set_prop(hal_mochamanager_default, mocha_perf_profile_prop)
+set_prop(hal_mochamanager_default, mocha_charger_prop)
+get_prop(hal_mochamanager_default, perf_profile_prop)
+get_prop(hal_mochamanager_default, serialno_prop)
+
+# What it reports. Only reads.
+#
+# The INA231 is found by walking /sys/bus/iio/devices, links into the I2C bus
+# it hangs off, which carries one label for everything on it. The GPU, the
+# memory clock, the cluster and the Wi-Fi driver's info string are plain
+# sysfs.
+allow hal_mochamanager_default sysfs:dir r_dir_perms;
+allow hal_mochamanager_default sysfs:file r_file_perms;
+allow hal_mochamanager_default sysfs:lnk_file read;
+allow hal_mochamanager_default sysfs_nvi2c:dir r_dir_perms;
+allow hal_mochamanager_default sysfs_nvi2c:file r_file_perms;
+allow hal_mochamanager_default sysfs_batteryinfo:dir r_dir_perms;
+allow hal_mochamanager_default sysfs_batteryinfo:file r_file_perms;
+allow hal_mochamanager_default sysfs_devices_system_cpu:dir r_dir_perms;
+allow hal_mochamanager_default sysfs_devices_system_cpu:file r_file_perms;
+allow hal_mochamanager_default sysfs_thermal:dir r_dir_perms;
+allow hal_mochamanager_default sysfs_thermal:file r_file_perms;
+allow hal_mochamanager_default sysfs_thermal:lnk_file read;
+allow hal_mochamanager_default sysfs_zram:dir search;
+allow hal_mochamanager_default sysfs_zram:file r_file_perms;
+allow hal_mochamanager_default proc_meminfo:file r_file_perms;
+allow hal_mochamanager_default proc_pressure_mem:file r_file_perms;

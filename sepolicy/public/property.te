@@ -12,14 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# What the user chose in the quick settings tiles: the performance profile
-# and whether the battery charges. The tiles are applications, so the choice
-# is a system property; vendor init reads it and turns it into what the
-# board acts on (sys.perf.profile, the charger's node). Restricted, not
-# public: the vendor side reads these and never writes them.
-system_restricted_prop(perf_profile_user_prop)
-system_restricted_prop(charger_disabled_prop)
-
 # sys.perf.undervoltage: whether the core and GPU rails run below their
 # nominal voltage. power.mocha.rc acts on it; the system side will set it.
 system_restricted_prop(undervoltage_prop)

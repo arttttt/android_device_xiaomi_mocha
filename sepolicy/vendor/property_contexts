@@ -31,6 +31,8 @@ persist.renderposition.value     u:object_r:mediacodec_prop:s0
 persist.renderposition.delay     u:object_r:mediacodec_prop:s0
 
 sys.perf.profile                 u:object_r:perf_profile_prop:s0
+persist.vendor.mocha.perf.profile      u:object_r:mocha_perf_profile_prop:s0 exact int
+persist.vendor.mocha.charger.disabled  u:object_r:mocha_charger_prop:s0 exact bool
 vendor.power.low_power           u:object_r:power_low_power_prop:s0 exact bool
 persist.vendor.hwc.display_saturation  u:object_r:hwc_display_prop:s0
 persist.vendor.hwc.display_profile     u:object_r:hwc_display_prop:s0

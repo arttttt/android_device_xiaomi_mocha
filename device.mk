@@ -122,12 +122,17 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.sensor.proximity.xml:system/etc/permissions/android.hardware.sensor.proximity.xml
     
-# Custom tiles. Each records the user's choice as a system property and
-# vendor init applies it: the profile in power.mocha.rc, the charger switch in
-# init.tegra.rc.
+# Custom tiles. Each hands the user's choice to the mochamanager service,
+# which records it as a vendor property; init applies it: the profile in
+# power.mocha.rc, the charger switch in init.tegra.rc.
 PRODUCT_PACKAGES += \
     ChargerTile \
     PerformanceTile
+
+# MiPad Manager's service, which the tiles use as well: the tablet's
+# information and its two switches (mochamanager/).
+PRODUCT_PACKAGES += \
+    vendor.arttttt.mochamanager-service
     
 # Filesystem management tools
 PRODUCT_PACKAGES += \

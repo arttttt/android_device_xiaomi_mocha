@@ -155,6 +155,10 @@
         <name>android.hardware.power.stats</name>
         <fqname>IPowerStats/default</fqname>
     </hal>
+    <hal format="aidl">
+        <name>vendor.arttttt.mochamanager</name>
+        <fqname>IMochaManager/default</fqname>
+    </hal>
     <hal format="hidl">
         <name>android.hardware.renderscript</name>
         <transport arch="32">passthrough</transport>

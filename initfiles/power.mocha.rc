@@ -47,8 +47,9 @@ on boot
   setprop vendor.power.low_power 0
 
 # The profile in force, sys.perf.profile, has one writer: these rules. The
-# user's choice is persist.sys.perf.profile, set by the performance tile;
-# balanced (1) until there is one. The battery saver, as the power HAL hears
+# user's choice is persist.vendor.mocha.perf.profile, which the mochamanager
+# service sets for the performance tile and MiPad Manager; balanced (1)
+# until there is one. The battery saver, as the power HAL hears
 # it, holds power save (0) while it lasts and hands the choice back after. A
 # choice made in the meantime waits for it to end, since the tile is
 # unavailable then and anything else setting the property should not undo
@@ -57,10 +58,10 @@ on property:vendor.power.low_power=1
   setprop sys.perf.profile 0
 
 on property:vendor.power.low_power=0
-  setprop sys.perf.profile ${persist.sys.perf.profile:-1}
+  setprop sys.perf.profile ${persist.vendor.mocha.perf.profile:-1}
 
-on property:persist.sys.perf.profile=* && property:vendor.power.low_power=0
-  setprop sys.perf.profile ${persist.sys.perf.profile}
+on property:persist.vendor.mocha.perf.profile=* && property:vendor.power.low_power=0
+  setprop sys.perf.profile ${persist.vendor.mocha.perf.profile}
 
 # power save
 on property:sys.perf.profile=0

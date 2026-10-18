@@ -27,9 +27,9 @@ namespace implementation {
  *
  * The profile in force is sys.perf.profile, and power.mocha.rc is its only
  * writer: it reacts to the value by writing the governor's knobs, and it
- * decides the value from two inputs -- what the user chose in the tile
- * (persist.sys.perf.profile) and whether the battery saver is on. This
- * reports the second input and reads the result.
+ * decides the value from two inputs -- what the user chose
+ * (persist.vendor.mocha.perf.profile) and whether the battery saver is on.
+ * This reports the second input and reads the result.
  *
  * The battery saver is expressed as the power save profile -- one notion of
  * how hard to try rather than two that can disagree -- and init, not this,

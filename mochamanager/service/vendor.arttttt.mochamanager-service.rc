@@ -1,0 +1,8 @@
+# MochaManager's and the tiles' service: the tablet's information and its
+# switches. system, because everything it reads is readable to the group --
+# ui_input of the INA included (ueventd.rc) -- and the switches are vendor
+# properties; sepolicy is what limits it.
+service vendor.mochamanager /vendor/bin/hw/vendor.arttttt.mochamanager-service
+    class hal
+    user system
+    group system

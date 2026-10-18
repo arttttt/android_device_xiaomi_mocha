@@ -26,6 +26,12 @@ vendor_internal_prop(vrr_prop)
 # For sys.perf.profile
 vendor_internal_prop(perf_profile_prop)
 
+# The user's two switches, the performance profile and whether the battery
+# charges. The mochamanager service sets them for the tiles and MochaManager;
+# init turns them into sys.perf.profile and the charger's node.
+vendor_internal_prop(mocha_perf_profile_prop)
+vendor_internal_prop(mocha_charger_prop)
+
 # For vendor.power.low_power: the battery saver as the power HAL hears it,
 # so that power.mocha.rc can hold the profile at power save while it lasts.
 vendor_internal_prop(power_low_power_prop)
