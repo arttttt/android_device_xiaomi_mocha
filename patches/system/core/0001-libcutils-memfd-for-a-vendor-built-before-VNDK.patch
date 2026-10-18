@@ -1,0 +1,44 @@
+From 5ad4ba8650399673ef210acb758a216a3dbc3757 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sun, 18 Oct 2026 22:36:58 +0300
+Subject: [PATCH] libcutils: memfd for a vendor built before VNDK
+
+check_vendor_memfd_allowed() refuses memfd when ro.vndk.version is not
+set, to keep the vendor's older libcutils and the system's on the same
+kind of shared memory across binder. A vendor built before VNDK has no
+libcutils of its own: its libraries link the system's, this one, so
+both sides decide alike and there is nothing to disagree with.
+
+Allow memfd there. sys.use_memfd still has to ask for it, and the
+kernel still has to provide memfd_create and F_SEAL_FUTURE_WRITE.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ libcutils/ashmem-dev.cpp | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/libcutils/ashmem-dev.cpp b/libcutils/ashmem-dev.cpp
+index 56d6875..8a39266 100644
+--- a/libcutils/ashmem-dev.cpp
++++ b/libcutils/ashmem-dev.cpp
+@@ -98,10 +98,14 @@ static bool pin_deprecation_warn = true; /* Log the pin deprecation warning only
+ static bool check_vendor_memfd_allowed() {
+     std::string vndk_version = android::base::GetProperty("ro.vndk.version", "");
+ 
++    /*
++     * No VNDK version: a vendor built before VNDK, whose libraries link the
++     * system's own libcutils -- this one -- rather than a copy of their own.
++     * Then there is no older libcutils on the vendor side to disagree with,
++     * and memfd is as safe for it as for the system.
++     */
+     if (vndk_version == "") {
+-        ALOGE("memfd: ro.vndk.version not defined or invalid (%s), this is mandated since P.\n",
+-              vndk_version.c_str());
+-        return false;
++        return true;
+     }
+ 
+     /* No issues if vendor is targetting current Dessert */
+-- 
+2.56.0
+

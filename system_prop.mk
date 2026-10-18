@@ -20,6 +20,13 @@ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     drm.service.enabled=true
 
+# Shared memory through memfd rather than ashmem, which later Android drops.
+# The kernel has memfd_create and F_SEAL_FUTURE_WRITE; libcutils allows it
+# for a vendor built before VNDK by the patch in patches/system/core. A
+# system property: it is use_memfd_prop, which vendor init may not set.
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+    sys.use_memfd=true
+
 # FM
 #
 # De-emphasis of the FM receiver, in microseconds: it has to match the
