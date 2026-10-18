@@ -79,6 +79,17 @@ on init
     # not the cable's.
     write /sys/module/tegra_udc/parameters/boost_enable 0
 
+on boot
+    # The gadget is the HAL's alone. init.usb.rc sets sys.usb.configfs to 0
+    # in "on init" and leaves the board to override it here; at 0 its blocks
+    # for the old android_usb gadget run on every sys.usb.config change and
+    # write files this kernel does not have, and at 1 init.usb.configfs.rc
+    # composes /config/usb_gadget/g1 itself, against the HAL. Nothing in
+    # system/core answers 2, which is what Pixel sets for that reason. adbd
+    # still starts early: usbd starts it when it hands the HAL the persistent
+    # configuration.
+    setprop sys.usb.configfs 2
+
 on fs
     # Each mount attaches to the FunctionFS instance of the same name, the
     # ffs.* created above -- "on init" has already run by now.
