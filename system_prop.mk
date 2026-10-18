@@ -7,6 +7,15 @@
 PRODUCT_PROPERTY_OVERRIDES += \
     audio.deep_buffer.media=true
 
+# Bluetooth
+#
+# AVRCP 1.6, for album art on headphones and car units: the Bluetooth app
+# serves cover art only to 1.6 and said "Please use AVRCP version 1.6 to
+# enable cover art" on every start under the 1.5 default. A system property
+# because persist.bluetooth.* is bluetooth_prop, which vendor init may not set.
+PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+    persist.bluetooth.avrcpversion=avrcp16
+
 # DRM
 PRODUCT_PROPERTY_OVERRIDES += \
     drm.service.enabled=true
