@@ -122,6 +122,17 @@
     <!-- This device is not "voice capable." -->
     <bool name="config_voice_capable">false</bool>
 
+    <!-- No SMS and no mobile data either: there is no modem. With voice off
+         as well, TelephonyManager.getActiveModemCount() is 0, and TeleService
+         makes no Phone and no RIL. With SMS and data left at their default
+         true it made both, and the RIL looked for a radio HAL on every
+         start ("mRadioProxy == null"). -->
+    <bool name="config_sms_capable">false</bool>
+    <bool name="config_mobile_data_capable">false</bool>
+
+    <!-- No SIM slot. -->
+    <integer name="config_num_physical_slots">0</integer>
+
     <!-- Setting this true forces the headset jack switches to use the/dev/input/event subsystem
          rather than the uevent framework. -->
     <bool name="config_useDevInputEventForAudioJack">true</bool>
