@@ -242,7 +242,12 @@ PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.sensor.stepcounter.xml:system/etc/permissions/android.hardware.sensor.stepcounter.xml \
     frameworks/native/data/etc/android.hardware.sensor.stepdetector.xml:system/etc/permissions/android.hardware.sensor.stepdetector.xml \
     frameworks/native/data/etc/android.software.freeform_window_management.xml:system/etc/permissions/android.software.freeform_window_management.xml
-    
+
+# Packages the inherited product lists and the board does without; see
+# RemovePackages/Android.mk for which and why.
+PRODUCT_PACKAGES += \
+    RemovePackages
+
 # Ramdisk and the board's init files. Only the fstab rides in the ramdisk; the
 # rc files live in /vendor/etc/init/hw, where the second stage looks for
 # init.<hardware>.rc, and ueventd's board file is installed as ueventd.rc in
