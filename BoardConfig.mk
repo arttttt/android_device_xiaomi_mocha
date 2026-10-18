@@ -156,10 +156,6 @@ EXTENDED_FONT_FOOTPRINT := true
 # instead of hiding a working HAL.
 DEVICE_MANIFEST_FILE := device/xiaomi/mocha/hidl/manifest.xml
 
-# Init
-TARGET_INIT_VENDOR_LIB := mocha_init
-TARGET_RECOVERY_DEVICE_MODULES := mocha_init
-
 # Kernel
 # loglevel=4: the kernel prints a dozen falcon/nvhost pin-debug lines
 # per msenc/vic job; at the default console loglevel every encoder job
