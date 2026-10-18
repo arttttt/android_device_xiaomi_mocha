@@ -39,6 +39,12 @@ on init
     write /config/usb_gadget/g1/idVendor 0x0955
     write /config/usb_gadget/g1/idProduct 0xCF09
     write /config/usb_gadget/g1/bcdDevice 0x0223
+    # The USB version the device descriptor claims. configfs leaves it at 0
+    # unless told, and the gadget went out as "USB 0.0": macOS put up with it
+    # until a Still Image interface -- MTP or PTP -- sat beside adb's, and then
+    # every transfer on adb's endpoints failed as not responding. The
+    # controller is high-speed, so 2.0, as Pixel writes it.
+    write /config/usb_gadget/g1/bcdUSB 0x0200
     write /config/usb_gadget/g1/bDeviceClass 0
     write /config/usb_gadget/g1/bDeviceSubClass 0
     write /config/usb_gadget/g1/bDeviceProtocol 0
