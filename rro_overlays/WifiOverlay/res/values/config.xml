@@ -23,6 +23,12 @@
          does for the factory address already. -->
     <bool translatable="false" name="config_wifi_connected_mac_randomization_supported">true</bool>
 
+    <!-- The driver announces every country it is set to with
+         NL80211_CMD_REG_CHANGE, so the framework may take the country it
+         runs under from the driver rather than assume the one it asked for.
+         T and later; S has no such resource and leaves this unused. -->
+    <bool translatable="false" name="config_wifiDriverSupportedNl80211RegChangedEvent">true</bool>
+
     <!-- The hotspot's default name. The framework appends "_" and four
          random digits, and uses it only while no hotspot has been saved. -->
     <string name="wifi_tether_configure_ssid_default" translatable="false">MiPad</string>
