@@ -34,23 +34,7 @@ on init
     # The shim is wanted by exactly one process, so it is aimed at exactly
     # one process now: see TARGET_LD_SHIM_LIBS in BoardConfig.mk.
 
-    mkdir /mnt/media_rw/sdcard1 0700 media_rw media_rw
-    
-    # Support legacy paths
-    symlink /sdcard /mnt/sdcard
-    symlink /sdcard /storage/sdcard0
-
-    # create directory for mounting usb drives
-    mkdir /mnt/media_rw/usbdrive 0700 media_rw media_rw
-    mkdir /storage/usbdrive 0700 root root
-    symlink /mnt/media_rw/usbdrive /storage/usbdrive
-    symlink /mnt/media_rw/usbdrive /usbdrive
-
     start watchdogd
-
-on fs
-# mount console ramooops
-   mount pstore pstore /sys/fs/pstore
 
 on post-fs-data
     mkdir /data/misc/dhcp 0770 dhcp dhcp

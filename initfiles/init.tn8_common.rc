@@ -6,17 +6,6 @@
 #documentation without an express license agreement from NVIDIA Corporation
 #is strictly prohibited.
 
-on early-init
-    # create /oem symbol link
-    symlink /system/vendor/oem /oem
-    chmod 0755 /oem
-    chown root system /oem
-
-    # create /lbh symbol link
-    symlink /system/vendor/lbh /lbh
-    chmod 0755 /lbh
-    chown root system /lbh
-
 on fs
     setprop ro.crypto.tmpfs_options size=128m,mode=0771,uid=1000,gid=1000
     setprop ro.crypto.umount_sd false
