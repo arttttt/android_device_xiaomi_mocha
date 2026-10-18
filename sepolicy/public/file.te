@@ -86,6 +86,10 @@ type sysfs_tegra_info, fs_type, sysfs_type;
 # /sys/devices/platform/[0-9a-f]+\.i2c(/.*)?
 type sysfs_nvi2c, fs_type, sysfs_type, mlstrustedobject;
 
+# The charger's two hold-off switches, out of the bus-wide label above:
+# disabled_by_user and force_bypass under /sys/devices/platform/7000c400.i2c/i2c-1/1-006b
+type sysfs_charger_control, fs_type, sysfs_type;
+
 # /sys/devices/platform/sdhci-tegra.*/mmc_host
 type sysfs_mmc_host, fs_type, sysfs_type;
 

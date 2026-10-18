@@ -191,5 +191,14 @@ service watchdogd /system/bin/watchdogd 10 110
 # as persist.sys.charger.disabled and this hands it to the charger. Loading
 # the persistent properties at boot sets it too, so the choice is back in
 # force after a reboot with nothing having to watch for boot completing.
+#
+# It has its own node: disabled_by_user is Lineage's charging control, which
+# writes its wish there on every battery event and would undo the switch if
+# they shared one. The charger holds charging off while either asks.
 on property:persist.sys.charger.disabled=*
-    write /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user ${persist.sys.charger.disabled}
+    write /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/force_bypass ${persist.sys.charger.disabled}
+
+# Lineage's health HAL runs as system and drives disabled_by_user.
+on boot
+    chown system system /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user
+    chmod 0664 /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user

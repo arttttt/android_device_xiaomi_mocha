@@ -206,6 +206,11 @@ PRODUCT_PACKAGES += \
     vendor.lineage.livedisplay@2.0-service.mocha \
     vendor.lineage.touch@1.0-service.mocha
 
+# Lineage's charging control. The default service, set up in BoardConfig.mk,
+# brings its own VINTF fragment.
+PRODUCT_PACKAGES += \
+    vendor.lineage.health-service.default
+
 # WiFi
 PRODUCT_PACKAGES += \
     android.hardware.wifi@1.0-service \

@@ -272,6 +272,20 @@ RED_LED_PATH := "/sys/class/leds/red/brightness"
 GREEN_LED_PATH := "/sys/class/leds/green/brightness"
 BLUE_LED_PATH := "/sys/class/leds/blue/brightness"
 
+# Lineage's charging control, through its default health HAL
+# (hardware/lineage/interfaces/health). The charger holds charging off when
+# disabled_by_user is 1 -- at /CE, PMIC GPIO7, and in its register -- while
+# the board keeps running from the input, which is a bypass. Reading the node
+# back tells whether charging is really held off, whatever did it. The quick
+# settings switch has a node of its own, force_bypass, so the two do not undo
+# each other. There is no charger-side deadline.
+TARGET_HEALTH_CHARGING_CONTROL_CHARGING_PATH := /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user
+TARGET_HEALTH_CHARGING_CONTROL_CHARGING_ENABLED := 0
+TARGET_HEALTH_CHARGING_CONTROL_CHARGING_DISABLED := 1
+TARGET_HEALTH_CHARGING_CONTROL_SUPPORTS_TOGGLE := true
+TARGET_HEALTH_CHARGING_CONTROL_SUPPORTS_BYPASS := true
+TARGET_HEALTH_CHARGING_CONTROL_SUPPORTS_DEADLINE := false
+
 # Per-application sizes for shader cache
 MAX_EGL_CACHE_SIZE := 4194304
 MAX_EGL_CACHE_ENTRY_SIZE := 262144

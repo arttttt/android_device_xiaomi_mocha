@@ -1,0 +1,5 @@
+# Lineage's charging control. LineageOS defines the domain and its exec type;
+# what it cannot know is where this board keeps the switch: disabled_by_user
+# on the charger's node, behind the second I2C bus's directories.
+allow hal_lineage_health_default sysfs_nvi2c:dir search;
+allow hal_lineage_health_default sysfs_charger_control:file rw_file_perms;

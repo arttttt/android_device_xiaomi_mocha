@@ -190,6 +190,11 @@
 /sys/devices/platform/psy_extcon\..*/power_supply(/.*)?			u:object_r:sysfs_batteryinfo:s0
 /sys/devices/platform/7000c400\.i2c/i2c-1/1-0055/power_supply(/.*)?	u:object_r:sysfs_batteryinfo:s0
 
+# The charger's two hold-off switches: Lineage's health HAL drives the first,
+# the quick settings switch, through vendor init, the second.
+/sys/devices/platform/7000c400\.i2c/i2c-1/1-006b/disabled_by_user	u:object_r:sysfs_charger_control:s0
+/sys/devices/platform/7000c400\.i2c/i2c-1/1-006b/force_bypass		u:object_r:sysfs_charger_control:s0
+
 # cfboost sysfs, for ussrd
 /sys/module/input_cfboost/parameters/boost_freq		u:object_r:sysfs_cfboost:s0
 /sys/module/input_cfboost/parameters/boost_gpu		u:object_r:sysfs_cfboost:s0
