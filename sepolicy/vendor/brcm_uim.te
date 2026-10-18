@@ -19,6 +19,7 @@ allow brcm_uim sysfs_bluetooth_writable:file rw_file_perms;
 
 get_prop(brcm_uim, bluetooth_prop)
 get_prop(brcm_uim, exported_bluetooth_prop)
+get_prop(brcm_uim, rfkill_uim_prop)
 
 # It reads the address from persist.service.bdroid.bdaddr, a bluetooth_prop,
 # which on S only the Bluetooth HAL among vendor domains may read. Standing

@@ -43,3 +43,8 @@ vendor_internal_prop(wifi_version_prop)
 # tethering addresses from the serial number, the gadget HAL writes them into
 # the RNDIS function.
 vendor_internal_prop(usb_rndis_prop)
+
+# For ro.rfkilldisabled.uim, which brcm-uim-sysfs reads to learn whether to
+# leave rfkill alone. Nothing sets it; it reads unset, and without a type of
+# its own the read fell to default_prop, which brcm_uim may not read.
+vendor_internal_prop(rfkill_uim_prop)

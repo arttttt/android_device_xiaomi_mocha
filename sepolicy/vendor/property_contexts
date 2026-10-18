@@ -41,3 +41,6 @@ vendor.wlan.driver.version       u:object_r:wifi_version_prop:s0 exact string
 # Set by conn_init, read by the gadget HAL; see vendor/property.te.
 ro.vendor.usb.rndis.host_addr    u:object_r:usb_rndis_prop:s0 exact string
 ro.vendor.usb.rndis.dev_addr     u:object_r:usb_rndis_prop:s0 exact string
+
+# Read by brcm-uim-sysfs; see vendor/property.te.
+ro.rfkilldisabled.uim            u:object_r:rfkill_uim_prop:s0 exact bool
