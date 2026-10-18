@@ -496,6 +496,25 @@ static void fix_sensor_fields(sensor_t& sensor) {
         sensor.flags = SENSOR_FLAG_WAKE_UP | SENSOR_FLAG_ON_CHANGE_MODE;
         break;
     /*
+     * The ST library reports these with no reporting mode at all, which is
+     * continuous, and sensorservice says "Reporting Mode incorrect" for
+     * each at every start and puts in the mode the type requires. Report
+     * that mode here; the other flags stay as the library gives them.
+     */
+    case SENSOR_TYPE_LIGHT:
+    case SENSOR_TYPE_STEP_COUNTER:
+        sensor.flags = (sensor.flags & ~REPORTING_MODE_MASK) |
+                SENSOR_FLAG_ON_CHANGE_MODE;
+        break;
+    case SENSOR_TYPE_SIGNIFICANT_MOTION:
+        sensor.flags = (sensor.flags & ~REPORTING_MODE_MASK) |
+                SENSOR_FLAG_ONE_SHOT_MODE;
+        break;
+    case SENSOR_TYPE_STEP_DETECTOR:
+        sensor.flags = (sensor.flags & ~REPORTING_MODE_MASK) |
+                SENSOR_FLAG_SPECIAL_REPORTING_MODE;
+        break;
+    /*
      * Report a proper range to fix doze proximity check.
      */
     case SENSOR_TYPE_PROXIMITY:
