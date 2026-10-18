@@ -56,7 +56,8 @@ Result Gadget::compose(uint64_t functions, uint64_t timeoutMs) {
 
     mEndpoints = mConfig.link(functions);
 
-    if (!mConfig.setConfigurationName(functions)) return Result::kError;
+    if (!mConfig.setConfigurationName(functions) || !mConfig.setOsDescriptors(functions))
+        return Result::kError;
 
     /* Nothing in this configuration waits on a daemon, so the controller can
      * be written at once and the answer is already known. */

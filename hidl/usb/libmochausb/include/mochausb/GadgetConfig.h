@@ -49,6 +49,10 @@ class GadgetConfig {
     bool setIdentity(uint64_t functions) const;
     bool setConfigurationName(uint64_t functions) const;
 
+    /* Whether the gadget answers a Windows host's request for Microsoft OS
+     * descriptors. On for configurations with MTP or PTP. */
+    bool setOsDescriptors(uint64_t functions) const;
+
     /* Writing the controller's name is what puts the gadget on the bus, and
      * writing "none" is what takes it off. */
     bool bind() const;

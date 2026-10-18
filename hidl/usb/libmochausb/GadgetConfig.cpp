@@ -190,6 +190,12 @@ bool GadgetConfig::setConfigurationName(uint64_t functions) const {
             StringPrintf("%s/strings/0x409/configuration", kConfig), name);
 }
 
+bool GadgetConfig::setOsDescriptors(uint64_t functions) const {
+    bool use = functions & (function::kMtp | function::kPtp);
+
+    return mocha::sysfs::write(StringPrintf("%s/os_desc/use", kGadget), use ? "1" : "0");
+}
+
 /*
  * udc-core names the entry in /sys/class/udc after the parent device, and
  * board-ardbeg.c gives the device probed from udc@7d000000 the legacy name
