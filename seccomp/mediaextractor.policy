@@ -1,3 +1,10 @@
 # Allow device specific system calls
 readlinkat: 1
 pread64: 1
+# Shared memory through memfd (sys.use_memfd): libcutils creates the region
+# with memfd_create and sizes it with ftruncate64, and seals it with
+# fcntl64(F_ADD_SEALS) -- 1033 -- reading the seals back with F_GET_SEALS,
+# 1034. The platform policy for 32-bit ARM allows none of the three.
+memfd_create: 1
+ftruncate64: 1
+fcntl64: arg1 == 1033 || arg1 == 1034
