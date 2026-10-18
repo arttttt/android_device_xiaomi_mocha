@@ -1,0 +1,36 @@
+From 1477768d3c9393805a417907ca6f6a6940bd934c Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sun, 18 Oct 2026 22:44:04 +0300
+Subject: [PATCH] rootdir: sys.use_memfd is the device's to set
+
+init.rc set sys.use_memfd to false on post-fs-data, after the system
+properties had been loaded, so a device asking for memfd in its
+build.prop was overruled: memfd stayed off "until it is confirmed that
+apps and vendor processes don't make IOCTLs on ashmem fds any more".
+That is the device's to confirm. Leave the property to its build.prop,
+where it is unset -- off -- unless the device sets it.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ rootdir/init.rc | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 8a38559..90e938e 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -1001,11 +1001,6 @@ on post-fs-data
+     # Set indication (checked by vold) that we have finished this action
+     #setprop vold.post_fs_data_done 1
+ 
+-    # sys.memfd_use set to false by default, which keeps it disabled
+-    # until it is confirmed that apps and vendor processes don't make
+-    # IOCTLs on ashmem fds any more.
+-    setprop sys.use_memfd false
+-
+     # Set fscklog permission
+     chown root system /dev/fscklogs/log
+     chmod 0770 /dev/fscklogs/log
+-- 
+2.56.0
+

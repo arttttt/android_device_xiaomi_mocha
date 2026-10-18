@@ -22,8 +22,9 @@ PRODUCT_PROPERTY_OVERRIDES += \
 
 # Shared memory through memfd rather than ashmem, which later Android drops.
 # The kernel has memfd_create and F_SEAL_FUTURE_WRITE; libcutils allows it
-# for a vendor built before VNDK by the patch in patches/system/core. A
-# system property: it is use_memfd_prop, which vendor init may not set.
+# for a vendor built before VNDK, and init.rc no longer forces it off, by
+# the patches in patches/system/core. A system property: it is
+# use_memfd_prop, which vendor init may not set.
 PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
     sys.use_memfd=true
 
