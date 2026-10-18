@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// What MochaManager and the tiles ask the board's service. It crosses from
+// What MiPad Manager and the tiles ask the board's service. It crosses from
 // system to vendor, so it is stable the way a HAL is: the NDK backend for the
 // service in /vendor, the Java one for the clients in system_ext.
+//
+// Owned, so the build lets it stay unfrozen while it is still being shaped;
+// a version is frozen once it settles.
 aidl_interface {
     name: "vendor.arttttt.mochamanager",
+    owner: "arttttt",
     vendor_available: true,
     stability: "vintf",
     srcs: ["vendor/arttttt/mochamanager/*.aidl"],
