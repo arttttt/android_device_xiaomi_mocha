@@ -1,0 +1,79 @@
+From a17fd28214aa0623c30f7c32a89d552d0593edd3 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Sun, 18 Oct 2026 03:59:22 +0300
+Subject: [PATCH] IpClient: accept_ra is set when IPv6 starts, not in
+ StoppedState
+
+StoppedState is IpClient's initial state, and its enter() set accept_ra
+before mInterfaceParams had been filled in -- that happens later, in
+ClearingIpAddressesState. The call threw a NullPointerException, which
+the catch turned into "Failed to set accept_ra to 2" with no reason on
+every Wi-Fi start; netd never saw the request.
+
+Set accept_ra where IPv6 is started instead, as Android 13 does, from:
+- 8b93f298d Don't accept RAs in link-local only mode.
+  (moves accept_ra into startIPv6(), drops it from StoppedState#enter,
+  logs the exception);
+- 97a0eece0 Do not restore accpet_ra if the default IPv6 route has lost.
+  (startIPv6() takes the value, so restarting IPv6 after the loss of
+  the default route keeps accept_ra at 0 instead of putting 2 back).
+
+12 has no IPv6 link-local only provisioning mode, so IPv6 starts with
+accept_ra 2. The tests are not carried.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+---
+ src/android/net/ip/IpClient.java | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/src/android/net/ip/IpClient.java b/src/android/net/ip/IpClient.java
+index a57e99d..78ea449 100644
+--- a/src/android/net/ip/IpClient.java
++++ b/src/android/net/ip/IpClient.java
+@@ -1221,14 +1221,13 @@ public class IpClient extends StateMachine {
+             mNetd.setProcSysNet(INetd.IPV6, INetd.CONF, mInterfaceParams.name, "accept_ra",
+                     Integer.toString(acceptRa));
+         } catch (Exception e) {
+-            Log.e(mTag, "Failed to set accept_ra to " + acceptRa);
++            Log.e(mTag, "Failed to set accept_ra to " + acceptRa + ": " + e);
+         }
+     }
+ 
+     private void restartIpv6WithAcceptRaDisabled() {
+         mInterfaceCtrl.disableIPv6();
+-        setIpv6AcceptRa(0 /* accept_ra */);
+-        startIPv6();
++        startIPv6(0 /* acceptRa */);
+     }
+ 
+     // TODO: Investigate folding all this into the existing static function
+@@ -1754,7 +1753,8 @@ public class IpClient extends StateMachine {
+         return true;
+     }
+ 
+-    private boolean startIPv6() {
++    private boolean startIPv6(int acceptRa) {
++        setIpv6AcceptRa(acceptRa);
+         return mInterfaceCtrl.setIPv6PrivacyExtensions(true)
+                 && mInterfaceCtrl.setIPv6AddrGenModeIfSupported(mConfiguration.mIPv6AddrGenMode)
+                 && mInterfaceCtrl.enableIPv6();
+@@ -1885,7 +1885,6 @@ public class IpClient extends StateMachine {
+         @Override
+         public void enter() {
+             stopAllIP();
+-            setIpv6AcceptRa(2 /* accept_ra */);
+             mHasDisabledIpv6OrAcceptRaOnProvLoss = false;
+             mGratuitousNaTargetAddresses.clear();
+ 
+@@ -2229,7 +2228,7 @@ public class IpClient extends StateMachine {
+             mPacketTracker = createPacketTracker();
+             if (mPacketTracker != null) mPacketTracker.start(mConfiguration.mDisplayName);
+ 
+-            if (mConfiguration.mEnableIPv6 && !startIPv6()) {
++            if (mConfiguration.mEnableIPv6 && !startIPv6(2 /* acceptRa */)) {
+                 doImmediateProvisioningFailure(IpManagerEvent.ERROR_STARTING_IPV6);
+                 enqueueJumpToStoppingState(DisconnectCode.DC_ERROR_STARTING_IPV6);
+                 return;
+-- 
+2.56.0
+
