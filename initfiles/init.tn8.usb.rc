@@ -109,7 +109,12 @@ on fs
     # opens ep0 and writes the descriptors at boot, the MTP service in
     # MediaProvider opens the endpoints, and both are in the mtp group. So is
     # the gadget HAL, for the same reason it is in shell's.
+    #
+    # no_disconnect keeps the rest of the gadget on the bus when every file
+    # of an instance is closed -- system_server going down takes ep0 with
+    # it. The instance then stalls the host's requests until ep0 is opened
+    # again, instead of unregistering the gadget and adb with it.
     mkdir /dev/usb-ffs/mtp 0770 mtp mtp
     mkdir /dev/usb-ffs/ptp 0770 mtp mtp
-    mount functionfs mtp /dev/usb-ffs/mtp rmode=0770,fmode=0660,uid=1024,gid=1024
-    mount functionfs ptp /dev/usb-ffs/ptp rmode=0770,fmode=0660,uid=1024,gid=1024
+    mount functionfs mtp /dev/usb-ffs/mtp rmode=0770,fmode=0660,uid=1024,gid=1024,no_disconnect=1
+    mount functionfs ptp /dev/usb-ffs/ptp rmode=0770,fmode=0660,uid=1024,gid=1024,no_disconnect=1
