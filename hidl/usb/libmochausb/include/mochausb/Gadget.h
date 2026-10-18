@@ -19,6 +19,8 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <string>
+#include <vector>
 
 #include <mochausb/FfsMonitor.h>
 #include <mochausb/Functions.h>
@@ -34,6 +36,16 @@ enum class Result {
      * binds when it does. */
     kPending,
     kError,
+    /* Asks for a function the board has no instance of. */
+    kNotSupported,
+};
+
+enum class Speed {
+    kUnknown,
+    kLow,
+    kFull,
+    kHigh,
+    kSuper,
 };
 
 /*
@@ -56,12 +68,22 @@ class Gadget {
     uint64_t functions() const { return mFunctions; }
     bool applied() const { return mApplied; }
 
+    /* Drop off the bus and come back with the same configuration, so that the
+     * host enumerates the device afresh. */
+    Result reset();
+
+    /* What the controller negotiated with the host, as it reports it. */
+    Speed speed() const;
+
   private:
     Result tearDown();
     Result compose(uint64_t functions, uint64_t timeoutMs);
 
     GadgetConfig mConfig;
     FfsMonitor mMonitor;
+
+    /* The FunctionFS endpoints the current configuration waits for. */
+    std::vector<std::string> mEndpoints;
 
     std::atomic<uint64_t> mFunctions{function::kNone};
     std::atomic<bool> mApplied{false};

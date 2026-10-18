@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.usb.gadget@1.0-service.mocha"
+#define LOG_TAG "android.hardware.usb.gadget@1.2-service.mocha"
 
 #include <android-base/logging.h>
 #include <hidl/HidlTransportSupport.h>
@@ -26,8 +26,8 @@ using ::android::sp;
 using ::android::status_t;
 using ::android::hardware::configureRpcThreadpool;
 using ::android::hardware::joinRpcThreadpool;
-using ::android::hardware::usb::gadget::V1_0::IUsbGadget;
-using ::android::hardware::usb::gadget::V1_0::implementation::UsbGadget;
+using ::android::hardware::usb::gadget::V1_2::IUsbGadget;
+using ::android::hardware::usb::gadget::V1_2::implementation::UsbGadget;
 
 int main() {
     sp<IUsbGadget> service = new UsbGadget();

@@ -54,6 +54,10 @@ class GadgetConfig {
     bool bind() const;
     void unbind() const;
 
+    /* The controller's own word for the speed it is running at, as udc-core
+     * spells it: "high-speed" and the like. Empty if it cannot be read. */
+    std::string currentSpeed() const;
+
     /* What the gadget says it is before anything composes it. */
     void resetDeviceClass() const;
 

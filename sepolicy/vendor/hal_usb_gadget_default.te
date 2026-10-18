@@ -25,3 +25,9 @@
 # What does not come with it is which controller to bind the gadget to. That
 # is not ours to know -- the kernel names it and init publishes it.
 get_prop(hal_usb_gadget_default, usb_control_prop)
+
+# getUsbSpeed answers from the controller's current_speed, reached through the
+# /sys/class/udc link.
+allow hal_usb_gadget_default sysfs:dir r_dir_perms;
+allow hal_usb_gadget_default sysfs:lnk_file read;
+allow hal_usb_gadget_default sysfs_udc:file r_file_perms;

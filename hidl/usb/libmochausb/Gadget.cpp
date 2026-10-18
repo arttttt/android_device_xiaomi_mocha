@@ -54,20 +54,20 @@ Result Gadget::tearDown() {
 Result Gadget::compose(uint64_t functions, uint64_t timeoutMs) {
     if (!mConfig.setIdentity(functions)) return Result::kError;
 
-    std::vector<std::string> endpoints = mConfig.link(functions);
+    mEndpoints = mConfig.link(functions);
 
     if (!mConfig.setConfigurationName(functions)) return Result::kError;
 
     /* Nothing in this configuration waits on a daemon, so the controller can
      * be written at once and the answer is already known. */
-    if (endpoints.empty()) {
+    if (mEndpoints.empty()) {
         if (!mConfig.bind()) return Result::kError;
 
         mApplied = true;
         return Result::kApplied;
     }
 
-    if (!mMonitor.start(endpoints, mConfig)) return Result::kError;
+    if (!mMonitor.start(mEndpoints, mConfig)) return Result::kError;
 
     /* A daemon that has not arrived within the time the caller allowed is not
      * a failure of the configuration -- the monitor goes on waiting and binds
@@ -83,8 +83,11 @@ Result Gadget::compose(uint64_t functions, uint64_t timeoutMs) {
 Result Gadget::setFunctions(uint64_t functions, uint64_t timeoutMs) {
     std::lock_guard<std::mutex> lock(mLock);
 
+    if (functions & ~function::kSupported) return Result::kNotSupported;
+
     mFunctions = functions;
     mApplied = false;
+    mEndpoints.clear();
 
     Result result = tearDown();
     if (result != Result::kApplied) return result;
@@ -94,6 +97,47 @@ Result Gadget::setFunctions(uint64_t functions, uint64_t timeoutMs) {
     if (functions == function::kNone) return Result::kApplied;
 
     return compose(functions, timeoutMs);
+}
+
+/*
+ * The configuration stays linked; only the controller lets go of it and takes
+ * it back, which is all a host needs to see the device leave and arrive.
+ *
+ * Unbinding unbinds every function, and a FunctionFS daemon answers that by
+ * writing its descriptors again, so with daemons in the configuration the bind
+ * is the monitor's to make once they are back -- the same path that serves the
+ * first one.
+ */
+Result Gadget::reset() {
+    std::lock_guard<std::mutex> lock(mLock);
+
+    mMonitor.stop();
+    mConfig.unbind();
+    mApplied = false;
+
+    usleep(kDisconnectWaitUs);
+
+    if (mFunctions == function::kNone) return Result::kApplied;
+
+    if (mEndpoints.empty()) {
+        if (!mConfig.bind()) return Result::kError;
+
+        mApplied = true;
+        return Result::kApplied;
+    }
+
+    return mMonitor.start(mEndpoints, mConfig) ? Result::kPending : Result::kError;
+}
+
+Speed Gadget::speed() const {
+    std::string speed = mConfig.currentSpeed();
+
+    if (speed == "low-speed") return Speed::kLow;
+    if (speed == "full-speed") return Speed::kFull;
+    if (speed == "high-speed") return Speed::kHigh;
+    if (speed == "super-speed") return Speed::kSuper;
+
+    return Speed::kUnknown;
 }
 
 }  // namespace usb

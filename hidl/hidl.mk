@@ -183,7 +183,7 @@ PRODUCT_PACKAGES += \
 # configuration has no ADB in it -- so switching between two that both carry
 # adb leaves the daemon, and its FunctionFS descriptors, alone.
 PRODUCT_PACKAGES += \
-    android.hardware.usb.gadget@1.0-service.mocha
+    android.hardware.usb.gadget@1.2-service.mocha
 
 # Vibrator
 PRODUCT_PACKAGES += \

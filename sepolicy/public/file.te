@@ -90,6 +90,10 @@ type sysfs_nvi2c, fs_type, sysfs_type, mlstrustedobject;
 # disabled_by_user and force_bypass under /sys/devices/platform/7000c400.i2c/i2c-1/1-006b
 type sysfs_charger_control, fs_type, sysfs_type;
 
+# The USB device controller's state as udc-core reports it, for the gadget HAL:
+# /sys/devices/platform/tegra-udc.0/udc/tegra-udc.0/current_speed
+type sysfs_udc, fs_type, sysfs_type;
+
 # /sys/devices/platform/sdhci-tegra.*/mmc_host
 type sysfs_mmc_host, fs_type, sysfs_type;
 

@@ -35,6 +35,11 @@ constexpr uint64_t kMidi = 1 << 3;
 constexpr uint64_t kPtp = 1 << 4;
 constexpr uint64_t kRndis = 1 << 5;
 constexpr uint64_t kAudioSource = 1 << 6;
+constexpr uint64_t kUvc = 1 << 7;
+constexpr uint64_t kNcm = 1 << 10;
+
+/* What this board has an instance of. MIDI, UVC and NCM it does not. */
+constexpr uint64_t kSupported = kAdb | kAccessory | kMtp | kPtp | kRndis | kAudioSource;
 }  // namespace function
 
 }  // namespace usb

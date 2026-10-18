@@ -2,7 +2,7 @@
 #
 # The kernel no longer has android.c, so there is no /sys/class/android_usb
 # to write to: the gadget lives in configfs. What composes it is
-# android.hardware.usb.gadget@1.0-service.mocha, which UsbDeviceManager calls
+# android.hardware.usb.gadget@1.2-service.mocha, which UsbDeviceManager calls
 # when it changes functions. What is here is everything that has to exist
 # before it can -- the gadget, its strings, its configuration and every
 # function instance -- because nothing in system/core creates any of that,

@@ -20,7 +20,9 @@
 #include <mochausb/Functions.h>
 
 #include <SysfsNode.h>
+#include <android-base/file.h>
 #include <android-base/properties.h>
+#include <android-base/strings.h>
 #include <android-base/stringprintf.h>
 
 #include <ctype.h>
@@ -35,6 +37,8 @@ namespace mocha {
 namespace usb {
 
 using ::android::base::GetProperty;
+using ::android::base::ReadFileToString;
+using ::android::base::Trim;
 using ::android::base::StringPrintf;
 
 static constexpr char kGadget[] = "/config/usb_gadget/g1";
@@ -205,6 +209,18 @@ void GadgetConfig::unbind() const {
 
     ::write(fd, "none", sizeof("none") - 1);
     close(fd);
+}
+
+std::string GadgetConfig::currentSpeed() const {
+    std::string controller = GetProperty("sys.usb.controller", "");
+    std::string speed;
+
+    if (controller.empty() ||
+        !ReadFileToString(StringPrintf("/sys/class/udc/%s/current_speed", controller.c_str()),
+                          &speed))
+        return "";
+
+    return Trim(speed);
 }
 
 void GadgetConfig::resetDeviceClass() const {
