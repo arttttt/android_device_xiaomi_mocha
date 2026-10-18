@@ -3,8 +3,10 @@
 # "on init", so this can start as soon as hwservicemanager is up.
 #
 # root, because composing the gadget means writing configfs under
-# /config/usb_gadget, and the files there are owned by root.
+# /config/usb_gadget, and the files there are owned by root. shell and mtp,
+# because it watches the FunctionFS instances of adb, mtp and ptp, which are
+# open to their owners' groups only.
 service usb-gadget-hal-1-2 /vendor/bin/hw/android.hardware.usb.gadget@1.2-service.mocha
     class hal
     user root
-    group root shell
+    group root shell mtp

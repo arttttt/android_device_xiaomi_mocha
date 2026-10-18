@@ -38,12 +38,14 @@ namespace usb {
 
 using ::android::base::GetProperty;
 using ::android::base::ReadFileToString;
-using ::android::base::Trim;
 using ::android::base::StringPrintf;
+using ::android::base::Trim;
 
 static constexpr char kGadget[] = "/config/usb_gadget/g1";
 static constexpr char kConfig[] = "/config/usb_gadget/g1/configs/b.1";
 static constexpr char kFfsAdbDir[] = "/dev/usb-ffs/adb/";
+static constexpr char kFfsMtpDir[] = "/dev/usb-ffs/mtp/";
+static constexpr char kFfsPtpDir[] = "/dev/usb-ffs/ptp/";
 
 /*
  * The instance names are the platform's. A name that does not match is a
@@ -54,8 +56,8 @@ static constexpr char kFfsAdbDir[] = "/dev/usb-ffs/adb/";
  * again afterwards. The rest are made once by init.
  */
 static constexpr char kFfsAdb[] = "ffs.adb";
-static constexpr char kMtp[] = "mtp.gs0";
-static constexpr char kPtp[] = "ptp.gs1";
+static constexpr char kFfsMtp[] = "ffs.mtp";
+static constexpr char kFfsPtp[] = "ffs.ptp";
 static constexpr char kAccessory[] = "accessory.gs2";
 static constexpr char kAudioSource[] = "audio_source.gs3";
 static constexpr char kRndis[] = "rndis.gs4";
@@ -95,8 +97,24 @@ std::vector<std::string> GadgetConfig::link(uint64_t functions) {
     if (functions & function::kRndis) {
         if (!createFunction(kRndis) || !linkOne(kRndis, index++)) return {};
     }
-    if ((functions & function::kMtp) && !linkOne(kMtp, index++)) return {};
-    if ((functions & function::kPtp) && !linkOne(kPtp, index++)) return {};
+    /*
+     * MTP and PTP are FunctionFS functions like adb, and their daemon is
+     * system_server: it writes the descriptors when it opens ep0, once, at
+     * boot, and keeps it open. The endpoints are bulk in, bulk out and an
+     * interrupt for events.
+     */
+    if (functions & function::kMtp) {
+        if (!linkOne(kFfsMtp, index++)) return {};
+
+        for (const char* ep : {"ep1", "ep2", "ep3"})
+            endpoints.push_back(std::string(kFfsMtpDir) + ep);
+    }
+    if (functions & function::kPtp) {
+        if (!linkOne(kFfsPtp, index++)) return {};
+
+        for (const char* ep : {"ep1", "ep2", "ep3"})
+            endpoints.push_back(std::string(kFfsPtpDir) + ep);
+    }
     if ((functions & function::kAccessory) && !linkOne(kAccessory, index++)) return {};
     if ((functions & function::kAudioSource) && !linkOne(kAudioSource, index++)) return {};
 

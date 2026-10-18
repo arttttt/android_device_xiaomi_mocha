@@ -30,8 +30,6 @@
 namespace mocha {
 namespace usb {
 
-static constexpr char kFfsAdbDir[] = "/dev/usb-ffs/adb/";
-
 static constexpr int kEpollEvents = 10;
 static constexpr int kBufferSize = 512;
 
@@ -78,12 +76,17 @@ bool FfsMonitor::start(const std::vector<std::string>& endpoints, const GadgetCo
         return false;
     }
 
-    /* The directory rather than the files: they are created and destroyed as
-     * daemons come and go, and a watch on a file that is about to be deleted
-     * would go with it. */
-    if (inotify_add_watch(inotifyFd.get(), kFfsAdbDir, IN_ALL_EVENTS) == -1) {
-        ALOGE("cannot watch %s: %s", kFfsAdbDir, strerror(errno));
-        return false;
+    /* The directories rather than the files: they are created and destroyed
+     * as daemons come and go, and a watch on a file that is about to be
+     * deleted would go with it. One watch per FunctionFS instance; a second
+     * watch on a directory already watched is the same watch. */
+    for (const auto& endpoint : endpoints) {
+        std::string dir = endpoint.substr(0, endpoint.rfind('/') + 1);
+
+        if (inotify_add_watch(inotifyFd.get(), dir.c_str(), IN_ALL_EVENTS) == -1) {
+            ALOGE("cannot watch %s: %s", dir.c_str(), strerror(errno));
+            return false;
+        }
     }
 
     if (!addToEpoll(epollFd, inotifyFd) || !addToEpoll(epollFd, eventFd)) return false;
