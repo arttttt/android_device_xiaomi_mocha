@@ -23,8 +23,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Handler
-import android.os.HandlerThread
 import com.android.arttttt.mochamanager.domain.model.Accuracy
 import com.android.arttttt.mochamanager.domain.model.ReportingMode
 import com.android.arttttt.mochamanager.domain.model.SensorInfo
@@ -38,16 +36,17 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 
 /*
- * The sensors as SensorManager lists them. Their events are delivered on a
- * thread of their own: a screenful of them comes at a few hundred a second,
- * which is no work for the main thread to take on.
+ * The sensors as SensorManager lists them. SensorManager delivers events
+ * through a Looper only, and a coroutine dispatcher has none: they come on
+ * the main thread, where the listener does nothing but hand each to its
+ * flow. Gathering them is the collector's, on whatever dispatcher it runs
+ * on.
  */
 class AndroidSensorRepository(
     private val context: Context,
     private val default: CoroutineDispatcher,
 ) : SensorRepository {
     private val manager = context.getSystemService(SensorManager::class.java)
-    private val events = Handler(HandlerThread("sensors").apply { start() }.looper)
     private val byKey = HashMap<Int, Sensor>()
 
     override suspend fun sensors(): List<SensorInfo> = withContext(default) {
@@ -77,7 +76,14 @@ class AndroidSensorRepository(
     }
 
     override fun updates(sensors: List<SensorInfo>): Flow<SensorUpdate> = callbackFlow {
-        val keys = HashMap<Sensor, Int>()
+        /* Made whole before the first registration and only read after it:
+         * the listener runs on the sensors' thread. A one-shot sensor is
+         * armed, not listened to; a restricted one only with the permission. */
+        val keys: Map<Sensor, Int> = sensors
+                .filter { it.reportingMode != ReportingMode.ONE_SHOT }
+                .filter { !it.restricted || stepsAllowed() }
+                .mapNotNull { info -> synchronized(byKey) { byKey[info.key] }?.let { it to info.key } }
+                .toMap()
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 val key = keys[event.sensor] ?: return
@@ -87,15 +93,10 @@ class AndroidSensorRepository(
             /* Every event carries its accuracy. */
             override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
         }
-        for (info in sensors) {
-            /* A one-shot sensor is armed, not listened to; a restricted one
-             * only with the permission. */
-            if (info.reportingMode == ReportingMode.ONE_SHOT) continue
-            if (info.restricted && !stepsAllowed()) continue
-            val sensor = synchronized(byKey) { byKey[info.key] } ?: continue
-            keys[sensor] = info.key
-            manager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI, events)
+        for (sensor in keys.keys) {
+            manager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
         }
+        /* One listener for all of them: unregistering it takes it off each. */
         awaitClose { manager.unregisterListener(listener) }
     }
 
@@ -108,7 +109,7 @@ class AndroidSensorRepository(
                 }
                 override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
             }
-            manager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME, events)
+            manager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
             awaitClose { manager.unregisterListener(listener) }
         }
     }

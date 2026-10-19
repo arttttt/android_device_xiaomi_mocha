@@ -32,18 +32,19 @@ import com.android.arttttt.mochamanager.domain.usecase.adviseCalibration
 import com.android.arttttt.mochamanager.ui.common.Effects
 import com.android.arttttt.mochamanager.ui.common.STOP_TIMEOUT_MS
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
@@ -66,8 +67,10 @@ class SensorsViewModel(
     /* Bumped to listen again: the permission for the step sensors came. */
     private val listening = MutableStateFlow(0)
     private val current = MutableStateFlow<Loadable<AccelCalibration>>(Loadable.Loading)
-    private val progress = MutableStateFlow<AccelCalibrationSession.Progress?>(null)
-    private var session: Job? = null
+    /* Whether the user has asked for a calibration; it runs only while the
+     * screen is shown -- it listens to the accelerometer at the game rate --
+     * and is called off when the screen goes. */
+    private val requested = MutableStateFlow(false)
 
     init {
         viewModelScope.launch { list.value = Loadable.Ready(sensors.sensors()) }
@@ -93,6 +96,10 @@ class SensorsViewModel(
             .sample(RENDER_MS)
             .onStart { emit(Gathered()) }
             .flowOn(background)
+
+    private val progress: Flow<AccelCalibrationSession.Progress?> = requested
+            .flatMapLatest { wanted -> if (wanted) calibrate() else flowOf(null) }
+            .onCompletion { requested.value = false }
 
     val state: StateFlow<SensorsState> = combine(list, gathered, current, progress) { l, g, c, p ->
         val primary = l.valueOrNull?.firstOrNull { it.primaryAccelerometer }
@@ -122,43 +129,48 @@ class SensorsViewModel(
     }
 
     private fun startCalibration() {
-        val readings = sensors.uncalibratedAccelerometer() ?: return
-        val resolution = sensors.uncalibratedResolution ?: return
-        session?.cancel()
-        val calibration = AccelCalibrationSession(resolution)
-        progress.value = calibration.progress
-        session = viewModelScope.launch {
-            readings.map { calibration.feed(it) }.collect { p ->
-                val before = progress.value?.step
-                progress.value = p
-                if (p.step == before) return@collect
-                when (p.step) {
-                    Step.PLACE_DOWN -> if (before == Step.HOLD_UP) effects.send(SensorsEffect.PoseTaken)
-                    Step.DONE -> finish(p.result!!)
-                    Step.FAILED -> {
-                        effects.send(SensorsEffect.CalibrationFailed)
-                        stopCalibration()
-                    }
-                    else -> {}
-                }
-            }
-        }
-    }
-
-    private suspend fun finish(result: AccelCalibration) {
-        effects.send(SensorsEffect.Calibrated)
-        if (!calibrations.save(result)) effects.send(SensorsEffect.ChangeFailed)
-        loadCalibration()
-        stopCalibration()
+        if (sensors.uncalibratedResolution != null) requested.value = true
     }
 
     private fun stopCalibration() {
-        progress.value = null
-        session?.cancel()
-        session = null
+        requested.value = false
     }
 
-    override fun onCleared() {
+    /*
+     * One calibration, as a flow of where it stands: it starts listening
+     * when collected and stops when it is no longer, whatever ends it. It
+     * ends itself once it is made or has failed.
+     */
+    private fun calibrate(): Flow<AccelCalibrationSession.Progress?> {
+        val readings = sensors.uncalibratedAccelerometer() ?: return flowOf(null)
+        val resolution = sensors.uncalibratedResolution ?: return flowOf(null)
+        val session = AccelCalibrationSession(resolution)
+        var before: Step? = null
+        return readings
+                .map { session.feed(it) }
+                .onStart { emit(session.progress) }
+                .onEach { p ->
+                    if (p.step != before) {
+                        when (p.step) {
+                            Step.PLACE_DOWN -> if (before == Step.HOLD_UP) effects.send(SensorsEffect.PoseTaken)
+                            Step.DONE -> finish(p.result!!)
+                            Step.FAILED -> {
+                                effects.send(SensorsEffect.CalibrationFailed)
+                                stopCalibration()
+                            }
+                            else -> {}
+                        }
+                    }
+                    before = p.step
+                }
+    }
+
+    private fun finish(result: AccelCalibration) {
+        effects.send(SensorsEffect.Calibrated)
+        viewModelScope.launch {
+            if (!calibrations.save(result)) effects.send(SensorsEffect.ChangeFailed)
+            loadCalibration()
+        }
         stopCalibration()
     }
 
