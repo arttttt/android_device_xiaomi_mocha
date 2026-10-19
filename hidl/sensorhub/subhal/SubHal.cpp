@@ -141,7 +141,8 @@ void SubHal::OnEvents(const std::vector<sensors_event_t>& events) {
 }  // namespace sensors
 }  // namespace mocha
 
-ISensorsSubHal* sensorsHalGetSubHal_2_1(uint32_t* version) {
+::android::hardware::sensors::V2_1::implementation::ISensorsSubHal* sensorsHalGetSubHal_2_1(
+        uint32_t* version) {
     static mocha::sensors::SubHal subHal;
     *version = SUB_HAL_2_1_VERSION;
     return &subHal;
