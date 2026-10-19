@@ -57,16 +57,16 @@ bool WriteValue(const std::string& path, const std::string& value) {
 
 /*
  * "le:s16/16>>0": endianness, sign, bits, storage bits, shift. A channel of
- * no data is "le:0/0>>0", with no sign at all: the record then carries only
- * the time.
+ * no data has a NUL for its sign -- the hub's driver prints a sign of 0 with
+ * %c -- and the record then carries only the time.
  */
 bool ParseType(const std::string& type, IioChannel* channel) {
     size_t colon = type.find(':');
-    if (colon == std::string::npos) return false;
-    const char* p = type.c_str() + colon + 1;
-
-    channel->isSigned = *p == 's';
-    if (*p == 's' || *p == 'u') p++;
+    if (colon == std::string::npos || colon + 1 >= type.size()) return false;
+    char sign = type[colon + 1];
+    channel->isSigned = sign == 's';
+    const char* p = type.data() + colon + 1;
+    if (sign == 's' || sign == 'u' || sign == '\0') p++;
 
     char* end;
     long bits = strtol(p, &end, 10);
