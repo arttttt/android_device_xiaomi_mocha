@@ -69,6 +69,18 @@ class SensorText(private val context: Context, private val axisColors: IntArray)
         else -> 0.0
     }
 
+    /* The step a sensor's numbers show in: as many decimals as show() gives. */
+    fun step(s: SensorInfo): Double = when (s.type) {
+        Sensor.TYPE_ACCELEROMETER, Sensor.TYPE_GRAVITY, Sensor.TYPE_LINEAR_ACCELERATION,
+        Sensor.TYPE_ACCELEROMETER_UNCALIBRATED -> 0.01
+        Sensor.TYPE_GYROSCOPE, Sensor.TYPE_GYROSCOPE_UNCALIBRATED -> 0.001
+        Sensor.TYPE_MAGNETIC_FIELD, Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED -> 0.1
+        Sensor.TYPE_ORIENTATION, Sensor.TYPE_ROTATION_VECTOR, Sensor.TYPE_GAME_ROTATION_VECTOR,
+        Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR, Sensor.TYPE_LIGHT, Sensor.TYPE_STEP_COUNTER,
+        Sensor.TYPE_STEP_DETECTOR -> 1.0
+        else -> 0.01
+    }
+
     /* The text for no numbers: what a one-shot sensor is, or a dash. */
     fun none(s: SensorInfo): String = context.getString(
             if (s.reportingMode == ReportingMode.ONE_SHOT) R.string.sensor_one_shot else R.string.unknown)

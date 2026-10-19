@@ -137,7 +137,7 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
         g.accelerometer?.let { s ->
             val a = r[s.key]?.values?.let(SensorText::length)
             if (a == null) v.accelerometer.about.settle(f.describe(s))
-            else v.accelerometer.about.roll(a, STREAM_MS) {
+            else v.accelerometer.about.roll(a, STREAM_MS, step = 0.01) {
                 getString(R.string.accel_magnitude, u.ms2(it), u.percentFine((it / SensorManager.GRAVITY_EARTH - 1) * 100)) +
                         " · " + f.describe(s)
             }
@@ -151,19 +151,19 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
             v.orientation.value.settle(getString(R.string.unknown))
             v.orientation.sub.settle("")
         } else {
-            v.orientation.value.roll(rotation[0].toDouble(), STREAM_MS, 360.0) { u.angle(SensorText.azimuth(it)) }
-            v.orientation.sub.roll(doubleArrayOf(rotation[1].toDouble(), rotation[2].toDouble()), STREAM_MS, 360.0) {
+            v.orientation.value.roll(rotation[0].toDouble(), STREAM_MS, 360.0, 1.0) { u.angle(SensorText.azimuth(it)) }
+            v.orientation.sub.roll(doubleArrayOf(rotation[1].toDouble(), rotation[2].toDouble()), STREAM_MS, 360.0, 1.0) {
                 getString(R.string.orientation_sub, u.angle(SensorText.signed(it[0])), u.angle(SensorText.signed(it[1])))
             }
         }
 
-        rollReading(v.light.value, g.light?.let { r[it.key] }?.values?.get(0)?.toDouble()) { u.lux(it) }
+        rollReading(v.light.value, g.light?.let { r[it.key] }?.values?.get(0)?.toDouble(), 1.0) { u.lux(it) }
         v.light.sub.text = g.light?.vendor ?: ""
-        rollReading(v.magnetic.value, g.magneticField?.let { r[it.key] }?.values?.let(SensorText::length)) {
+        rollReading(v.magnetic.value, g.magneticField?.let { r[it.key] }?.values?.let(SensorText::length), 1.0) {
             u.microtesla(it)
         }
         v.magnetic.sub.setText(R.string.magnetic_sub)
-        rollReading(v.steps.value, g.stepCounter?.let { r[it.key] }?.values?.get(0)?.toDouble()) {
+        rollReading(v.steps.value, g.stepCounter?.let { r[it.key] }?.values?.get(0)?.toDouble(), 1.0) {
             it.toLong().toString()
         }
         v.steps.sub.setText(if (stepsAllowed()) R.string.steps_sub else R.string.steps_need_permission)
@@ -172,8 +172,8 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
     }
 
     /* A reading that runs from one to the next, or a dash until there is one. */
-    private fun rollReading(view: TextView, value: Double?, show: (Double) -> CharSequence) {
-        if (value == null) view.settle(getString(R.string.unknown)) else view.roll(value, STREAM_MS, show = show)
+    private fun rollReading(view: TextView, value: Double?, step: Double, show: (Double) -> CharSequence) {
+        if (value == null) view.settle(getString(R.string.unknown)) else view.roll(value, STREAM_MS, step = step, show = show)
     }
 
     private fun renderRow(v: Views, row: Row, s: SensorInfo?, state: SensorsState) {
@@ -184,7 +184,7 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
         }
         val numbers = v.format.numbers(s, state.readings[s.key], state.steps[s.key])
         if (numbers == null) row.value.settle(v.format.none(s))
-        else row.value.roll(numbers, STREAM_MS, v.format.wrap(s)) { v.format.show(s, it) }
+        else row.value.roll(numbers, STREAM_MS, v.format.wrap(s), v.format.step(s)) { v.format.show(s, it) }
         if (row !== v.accelerometer) row.about.text = v.format.describe(s)
     }
 
@@ -217,7 +217,7 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
 
         val a = state.groups.valueOrNull?.accelerometer?.let { state.readings[it.key] }?.values?.let(SensorText::length)
         if (a == null) v.calNow.settle(getString(R.string.loading))
-        else v.calNow.roll(a, STREAM_MS) {
+        else v.calNow.roll(a, STREAM_MS, step = 0.01) {
             getString(R.string.cal_now, v.units.ms2(it), v.units.percentFine((it / SensorManager.GRAVITY_EARTH - 1) * 100))
         }
 

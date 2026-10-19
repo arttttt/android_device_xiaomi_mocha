@@ -34,8 +34,10 @@ import com.android.arttttt.mochamanager.domain.model.Loadable
  * keeps a stream of readings moving without a pause: such short runs go at
  * an even pace, longer ones ease out.
  *
- * Cheap per frame, as it must be for a screen of them: a frame whose text
- * comes out as the last one's sets nothing, and a TextView of a fixed or
+ * Cheap per frame, as it must be for a screen of them: given the step its
+ * text shows -- 0.01 for two decimals -- a frame whose numbers round to the
+ * last one's formats nothing; a frame whose text comes out as the last
+ * one's sets nothing; and a TextView of a fixed or
  * matched width -- as the screens give every running number -- only
  * redraws itself on a new text rather than laying the screen out anew.
  */
@@ -58,6 +60,19 @@ private class Rolling(
     var show: (DoubleArray) -> CharSequence,
 ) : View.OnAttachStateChangeListener {
     var animator: ValueAnimator? = null
+    var step = 0.0
+    /* The numbers as last formatted, in steps. */
+    private var formatted: LongArray? = null
+
+    /* Formats only numbers that show differently from the last. */
+    fun showIfChanged() {
+        if (step > 0) {
+            val steps = LongArray(shown.size) { Math.round(shown[it] / step) }
+            if (steps.contentEquals(formatted)) return
+            formatted = steps
+        }
+        view.setIfNew(show(shown))
+    }
 
     init {
         view.addOnAttachStateChangeListener(this)
@@ -83,16 +98,18 @@ fun TextView.roll(
     values: DoubleArray,
     durationMs: Long = NUMBER_MS,
     wrap: Double = 0.0,
+    step: Double = 0.0,
     show: (DoubleArray) -> CharSequence,
 ) {
     val r = getTag(R.id.rolling) as Rolling?
     if (r == null || r.shown.size != values.size || !isAttachedToWindow) {
         r?.forget()
         text = show(values)
-        if (isAttachedToWindow) setTag(R.id.rolling, Rolling(this, values.copyOf(), show))
+        if (isAttachedToWindow) setTag(R.id.rolling, Rolling(this, values.copyOf(), show).also { it.step = step })
         return
     }
     r.show = show
+    r.step = step
     val from = r.shown.copyOf()
     val to = DoubleArray(values.size) { i ->
         if (wrap > 0) from[i] + shortest(values[i] - from[i], wrap) else values[i]
@@ -108,16 +125,21 @@ fun TextView.roll(
         addUpdateListener { a ->
             val f = a.animatedValue as Float
             for (i in from.indices) r.shown[i] = from[i] + (to[i] - from[i]) * f
-            setIfNew(r.show(r.shown))
+            r.showIfChanged()
         }
         start()
     }
 }
 
-fun TextView.roll(value: Double, durationMs: Long = NUMBER_MS, wrap: Double = 0.0, show: (Double) -> CharSequence) =
-        roll(doubleArrayOf(value), durationMs, wrap) { show(it[0]) }
+fun TextView.roll(
+    value: Double,
+    durationMs: Long = NUMBER_MS,
+    wrap: Double = 0.0,
+    step: Double = 0.0,
+    show: (Double) -> CharSequence,
+) = roll(doubleArrayOf(value), durationMs, wrap, step) { show(it[0]) }
 
-private fun TextView.setIfNew(new: CharSequence) {
+internal fun TextView.setIfNew(new: CharSequence) {
     if (!TextUtils.equals(text, new)) text = new
 }
 
