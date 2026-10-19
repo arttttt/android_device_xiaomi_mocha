@@ -23,7 +23,11 @@ data class CpuCore(
     val minKhz: Int,
     val maxKhz: Int,
     val governor: String,
-)
+) {
+    /* How far up its range it runs, 0..1. */
+    val load: Float
+        get() = if (online && maxKhz > 0) curKhz.toFloat() / maxKhz else 0f
+}
 
 data class Gpu(val curHz: Long, val maxHz: Long, val loadPermille: Int, val railgated: Boolean)
 
@@ -43,6 +47,12 @@ data class Memory(
     val swapUsedKb: Long
         get() = swapTotalKb - swapFreeKb
 
+    val usedFraction: Double
+        get() = if (totalKb > 0) 1.0 - availableKb.toDouble() / totalKb else 0.0
+
+    val swapFraction: Double
+        get() = if (swapTotalKb > 0) swapUsedKb.toDouble() / swapTotalKb else 0.0
+
     /* Over a nearly empty device the ratio says nothing. */
     val zramRatio: Double?
         get() = if (zramOrigBytes >= 1L shl 20 && zramComprBytes > 0) {
@@ -58,4 +68,11 @@ data class Snapshot(
     val emcHz: Long,
     val thermals: List<ThermalZone>,
     val memory: Memory,
-)
+) {
+    /* The core running fastest: what the cluster as a whole is doing. */
+    val busiestKhz: Int
+        get() = cores.filter { it.online }.maxOfOrNull { it.curKhz } ?: 0
+
+    val hottest: ThermalZone?
+        get() = thermals.maxByOrNull { it.milliCelsius }
+}

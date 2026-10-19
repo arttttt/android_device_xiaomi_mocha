@@ -16,11 +16,19 @@
 
 package com.android.arttttt.mochamanager.domain
 
+import com.android.arttttt.mochamanager.domain.model.CpuCore
 import com.android.arttttt.mochamanager.domain.model.DeviceInfo
+import com.android.arttttt.mochamanager.domain.model.Gpu
 import com.android.arttttt.mochamanager.domain.model.Memory
 import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
 import com.android.arttttt.mochamanager.domain.model.RefreshMode
-import com.android.arttttt.mochamanager.domain.usecase.PowerHistory
+import com.android.arttttt.mochamanager.domain.model.Snapshot
+import com.android.arttttt.mochamanager.domain.model.ThermalZone
+import com.android.arttttt.mochamanager.domain.usecase.History
+import com.android.arttttt.mochamanager.domain.usecase.Level
+import com.android.arttttt.mochamanager.domain.usecase.chargeLevel
+import com.android.arttttt.mochamanager.domain.usecase.thermalLevel
+import com.android.arttttt.mochamanager.domain.usecase.wearLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -53,12 +61,41 @@ class ModelsTest {
     }
 
     @Test
-    fun historyKeepsTwoMinutes() {
-        var h = PowerHistory.EMPTY
-        repeat(130) { h = h.plus(it) }
-        assertEquals(PowerHistory.CAPACITY, h.samplesMw.size)
-        assertEquals(10, h.samplesMw.first())
-        assertEquals(129, h.samplesMw.last())
+    fun historyKeepsItsCapacity() {
+        var h = History.empty(120)
+        repeat(130) { h = h.plus(it.toFloat()) }
+        assertEquals(120, h.samples.size)
+        assertEquals(10f, h.samples.first(), 0f)
+        assertEquals(129f, h.samples.last(), 0f)
         assertEquals(130L, h.serial)
+    }
+
+    @Test
+    fun levels() {
+        assertEquals(Level.GOOD, thermalLevel(41_000))
+        assertEquals(Level.WARN, thermalLevel(47_250))
+        assertEquals(Level.BAD, thermalLevel(70_000))
+        assertEquals(Level.GOOD, wearLevel(92.0))
+        assertEquals(Level.WARN, wearLevel(72.0))
+        assertEquals(Level.BAD, wearLevel(50.0))
+        assertEquals(Level.GOOD, chargeLevel(92))
+        assertEquals(Level.WARN, chargeLevel(20))
+        assertEquals(Level.BAD, chargeLevel(15))
+    }
+
+    @Test
+    fun snapshotSummary() {
+        val memory = Memory(2000, 500, 0, 1000, 750, 0, 0, 0f, 0f)
+        val s = Snapshot("G",
+                listOf(CpuCore(0, true, 204_000, 51_000, 2_116_500, "interactive"),
+                        CpuCore(1, true, 828_000, 51_000, 2_116_500, "interactive"),
+                        CpuCore(2, false, 0, 0, 0, "")),
+                Gpu(72_000_000, 852_000_000, 40, false), 528_000_000,
+                listOf(ThermalZone("CPU", 41_000), ThermalZone("Tdiode", 47_250)), memory)
+        assertEquals(828_000, s.busiestKhz)
+        assertEquals("Tdiode", s.hottest!!.name)
+        assertEquals(0f, s.cores[2].load, 0f)
+        assertEquals(0.75, memory.usedFraction, 1e-9)
+        assertEquals(0.25, memory.swapFraction, 1e-9)
     }
 }

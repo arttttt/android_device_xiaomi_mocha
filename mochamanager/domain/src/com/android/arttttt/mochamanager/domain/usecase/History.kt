@@ -17,20 +17,22 @@
 package com.android.arttttt.mochamanager.domain.usecase
 
 /*
- * The last two minutes of power, a sample a second, oldest first; serial
- * counts the samples ever added, so a graph can tell a new one from a redraw
- * of the same history.
+ * The last so many samples, oldest first, for a graph to draw; serial counts
+ * the samples ever added, so a graph can tell a new one from a redraw of the
+ * same history.
  */
-class PowerHistory private constructor(val samplesMw: List<Int>, val serial: Long) {
-
-    fun plus(powerMw: Int): PowerHistory {
-        val samples = if (samplesMw.size < CAPACITY) samplesMw + powerMw
-        else samplesMw.subList(1, CAPACITY) + powerMw
-        return PowerHistory(samples, serial + 1)
+class History private constructor(
+    val capacity: Int,
+    val samples: List<Float>,
+    val serial: Long,
+) {
+    fun plus(sample: Float): History {
+        val kept = if (samples.size < capacity) samples + sample
+        else samples.subList(1, capacity) + sample
+        return History(capacity, kept, serial + 1)
     }
 
     companion object {
-        const val CAPACITY = 120
-        val EMPTY = PowerHistory(emptyList(), 0)
+        fun empty(capacity: Int) = History(capacity, emptyList(), 0)
     }
 }
