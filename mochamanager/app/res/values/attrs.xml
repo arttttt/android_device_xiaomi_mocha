@@ -16,7 +16,7 @@
 -->
 <resources>
     <!-- What the theme's own attributes do not name: the colours that carry
-         a state -- good, warning, bad -- each with a soft container to sit
+         a state (good, warning, bad), each with a soft container to sit
          on, and the track a bar runs in. -->
     <attr name="colorGood" format="color" />
     <attr name="colorGoodContainer" format="color" />
