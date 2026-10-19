@@ -19,9 +19,6 @@ package com.android.arttttt.mochamanager.ui.sensors
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorManager
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.ReportingMode
 import com.android.arttttt.mochamanager.domain.model.SensorInfo
@@ -30,10 +27,9 @@ import java.util.Locale
 import kotlin.math.sqrt
 
 /*
- * How a sensor and its readings read on screen, by Android's sensor type. A
- * vector's three axes are coloured X, Y, Z as the graphs draw them.
+ * How a sensor and its readings read on screen, by Android's sensor type.
  */
-class SensorText(private val context: Context, private val axisColors: IntArray) {
+class SensorText(private val context: Context) {
 
     fun describe(s: SensorInfo): String {
         val mode = context.getString(when (s.reportingMode) {
@@ -85,20 +81,41 @@ class SensorText(private val context: Context, private val axisColors: IntArray)
     fun none(s: SensorInfo): String = context.getString(
             if (s.reportingMode == ReportingMode.ONE_SHOT) R.string.sensor_one_shot else R.string.unknown)
 
-    fun show(s: SensorInfo, v: DoubleArray): CharSequence = when (s.type) {
-        Sensor.TYPE_ACCELEROMETER, Sensor.TYPE_GRAVITY, Sensor.TYPE_LINEAR_ACCELERATION ->
-            axes(v, "%.2f", u(R.string.unit_ms2))
-        Sensor.TYPE_ACCELEROMETER_UNCALIBRATED -> uncalibrated(v, "%.2f", u(R.string.unit_ms2))
-        Sensor.TYPE_GYROSCOPE -> axes(v, "%.3f", u(R.string.unit_rads))
-        Sensor.TYPE_GYROSCOPE_UNCALIBRATED -> uncalibrated(v, "%.3f", u(R.string.unit_rads))
-        Sensor.TYPE_MAGNETIC_FIELD -> axes(v, "%.1f", u(R.string.unit_microtesla))
-        Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED -> uncalibrated(v, "%.1f", u(R.string.unit_microtesla))
-        Sensor.TYPE_ORIENTATION, Sensor.TYPE_ROTATION_VECTOR, Sensor.TYPE_GAME_ROTATION_VECTOR,
-        Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR -> f("%.0f°  %.0f°  %.0f°", azimuth(v[0]), signed(v[1]), signed(v[2]))
-        Sensor.TYPE_LIGHT -> f("%.0f ", v[0]) + u(R.string.unit_lux)
-        Sensor.TYPE_STEP_COUNTER, Sensor.TYPE_STEP_DETECTOR -> f("%.0f", v[0])
-        else -> v.joinToString("  ") { f("%.2f", it) }
+    /*
+     * How a sensor's numbers are laid out: three on the axes, coloured X,
+     * Y, Z, with an uncalibrated sensor's bias -- three more -- on the line
+     * below; or a single one. Each number formatted by pattern.
+     */
+    data class Shape(val axes: Boolean, val pattern: String, val unit: String)
+
+    fun shape(s: SensorInfo, count: Int): Shape {
+        val (pattern, unit) = when (s.type) {
+            Sensor.TYPE_ACCELEROMETER, Sensor.TYPE_GRAVITY, Sensor.TYPE_LINEAR_ACCELERATION,
+            Sensor.TYPE_ACCELEROMETER_UNCALIBRATED -> "%.2f" to u(R.string.unit_ms2)
+            Sensor.TYPE_GYROSCOPE, Sensor.TYPE_GYROSCOPE_UNCALIBRATED -> "%.3f" to u(R.string.unit_rads)
+            Sensor.TYPE_MAGNETIC_FIELD, Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED -> "%.1f" to u(R.string.unit_microtesla)
+            Sensor.TYPE_ORIENTATION, Sensor.TYPE_ROTATION_VECTOR, Sensor.TYPE_GAME_ROTATION_VECTOR,
+            Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR -> "%.0f°" to ""
+            Sensor.TYPE_LIGHT -> "%.0f" to u(R.string.unit_lux)
+            Sensor.TYPE_STEP_COUNTER, Sensor.TYPE_STEP_DETECTOR -> "%.0f" to ""
+            else -> "%.2f" to ""
+        }
+        return Shape(count == 3 || count == 6, pattern, unit)
     }
+
+    /* One number as the sensor shows it; an angle brought back into range. */
+    fun number(s: SensorInfo, shape: Shape, v: Double, axis: Int): String = f(shape.pattern, when {
+        wrap(s) == 0.0 -> v
+        axis == 0 -> azimuth(v)
+        else -> signed(v)
+    })
+
+    /* Numbers on one plain line: the bias, or a reading of some other count. */
+    fun line(s: SensorInfo, shape: Shape, v: DoubleArray, from: Int): String =
+            (from until v.size).joinToString("   ") { number(s, shape, v[it], it - from) }
+
+    fun bias(s: SensorInfo, shape: Shape, v: DoubleArray) =
+            u(R.string.sensor_bias) + "  " + line(s, shape, v, 3) + if (shape.unit.isEmpty()) "" else " " + shape.unit
 
     /* Azimuth, pitch and roll in degrees, from a rotation vector. */
     fun orientation(rotation: List<Float>): FloatArray {
@@ -108,24 +125,6 @@ class SensorText(private val context: Context, private val axisColors: IntArray)
         SensorManager.getOrientation(m, o)
         return FloatArray(3) { Math.toDegrees(o[it].toDouble()).toFloat() }
     }
-
-    /* X, Y and Z, each in its colour, then the unit. */
-    fun axes(v: DoubleArray, pattern: String, unit: String): CharSequence {
-        val text = SpannableStringBuilder()
-        for (i in 0 until 3) {
-            if (i > 0) text.append("   ")
-            val start = text.length
-            text.append(f(pattern, v[i]))
-            text.setSpan(ForegroundColorSpan(axisColors[i]), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        return text.append("  ").append(unit)
-    }
-
-    private fun uncalibrated(v: DoubleArray, p: String, unit: String): CharSequence =
-            SpannableStringBuilder(axes(v, p, unit)).append("\n")
-                    .append(context.getString(R.string.sensor_bias)).append(" ")
-                    .append(f("$p  $p  $p", v[3], v[4], v[5]))
-
 
     private fun trim(value: Float) =
             if (value == value.toLong().toFloat()) value.toLong().toString() else f("%.1f", value)

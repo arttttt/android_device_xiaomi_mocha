@@ -67,6 +67,16 @@
         <item name="strokeColor">@color/outline</item>
     </style>
 
+    <!-- One axis of a reading: room for "-221.4", right-aligned, so a new
+         value never moves the others. -->
+    <style name="Widget.MochaManager.Axis" parent="">
+        <item name="android:layout_width">76dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">end</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textAppearance">@style/TextAppearance.MochaManager.Value</item>
+    </style>
+
     <style name="TextAppearance.MochaManager.Title" parent="TextAppearance.MaterialComponents.Headline5">
         <item name="android:textColor">@color/on_surface</item>
         <item name="android:textStyle">bold</item>

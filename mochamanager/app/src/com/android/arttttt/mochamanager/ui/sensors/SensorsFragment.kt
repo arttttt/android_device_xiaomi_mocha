@@ -25,6 +25,7 @@ import android.os.VibratorManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.text.TextUtils
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -66,7 +67,10 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
     /* An item_sensor: a sensor's name, its reading, what it is. */
     private class Row(root: View) {
         val name: TextView = root.findViewById(R.id.sensor_name)
-        val value: TextView = root.findViewById(R.id.sensor_value)
+        val axes: List<TextView> = listOf(root.findViewById(R.id.axis_x), root.findViewById(R.id.axis_y),
+                root.findViewById(R.id.axis_z))
+        val unit: TextView = root.findViewById(R.id.sensor_unit)
+        val line: TextView = root.findViewById(R.id.sensor_line)
         val about: TextView = root.findViewById(R.id.sensor_about)
     }
 
@@ -74,7 +78,8 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
         val units = Units(root.context)
         val axes = intArrayOf(root.themeColor(R.attr.colorAxisX), root.themeColor(R.attr.colorAxisY),
                 root.themeColor(R.attr.colorAxisZ))
-        val format = SensorText(root.context, axes)
+        val format = SensorText(root.context)
+        val plain = root.themeColor(R.attr.colorOnSurface)
         val calTitle = CardTitle(root.findViewById(R.id.cal_title)).apply { set(R.string.section_accel_calibration) }
         val calNow: TextView = root.findViewById(R.id.cal_now)
         val calState: TextView = root.findViewById(R.id.cal_state)
@@ -178,14 +183,49 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
 
     private fun renderRow(v: Views, row: Row, s: SensorInfo?, state: SensorsState) {
         if (s == null) {
-            row.value.settle(getString(R.string.unknown))
+            show(row.axes[0], false)
+            show(row.axes[1], false)
+            show(row.line, false)
+            row.axes[2].settle(getString(R.string.unknown))
             row.about.text = ""
             return
         }
-        val numbers = v.format.numbers(s, state.readings[s.key], state.steps[s.key])
-        if (numbers == null) row.value.settle(v.format.none(s))
-        else row.value.roll(numbers, STREAM_MS, v.format.wrap(s), v.format.step(s)) { v.format.show(s, it) }
         if (row !== v.accelerometer) row.about.text = v.format.describe(s)
+        val f = v.format
+        val numbers = f.numbers(s, state.readings[s.key], state.steps[s.key])
+        if (numbers == null) {
+            for (axis in row.axes) show(axis, false)
+            show(row.line, true)
+            row.line.settle(f.none(s))
+            return
+        }
+        val shape = f.shape(s, numbers.size)
+        if (!TextUtils.equals(row.unit.text, shape.unit)) row.unit.text = shape.unit
+        val step = f.step(s)
+        val wrap = f.wrap(s)
+        if (shape.axes) {
+            for ((i, axis) in row.axes.withIndex()) {
+                show(axis, true)
+                axis.setTextColor(v.axes[i])
+                axis.roll(numbers[i], STREAM_MS, wrap, step) { f.number(s, shape, it, i) }
+            }
+        } else {
+            show(row.axes[0], false)
+            show(row.axes[1], false)
+            show(row.axes[2], true)
+            row.axes[2].setTextColor(v.plain)
+            row.axes[2].roll(numbers, STREAM_MS, wrap, step) { f.line(s, shape, it, 0) }
+        }
+        val bias = numbers.size == 6
+        show(row.line, bias)
+        if (bias) row.line.roll(numbers.copyOfRange(3, 6), STREAM_MS, wrap, step) {
+            f.bias(s, shape, doubleArrayOf(0.0, 0.0, 0.0) + it)
+        }
+    }
+
+    private fun show(view: View, shown: Boolean) {
+        val visibility = if (shown) View.VISIBLE else View.GONE
+        if (view.visibility != visibility) view.visibility = visibility
     }
 
     private fun renderOthers(v: Views, others: List<SensorInfo>, state: SensorsState) {
