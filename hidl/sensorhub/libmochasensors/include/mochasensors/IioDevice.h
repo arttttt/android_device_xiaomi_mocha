@@ -62,6 +62,10 @@ class IioDevice {
     /* The rates it can be set to, in Hz, lowest first. */
     const std::vector<int>& rates() const { return rates_; }
 
+    /* A channel's one-off reading through sysfs, as in_<channel>_raw;
+     * only while the buffer is off. */
+    bool ReadRaw(const std::string& channel, int64_t* value) const;
+
     bool SetEnabled(bool enabled);
     /* The lowest rate at or above hz, or the highest it has. */
     bool SetRate(int hz);

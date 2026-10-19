@@ -73,9 +73,18 @@ Sensor* SensorHub::Find(int handle) {
 }
 
 int SensorHub::Activate(int handle, bool enabled) {
-    std::lock_guard<std::mutex> guard(lock_);
-    Sensor* sensor = Find(handle);
-    return sensor ? sensor->Activate(enabled) : -EINVAL;
+    std::vector<sensors_event_t> events;
+    int err;
+    {
+        std::lock_guard<std::mutex> guard(lock_);
+        Sensor* sensor = Find(handle);
+        if (!sensor) return -EINVAL;
+        bool was = sensor->active();
+        err = sensor->Activate(enabled);
+        if (!err && enabled && !was) sensor->OnActivated(&events);
+    }
+    if (!events.empty()) sink_->OnEvents(events);
+    return err;
 }
 
 int SensorHub::Batch(int handle, int64_t periodNs, int64_t /* latencyNs */) {

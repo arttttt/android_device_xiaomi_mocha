@@ -210,6 +210,11 @@ const IioChannel* IioDevice::Channel(const std::string& name) const {
     return nullptr;
 }
 
+bool IioDevice::ReadRaw(const std::string& channel, int64_t* value) const {
+    std::string raw;
+    return ReadValue(Path(channel + "_raw"), &raw) && android::base::ParseInt(raw, value);
+}
+
 bool IioDevice::SetEnabled(bool enabled) {
     if (enabled == enabled_) return true;
     if (!WriteValue(Path("buffer/enable"), enabled ? "1" : "0")) return false;

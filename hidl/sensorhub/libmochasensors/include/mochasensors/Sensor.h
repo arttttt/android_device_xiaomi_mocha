@@ -53,6 +53,9 @@ class Sensor {
     /* Nothing is held back by default, so all there is has been delivered
      * when the call comes. */
     virtual int Flush(std::vector<sensors_event_t>* out);
+    /* What a sensor reports as soon as it is switched on, if anything: an
+     * on-change sensor's current value. */
+    virtual void OnActivated(std::vector<sensors_event_t>* /* out */) {}
     virtual void OnReadable(int fd, std::vector<sensors_event_t>* out) = 0;
 
     virtual std::string Describe() const = 0;
@@ -144,10 +147,14 @@ class RotationSensor : public FusedSensor {
 class StepCounter : public IioSensor {
   public:
     StepCounter();
+    int Activate(bool enabled) override;
     int SetPeriod(int64_t ns) override;
+    void OnActivated(std::vector<sensors_event_t>* out) override;
 
   protected:
     bool Convert(const uint8_t* record, sensors_event_t* event) override;
+    void Count(int raw);
+
     uint64_t steps_ = 0;
     int last_ = -1;
 };

@@ -19,6 +19,7 @@
 #include "mochasensors/Sensor.h"
 
 #include <errno.h>
+#include <time.h>
 
 #include <algorithm>
 #include <cmath>
@@ -237,14 +238,38 @@ int StepCounter::SetPeriod(int64_t /* ns */) {
     return 0;
 }
 
-bool StepCounter::Convert(const uint8_t* record, sensors_event_t* event) {
-    if (axes_.empty()) return false;
-    int raw = static_cast<uint16_t>(IioDevice::Raw(*axes_[0], record));
+/*
+ * The hub sends a count only on a step, and an on-change sensor owes its
+ * current value as soon as it is on: the count is read once through sysfs
+ * first, which the driver allows only while the buffer is off.
+ */
+int StepCounter::Activate(bool enabled) {
+    int64_t raw;
+    if (enabled && !active_ && device_.ReadRaw("in_step_counter", &raw)) Count(static_cast<int>(raw));
+    return IioSensor::Activate(enabled);
+}
+
+void StepCounter::OnActivated(std::vector<sensors_event_t>* out) {
+    if (last_ < 0) return;
+    timespec now;
+    clock_gettime(CLOCK_BOOTTIME, &now);
+    sensors_event_t event = Event(now.tv_sec * 1000000000LL + now.tv_nsec);
+    event.u64.step_counter = steps_;
+    Emit(event, out);
+}
+
+void StepCounter::Count(int raw) {
+    raw = static_cast<uint16_t>(raw);
     if (last_ < 0)
         steps_ = raw;
     else
         steps_ += static_cast<uint16_t>(raw - last_);
     last_ = raw;
+}
+
+bool StepCounter::Convert(const uint8_t* record, sensors_event_t* event) {
+    if (axes_.empty()) return false;
+    Count(static_cast<int>(IioDevice::Raw(*axes_[0], record)));
     event->u64.step_counter = steps_;
     return true;
 }
