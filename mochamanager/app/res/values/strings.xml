@@ -25,6 +25,8 @@
 
     <string name="service_unavailable">The tablet\'s service does not answer.</string>
     <string name="unknown">—</string>
+    <string name="loading">…</string>
+    <string name="change_failed">The change could not be made.</string>
 
     <!-- Device -->
     <string name="model">Model</string>

@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// MiPad Manager: the tablet's information and its switches.
+// MiPad Manager: the tablet's information and its switches -- the
+// presentation layer, a ViewModel and a View-based screen per tab, over the
+// domain and data libraries.
 //
 // Platform-signed for the platform_app domain, which the sepolicy makes a
 // client of the mochamanager service, and for ServiceManager, which is hidden
@@ -29,10 +31,22 @@ android_app {
     required: ["privapp-permissions-mochamanager"],
     static_libs: [
         "MochaManagerClient",
+        "MochaManagerData",
+        "MochaManagerDomain",
+        "androidx.activity_activity-ktx",
         "androidx.appcompat_appcompat",
         "androidx.core_core-ktx",
         "androidx.fragment_fragment-ktx",
+        "androidx.lifecycle_lifecycle-runtime-ktx",
+        "androidx.lifecycle_lifecycle-viewmodel-ktx",
+        "androidx.lifecycle_lifecycle-viewmodel-savedstate",
         "com.google.android.material_material",
+        "kotlinx_coroutines",
+        "kotlinx_coroutines_android",
+    ],
+    kotlincflags: [
+        "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
+        "-Xopt-in=kotlinx.coroutines.FlowPreview",
     ],
 }
 

@@ -22,6 +22,8 @@
     <string name="tab_display">Экран</string>
 
     <string name="service_unavailable">Служба планшета не отвечает.</string>
+    <string name="loading">…</string>
+    <string name="change_failed">Не удалось изменить.</string>
 
     <string name="model">Модель</string>
     <string name="memory_variant">Память</string>

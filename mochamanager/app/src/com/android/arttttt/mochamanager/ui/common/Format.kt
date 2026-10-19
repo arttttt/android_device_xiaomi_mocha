@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-package com.android.arttttt.mochamanager
+package com.android.arttttt.mochamanager.ui.common
 
+import androidx.fragment.app.Fragment
+import com.android.arttttt.mochamanager.domain.model.Loadable
 import java.util.Locale
 
 /* Units as the screens show them. */
@@ -34,4 +36,12 @@ object Format {
     fun wh(uws: Long) = f("%.3f Wh", uws / 3.6e9)
     fun mib(kb: Long) = f("%d MB", kb / 1024)
     fun ratio(value: Double) = f("%.1f×", value)
+}
+
+/* A value as a row shows it: an ellipsis while it is on its way, a dash when
+ * it is not to be had. */
+fun <T> Fragment.text(value: Loadable<T>, show: (T) -> CharSequence): CharSequence = when (value) {
+    is Loadable.Ready -> show(value.value)
+    Loadable.Loading -> getString(R.string.loading)
+    Loadable.Unavailable -> getString(R.string.unknown)
 }

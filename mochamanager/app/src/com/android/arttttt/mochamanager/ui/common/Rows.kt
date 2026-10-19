@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package com.android.arttttt.mochamanager
+package com.android.arttttt.mochamanager.ui.common
 
+import com.android.arttttt.mochamanager.R
 import android.content.Context
 import android.util.TypedValue
 import android.view.Gravity

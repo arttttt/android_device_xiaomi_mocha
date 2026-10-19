@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package com.android.arttttt.mochamanager
+package com.android.arttttt.mochamanager.ui.power
 
+import com.android.arttttt.mochamanager.R
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
@@ -26,6 +27,7 @@ import android.graphics.Shader
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import com.android.arttttt.mochamanager.domain.usecase.PowerHistory
 
 /*
  * The last two minutes of the power drawn from the battery, a sample a
@@ -37,7 +39,7 @@ import android.view.animation.LinearInterpolator
  * scale glides to the new ceiling instead of jumping to it.
  */
 class PowerGraphView(context: Context) : View(context) {
-    private val capacity = 120
+    private val capacity = PowerHistory.CAPACITY
     private val samples = FloatArray(capacity)
     private var count = 0
     private var newest = -1
@@ -100,7 +102,38 @@ class PowerGraphView(context: Context) : View(context) {
      * that long, so the curve never stops between samples. */
     var periodMs = 1000L
 
-    fun add(mw: Int) {
+    private var shownSerial = -1L
+
+    /*
+     * The history as the model has it. One sample more than drawn slides in;
+     * anything else -- the first, a history kept across a rotation -- is
+     * drawn as it stands, without a slide.
+     */
+    fun submit(history: PowerHistory) {
+        if (history.serial == shownSerial) return
+        val samplesMw = history.samplesMw
+        if (shownSerial >= 0 && history.serial == shownSerial + 1 && samplesMw.isNotEmpty()) {
+            add(samplesMw.last())
+        } else {
+            count = samplesMw.size
+            for ((i, mw) in samplesMw.withIndex()) samples[i] = mw.coerceAtLeast(0).toFloat()
+            newest = count - 1
+            slide = 1f
+            top = ceiling()
+            targetTop = top
+            invalidate()
+        }
+        shownSerial = history.serial
+    }
+
+    /* A round ceiling with headroom, so the scale moves seldom. */
+    private fun ceiling(): Float {
+        var peak = 0f
+        for (i in 0 until count) peak = maxOf(peak, samples[i])
+        return maxOf(1000f, Math.ceil((peak * 1.15f) / 500.0).toFloat() * 500f)
+    }
+
+    private fun add(mw: Int) {
         newest = (newest + 1) % capacity
         samples[newest] = mw.coerceAtLeast(0).toFloat()
         if (count < capacity) count++
@@ -108,10 +141,7 @@ class PowerGraphView(context: Context) : View(context) {
         slider.duration = periodMs
         slider.start()
 
-        var peak = 0f
-        for (i in 0 until count) peak = maxOf(peak, samples[i])
-        /* A round ceiling with headroom, so the scale moves seldom. */
-        val target = maxOf(1000f, Math.ceil((peak * 1.15f) / 500.0).toFloat() * 500f)
+        val target = ceiling()
         if (target != targetTop) glideTo(target)
     }
 
