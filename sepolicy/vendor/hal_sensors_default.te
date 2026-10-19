@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# The sensors HAL is sensors.tegra, a blob, and what it needs falls into two
-# halves that deserve to be read differently.
-
-# The first half is ordinary. The sensors are IIO devices: samples come off
+# The sensors HAL is our own, sensors-subhal.mocha under AOSP's multi-HAL.
+#
+# The hub's sensors are IIO devices: samples come off
 # the character devices, and everything that configures them -- rates, batch
 # sizes, which axes are enabled, the names by which they are recognised --
 # is on the first I2C bus, under one label for the whole bus.
@@ -29,42 +28,6 @@ allow hal_sensors_default sysfs_nvi2c:file rw_file_perms;
 allow hal_sensors_default sysfs:dir r_dir_perms;
 allow hal_sensors_default sysfs:file r_file_perms;
 
-# The second half is the blob's files, at paths built into sensors.lsm6db0:
-# the calibration it keeps in /data/sensors (gyro.dat, acc.dat, magn.dat;
-# init.tn8.rc makes the directory) and the named pipes it carries samples
-# through between its own threads, in /data/sns_lsm6db0_pipes, a directory
-# it makes itself straight under /data at every start.
-#
-# Both get a type of their own, labelled by path.
-#
-# The blob may not make the pipes' directory itself: S lets no one but init
-# add or remove an entry straight under /data (system/sepolicy/public/init.te,
-# the neverallow on system_data_root_file). The directory has to be there
-# already, made by init, and the blob's attempt to make it again finds it.
-
-allow hal_sensors_default sensors_data_file:dir create_dir_perms;
-allow hal_sensors_default sensors_data_file:file create_file_perms;
-allow hal_sensors_default sensors_data_file:fifo_file create_file_perms;
-
-# What is deliberately not granted is how the blob clears the pipes at
-# start: it shells out to rm, and the boot log is full of it being denied a
-# shell and toybox.
-#
-# That is not an oversight. The platform forbids it outright -- no HAL may
-# execute a program without changing domain, with exactly two exemptions
-# named in hal_neverallows.te, and neither is a sensor driver. Writing the
-# rule does not produce a wider policy, it produces a policy that does not
-# build.
-#
-# The legitimate form is a helper domain: a transition on the shell, so that
-# whatever the blob runs lands somewhere that may touch the pipes and nothing
-# else. That is a domain to design rather than a rule to add, and it is worth
-# doing when this blob is replaced or when this board goes enforcing. Until
-# then, under enforcing the rm would be refused, the pipes of the previous
-# start would stay, and making them again would find them already there.
-
-# Our own HAL, sensors-subhal.mocha under the multi-HAL, in the same domain.
-#
 # It keeps the hub's calibration in /data/vendor/sensors, and watches the
 # directory for the accelerometer's calibration the settings write there, to
 # take it as soon as it lands.

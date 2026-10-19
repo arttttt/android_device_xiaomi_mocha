@@ -1,6 +1,5 @@
 subdirs = [
     "light",
     "power",
-    "sensors",
     "vibrator"
 ]

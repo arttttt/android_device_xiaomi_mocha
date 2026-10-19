@@ -277,10 +277,6 @@ PRODUCT_PACKAGES += \
     ussrd.conf \
     ussr_setup
     
-# Sensors
-PRODUCT_PACKAGES += \
-    sensors.tegra
-
 # System properties
 -include $(LOCAL_PATH)/system_prop.mk
 

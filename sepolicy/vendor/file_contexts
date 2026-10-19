@@ -159,9 +159,7 @@
 /data/misc/mediaserver(/.*)?		u:object_r:media_data_file:s0
 # HWComposer data
 /data/misc/hwc(/.*)?			u:object_r:hwc_data_file:s0
-# The sensors blob's calibration and pipes
-/data/sensors(/.*)?			u:object_r:sensors_data_file:s0
-/data/sns_lsm6db0_pipes(/.*)?		u:object_r:sensors_data_file:s0
+# The sensor hub's calibration, as our own sensors HAL keeps it
 /data/vendor/sensors(/.*)?		u:object_r:sensors_vendor_data_file:s0
 # Coredump
 /data/core(/.*)?			u:object_r:coredump_data_file:s0
