@@ -91,7 +91,7 @@ class SensorText(private val context: Context, private val axisColors: IntArray)
     private fun uncalibrated(v: List<Float>, p: String, unit: String): CharSequence =
             SpannableStringBuilder(axes(v, p, unit)).append("\n")
                     .append(context.getString(R.string.sensor_bias)).append(" ")
-                    .append(f("    ", v[3], v[4], v[5]))
+                    .append(f("$p  $p  $p", v[3], v[4], v[5]))
 
     private fun angles(azimuth: Float, pitch: Float, roll: Float) = f("%.0f°  %.0f°  %.0f°", azimuth, pitch, roll)
 

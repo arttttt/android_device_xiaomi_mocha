@@ -19,6 +19,7 @@
     <string name="tab_power">Питание</string>
     <string name="tab_performance">Произв.</string>
     <string name="tab_sensors">Датчики</string>
+    <string name="title_performance">Производительность</string>
     <string name="tab_display">Экран</string>
 
     <string name="service_unavailable">Служба планшета не отвечает.</string>

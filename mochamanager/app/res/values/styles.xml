@@ -92,6 +92,9 @@
     <style name="TextAppearance.MochaManager.Sub" parent="TextAppearance.MaterialComponents.Body2">
         <item name="android:textColor">@color/on_surface_variant</item>
     </style>
+    <style name="TextAppearance.MochaManager.Rail" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+    </style>
     <style name="TextAppearance.MochaManager.Overline" parent="TextAppearance.MaterialComponents.Overline">
         <item name="android:textColor">@color/on_surface_variant</item>
         <item name="android:textSize">12sp</item>

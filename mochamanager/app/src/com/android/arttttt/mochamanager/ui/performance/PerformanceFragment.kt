@@ -77,7 +77,7 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
     }
 
     override fun onViewCreated(view: View, saved: Bundle?) {
-        view.header(R.string.tab_performance)
+        view.header(R.string.title_performance)
         views = Views(view)
         collectWhileShown(model.state, ::render)
     }

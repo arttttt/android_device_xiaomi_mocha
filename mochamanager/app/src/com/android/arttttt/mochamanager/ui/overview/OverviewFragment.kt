@@ -156,7 +156,7 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
         v.memoryVariant.text = v.units.gb(d.memoryGb) + " (" + v.units.mb(d.memTotalKb) + ")"
         v.build.text = d.build
         v.kernel.text = d.kernel
-        v.wifi.text = d.wifi
+        v.wifi.text = d.wifi.ifBlank { getString(R.string.unknown) }
         v.serial.text = d.serial ?: getString(R.string.unknown)
     }
 }

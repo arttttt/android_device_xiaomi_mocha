@@ -26,13 +26,15 @@
 
     <com.google.android.material.navigationrail.NavigationRailView
         android:id="@+id/navigation"
-        android:layout_width="96dp"
+        android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:background="@color/surface"
         app:headerLayout="@layout/rail_header"
         app:labelVisibilityMode="labeled"
         app:menuGravity="top"
         app:itemIconTint="@color/rail_item"
+        app:itemTextAppearanceActive="@style/TextAppearance.MochaManager.Rail"
+        app:itemTextAppearanceInactive="@style/TextAppearance.MochaManager.Rail"
         app:itemTextColor="@color/rail_item"
         app:menu="@menu/navigation" />
 

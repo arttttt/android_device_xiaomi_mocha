@@ -222,7 +222,7 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
             CalibrationAdvice.CALIBRATE -> R.string.cal_advice_none
             CalibrationAdvice.COULD_IMPROVE -> R.string.cal_advice_fair
             CalibrationAdvice.RECALIBRATE -> R.string.cal_advice_redo
-        }).let { " · " }
+        }).let { "$made · $it" }
         v.reset.visibility = if (c.current.valueOrNull?.present == true) View.VISIBLE else View.GONE
         v.calibrate.isEnabled = c.progress == null
     }

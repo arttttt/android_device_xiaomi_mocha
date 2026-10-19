@@ -21,6 +21,7 @@
     <string name="tab_power">Power</string>
     <string name="tab_performance">Performance</string>
     <string name="tab_sensors">Sensors</string>
+    <string name="title_performance">Performance</string>
     <string name="tab_display">Display</string>
 
     <string name="loading">…</string>
