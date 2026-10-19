@@ -17,6 +17,7 @@
 package com.android.arttttt.mochamanager.ui.common
 
 import android.animation.ValueAnimator
+import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.widget.TextView
@@ -39,8 +40,33 @@ const val NUMBER_MS = 500L
 /* As often as the sensors screen draws: one run per reading. */
 const val STREAM_MS = 200L
 
-private class Rolling(var shown: DoubleArray, var show: (DoubleArray) -> CharSequence) {
+/*
+ * A view's run lasts no longer than the view is on screen: once it leaves
+ * the window -- the screen destroyed on a rotation -- the run is called off
+ * and forgotten, so no animator keeps the old views, and the screen whose
+ * text they format, alive, nor formats with a screen no longer attached.
+ */
+private class Rolling(
+    val view: TextView,
+    var shown: DoubleArray,
+    var show: (DoubleArray) -> CharSequence,
+) : View.OnAttachStateChangeListener {
     var animator: ValueAnimator? = null
+
+    init {
+        view.addOnAttachStateChangeListener(this)
+    }
+
+    override fun onViewAttachedToWindow(v: View) {}
+
+    override fun onViewDetachedFromWindow(v: View) = forget()
+
+    fun forget() {
+        animator?.cancel()
+        animator = null
+        view.removeOnAttachStateChangeListener(this)
+        view.setTag(R.id.rolling, null)
+    }
 }
 
 /*
@@ -54,10 +80,10 @@ fun TextView.roll(
     show: (DoubleArray) -> CharSequence,
 ) {
     val r = getTag(R.id.rolling) as Rolling?
-    if (r == null || r.shown.size != values.size) {
-        r?.animator?.cancel()
-        setTag(R.id.rolling, Rolling(values.copyOf(), show))
+    if (r == null || r.shown.size != values.size || !isAttachedToWindow) {
+        r?.forget()
         text = show(values)
+        if (isAttachedToWindow) setTag(R.id.rolling, Rolling(this, values.copyOf(), show))
         return
     }
     r.show = show
@@ -87,8 +113,7 @@ fun TextView.roll(value: Double, durationMs: Long = NUMBER_MS, wrap: Double = 0.
 
 /* Text that is no number, or none yet: the next number starts from itself. */
 fun TextView.settle(text: CharSequence) {
-    (getTag(R.id.rolling) as Rolling?)?.animator?.cancel()
-    setTag(R.id.rolling, null)
+    (getTag(R.id.rolling) as Rolling?)?.forget()
     this.text = text
 }
 
