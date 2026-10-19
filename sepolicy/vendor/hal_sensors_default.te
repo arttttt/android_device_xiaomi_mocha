@@ -62,3 +62,16 @@ allow hal_sensors_default sensors_data_file:fifo_file create_file_perms;
 # doing when this blob is replaced or when this board goes enforcing. Until
 # then, under enforcing the rm would be refused, the pipes of the previous
 # start would stay, and making them again would find them already there.
+
+# Our own HAL, sensors-subhal.mocha under the multi-HAL, in the same domain.
+#
+# It keeps the hub's calibration in /data/vendor/sensors, and watches the
+# directory for the accelerometer's calibration the settings write there, to
+# take it as soon as it lands.
+allow hal_sensors_default sensors_vendor_data_file:dir { create_dir_perms watch };
+allow hal_sensors_default sensors_vendor_data_file:file create_file_perms;
+
+# The ambient light sensor reports through the input layer; the HAL holds its
+# event node open and sets the clock its events are stamped with.
+allow hal_sensors_default input_device:dir r_dir_perms;
+allow hal_sensors_default input_device:chr_file r_file_perms;

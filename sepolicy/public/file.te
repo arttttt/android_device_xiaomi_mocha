@@ -123,6 +123,11 @@ type hwc_data_file, file_type, data_file_type, core_data_file_type;
 # and its pipes, at paths it has built in
 type sensors_data_file, file_type, data_file_type, core_data_file_type;
 
+# /data/vendor/sensors: the sensor hub's calibration as our own HAL keeps it
+# -- the gyroscope's and magnetometer's state the hub learns, and the
+# accelerometer's calibration the settings write
+type sensors_vendor_data_file, file_type, data_file_type;
+
 # /sys/kernel/debugfs/clock
 type debugfs_clock, fs_type, debugfs_type, mlstrustedobject;
 
