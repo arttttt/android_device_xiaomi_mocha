@@ -26,6 +26,7 @@
 #include <thread>
 #include <vector>
 
+#include "mochasensors/Calibration.h"
 #include "mochasensors/Sensor.h"
 
 namespace mocha {
@@ -73,6 +74,12 @@ class SensorHub {
   private:
     Sensor* Find(int handle);
     void Loop();
+    /* The accelerometer's calibration file was written. */
+    void OnCalibrationFile();
+    /* The nine-axis fusion went on putting out NaN: start the hub's
+     * magnetometer calibration over with those sensors held off. */
+    void ResetFusion();
+    void SaveCalibration();
 
     EventSink* sink_;
     std::vector<std::unique_ptr<Sensor>> sensors_;
@@ -82,8 +89,12 @@ class SensorHub {
     /* Held over every call into a sensor, from either side. */
     std::mutex lock_;
     std::thread thread_;
+    HubCalibration calibration_;
+    bool haveHub_ = false;
+    int64_t lastFaultNs_ = 0;
     int epoll_ = -1;
     int wake_ = -1;
+    int inotify_ = -1;
     std::atomic<bool> stop_{false};
 };
 

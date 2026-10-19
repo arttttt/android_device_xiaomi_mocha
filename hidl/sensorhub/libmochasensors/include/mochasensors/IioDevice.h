@@ -52,6 +52,12 @@ class IioDevice {
 
     /* The device whose name is name; false if there is none. */
     bool Open(const std::string& name);
+    /* Only finds it, for its attributes: no buffer, no node. */
+    bool Find(const std::string& name);
+
+    /* An attribute's bytes as they are, binary or not. */
+    bool ReadAttribute(const std::string& attribute, std::string* bytes) const;
+    bool WriteAttribute(const std::string& attribute, const std::string& bytes) const;
 
     const std::string& name() const { return name_; }
     int fd() const { return fd_; }
@@ -100,7 +106,6 @@ class IioDevice {
     static float Float(const IioChannel& channel, const uint8_t* record);
 
   private:
-    bool Find(const std::string& name);
     std::string Path(const std::string& attribute) const;
     bool ReadChannels();
     bool ReadRates();

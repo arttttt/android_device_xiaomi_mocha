@@ -21,6 +21,7 @@ cc_library_static {
     name: "libmochasensors",
     proprietary: true,
     srcs: [
+        "libmochasensors/Calibration.cpp",
         "libmochasensors/IioDevice.cpp",
         "libmochasensors/InputDevice.cpp",
         "libmochasensors/Sensor.cpp",

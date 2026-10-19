@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "mochasensors/Calibration.h"
 #include "mochasensors/IioDevice.h"
 #include "mochasensors/InputDevice.h"
 
@@ -60,6 +61,17 @@ class Sensor {
     virtual void OnActivated(std::vector<sensors_event_t>* /* out */) {}
     virtual void OnReadable(int fd, std::vector<sensors_event_t>* out) = 0;
 
+    /* Whether its reading comes from the hub's nine-axis fusion, which a
+     * restart of the magnetometer's calibration sets going again. */
+    virtual bool UsesNineAxisFusion() const { return false; }
+    /* True once, after the fusion has put out nothing but NaN for a while. */
+    virtual bool TakeFusionFault() { return false; }
+    /* Its device held off, or let run again, without the sensor counting as
+     * switched off. */
+    virtual void Pause(bool /* paused */) {}
+    /* A calibration of it has been changed under it. */
+    virtual void OnCalibrationChanged() {}
+
     virtual std::string Describe() const = 0;
 
   protected:
@@ -78,31 +90,54 @@ class Sensor {
 /*
  * A sensor of the hub: an IIO device and its scan records. What a record
  * means is the subclass' to say.
+ *
+ * Several sensors can read one device -- the accelerometer and its
+ * uncalibrated form do. The device then runs while any of them is on, at the
+ * fastest rate any of them asks for, batched only if all of them allow it;
+ * the first of them reads it and hands every record to each.
  */
 class IioSensor : public Sensor {
   public:
-    std::vector<int> Fds() const override { return {device_.fd()}; }
+    std::vector<int> Fds() const override;
     int Activate(bool enabled) override;
     int Batch(int64_t periodNs, int64_t latencyNs) override;
     int Flush(std::vector<sensors_event_t>* out) override;
     void OnReadable(int fd, std::vector<sensors_event_t>* out) override;
+    void Pause(bool paused) override;
     std::string Describe() const override;
 
   protected:
     /* Opens the device and fills in what its rates and scale say. */
     bool Open(const char* iio, const char* name, int type, const char* stringType, float power);
+    /* Reads the device another sensor has open. */
+    bool Attach(const IioSensor& owner, const char* name, int type, const char* stringType,
+                float power);
     /* One record's event; false to drop it. */
     virtual bool Convert(const uint8_t* record, sensors_event_t* event) = 0;
+
+    IioDevice& device() { return shared_->device; }
+    const IioDevice& device() const { return shared_->device; }
 
     /* The data channels in index order: all but the time and the accuracy. */
     std::vector<const IioChannel*> axes_;
     const IioChannel* accuracy_ = nullptr;
     const IioChannel* time_ = nullptr;
-    IioDevice device_;
-    int64_t periodNs_ = 0;
 
   private:
-    int SetRate(int64_t periodNs);
+    struct Shared {
+        IioDevice device;
+        std::vector<IioSensor*> users;
+        bool paused = false;
+    };
+
+    void Describe(const char* name, int type, const char* stringType, float power);
+    /* Puts the device in the state its users' wishes add up to. */
+    int Apply();
+    void Dispatch(std::vector<sensors_event_t>* out);
+
+    std::shared_ptr<Shared> shared_;
+    int64_t periodNs_ = 0;
+    int64_t latencyNs_ = 0;
 };
 
 /* Accelerometer, gyroscope, magnetometer: integers to scale. */
@@ -130,11 +165,21 @@ class UncalibratedAxisSensor : public AxisSensor {
 /* The hub's fused outputs, given as IEEE floats. */
 class FusedSensor : public IioSensor {
   public:
+    /* nineAxis: computed from all three chips, magnetometer included. */
     FusedSensor(const char* iio, const char* name, int type, const char* stringType,
-                float power, float maxRange, float resolution);
+                float power, float maxRange, float resolution, bool nineAxis = false);
+
+    bool UsesNineAxisFusion() const override { return nineAxis_; }
+    bool TakeFusionFault() override;
 
   protected:
     bool Convert(const uint8_t* record, sensors_event_t* event) override;
+    /* Counts a NaN record toward a fault; false for it. */
+    bool Nan();
+
+    bool nineAxis_;
+    int nans_ = 0;
+    bool fault_ = false;
 };
 
 /* The three rotation vectors: x, y, z, w as IEEE floats. */
@@ -142,7 +187,7 @@ class RotationSensor : public FusedSensor {
   public:
     /* heading: the fifth value, the heading's accuracy, is reported. */
     RotationSensor(const char* iio, const char* name, int type, const char* stringType, float power,
-               bool heading);
+               bool heading, bool nineAxis = false);
 
   protected:
     bool Convert(const uint8_t* record, sensors_event_t* event) override;
@@ -203,9 +248,63 @@ class LightSensor : public Sensor {
 
 /* ---- the sensors themselves ---- */
 
+/*
+ * How far off the accelerometer reads, measured rather than assumed: at rest
+ * the only force on it is gravity, so the length of what it reads has to be
+ * g, and how far it is from g is its error just then.
+ *
+ * The error is kept per pose -- which axis points down, and which way --
+ * since an offset on an axis shows only when that axis bears the gravity:
+ * lying flat hides one on X almost entirely. The accuracy is that of the
+ * worst pose seen. Until it has seen one, it says nothing good.
+ */
+class AccelerometerAccuracy {
+  public:
+    void Add(const float a[3]);
+    /* SENSOR_STATUS_ACCURACY_*. */
+    int8_t status() const { return status_; }
+    /* The worst error seen at rest, as a fraction of g; -1 if none yet. */
+    float error() const { return worst_; }
+    void Reset();
+
+  private:
+    static constexpr int kWindow = 16;
+
+    float samples_[kWindow][3] = {};
+    int count_ = 0;
+    int next_ = 0;
+    float poses_[6] = {-1, -1, -1, -1, -1, -1};
+    float worst_ = -1;
+    int8_t status_ = SENSOR_STATUS_ACCURACY_LOW;
+};
+
+/* Its offset is in the hub; its scale is applied here, and its accuracy is
+ * measured as it runs. */
 class Accelerometer : public AxisSensor {
   public:
-    Accelerometer();
+    explicit Accelerometer(const HubCalibration* calibration);
+
+    /* A new calibration makes what was measured of the old one moot. */
+    void OnCalibrationChanged() override { measured_.Reset(); }
+    std::string Describe() const override;
+    const AccelerometerAccuracy& measured() const { return measured_; }
+
+  protected:
+    bool Convert(const uint8_t* record, sensors_event_t* event) override;
+    const HubCalibration* calibration_;
+    AccelerometerAccuracy measured_;
+};
+
+/* The accelerometer as the chip reads it: the hub's offset added back, our
+ * scale left off, and the offset given as the bias. */
+class UncalibratedAccelerometer : public IioSensor {
+  public:
+    UncalibratedAccelerometer(const Accelerometer& accelerometer,
+                              const HubCalibration* calibration);
+
+  protected:
+    bool Convert(const uint8_t* record, sensors_event_t* event) override;
+    const HubCalibration* calibration_;
 };
 
 class Gyroscope : public AxisSensor {
@@ -269,7 +368,7 @@ class SignificantMotion : public EventSensor {
 };
 
 /* Every sensor the board has, handles from 1 up in this order. */
-std::vector<std::unique_ptr<Sensor>> MakeSensors();
+std::vector<std::unique_ptr<Sensor>> MakeSensors(const HubCalibration* calibration);
 
 }  // namespace sensors
 }  // namespace mocha

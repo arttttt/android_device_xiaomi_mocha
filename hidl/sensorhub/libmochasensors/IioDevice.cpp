@@ -256,6 +256,16 @@ const IioChannel* IioDevice::Channel(const std::string& name) const {
     return nullptr;
 }
 
+bool IioDevice::ReadAttribute(const std::string& attribute, std::string* bytes) const {
+    return android::base::ReadFileToString(Path(attribute), bytes);
+}
+
+/* In one write: the hub's driver takes an offset as the bytes of a single
+ * write and copies its own size of them whatever the write's length. */
+bool IioDevice::WriteAttribute(const std::string& attribute, const std::string& bytes) const {
+    return WriteValue(Path(attribute), bytes);
+}
+
 bool IioDevice::ReadRaw(const std::string& channel, int64_t* value) const {
     std::string raw;
     return ReadValue(Path(channel + "_raw"), &raw) && android::base::ParseInt(raw, value);
