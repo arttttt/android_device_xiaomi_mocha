@@ -22,6 +22,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.VibrationEffect
+import android.os.VibratorManager
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -53,6 +55,7 @@ class SensorsFragment : Screen(200) {
     private var accelAccuracy = -1
     private var calibration: AccelCalibration? = null
     private lateinit var calibrator: AccelCalibrator
+    private var lastStep = AccelCalibrator.Step.IDLE
     private lateinit var hint: TextView
     private lateinit var calibrate: MaterialButton
     private lateinit var reset: MaterialButton
@@ -85,7 +88,12 @@ class SensorsFragment : Screen(200) {
         sensors = manager.getSensorList(Sensor.TYPE_ALL)
                 .sortedWith(compareBy<Sensor>({ computed(it) }, { it.type }, { it.name }))
 
-        calibrator = AccelCalibrator(manager) { refreshCalibration() }
+        calibrator = AccelCalibrator(manager) { step ->
+            val previous = lastStep
+            lastStep = step
+            if (step != previous) signal(previous, step)
+            refreshCalibration()
+        }
         buildCalibration()
 
         var section: Boolean? = null
@@ -209,6 +217,24 @@ class SensorsFragment : Screen(200) {
         reset.isEnabled = step !in IN_PROGRESS && c?.present == true
 
         if (step == AccelCalibrator.Step.DONE) save()
+    }
+
+    /*
+     * Felt rather than seen: the screen faces the table for the second pose.
+     * One short pulse when a pose has been taken, two when the calibration
+     * is made, a long one when it failed.
+     */
+    private fun signal(from: AccelCalibrator.Step, to: AccelCalibrator.Step) {
+        val pattern = when {
+            from == AccelCalibrator.Step.HOLD_UP && to == AccelCalibrator.Step.PLACE_DOWN ->
+                longArrayOf(0, 60)
+            to == AccelCalibrator.Step.DONE -> longArrayOf(0, 60, 120, 60)
+            to == AccelCalibrator.Step.FAILED -> longArrayOf(0, 400)
+            else -> return
+        }
+        val vibrator = requireContext().getSystemService(VibratorManager::class.java)
+                ?.defaultVibrator ?: return
+        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
     }
 
     /* Whether to calibrate goes by what the HAL measures, not by whether a
