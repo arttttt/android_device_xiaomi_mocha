@@ -20,8 +20,10 @@
  * The sensors HAL in service holds the same IIO devices, so it has to be
  * stopped first.
  *
- *   sensorhub_test                      list
- *   sensorhub_test <seconds> <hz> [handle...]   run (all if none named)
+ *   sensorhub_test                                    list
+ *   sensorhub_test <seconds> <hz> [-l ms] [handle...]  run (all if none
+ *                                                      named), batched
+ *                                                      with -l
  */
 
 #include <time.h>
@@ -31,6 +33,7 @@
 #include <cstdlib>
 #include <map>
 #include <mutex>
+#include <string>
 #include <thread>
 
 #include <mochasensors/SensorHub.h>
@@ -106,13 +109,19 @@ int main(int argc, char** argv) {
 
     int seconds = atoi(argv[1]);
     int64_t period = 1000000000LL / atoi(argv[2]);
+    int64_t latency = 0;
     std::vector<int> handles;
-    for (int i = 3; i < argc; i++) handles.push_back(atoi(argv[i]));
+    for (int i = 3; i < argc; i++) {
+        if (std::string(argv[i]) == "-l" && i + 1 < argc)
+            latency = atoll(argv[++i]) * 1000000;
+        else
+            handles.push_back(atoi(argv[i]));
+    }
     if (handles.empty())
         for (const auto& s : hub.sensors()) handles.push_back(s.handle);
 
     for (int handle : handles) {
-        hub.Batch(handle, period, 0);
+        hub.Batch(handle, period, latency);
         int err = hub.Activate(handle, true);
         if (err) fprintf(stderr, "activate %d: %d\n", handle, err);
     }
