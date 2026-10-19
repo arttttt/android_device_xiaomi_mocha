@@ -62,6 +62,19 @@ class IioDevice {
     /* The rates it can be set to, in Hz, lowest first. */
     const std::vector<int>& rates() const { return rates_; }
 
+    /* Whether the hub can keep this sensor's samples in its FIFO, and how
+     * many of them the FIFO holds. */
+    bool batchable() const { return batchable_; }
+    int fifoMaxEvents() const { return fifoMaxEvents_; }
+    /* Batching on, the FIFO read out every timeoutMs, or off. The driver
+     * takes the change only with the buffer off, so a running buffer is
+     * switched off and back on around it. */
+    bool SetBatch(bool batch, int timeoutMs);
+    bool batching() const { return batching_; }
+    /* Has the hub hand over its FIFO; returns once it has been pushed to
+     * the buffers. */
+    static bool FlushHub();
+
     /* A channel's one-off reading through sysfs, as in_<channel>_raw;
      * only while the buffer is off. */
     bool ReadRaw(const std::string& channel, int64_t* value) const;
@@ -87,9 +100,11 @@ class IioDevice {
     static float Float(const IioChannel& channel, const uint8_t* record);
 
   private:
+    bool Find(const std::string& name);
     std::string Path(const std::string& attribute) const;
     bool ReadChannels();
     bool ReadRates();
+    bool ReadBatch();
 
     std::string name_;
     std::string sysfs_;
@@ -98,6 +113,10 @@ class IioDevice {
     int eventFd_ = -1;
     bool enabled_ = false;
     int rate_ = 0;
+    bool batchable_ = false;
+    bool batching_ = false;
+    int fifoMaxEvents_ = 0;
+    int timeoutMs_ = 0;
     size_t recordBytes_ = 0;
     std::vector<IioChannel> channels_;
     std::vector<int> rates_;

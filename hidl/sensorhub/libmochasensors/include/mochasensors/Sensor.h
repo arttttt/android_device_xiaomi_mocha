@@ -49,7 +49,9 @@ class Sensor {
     virtual std::vector<int> Fds() const = 0;
     /* 0 or -errno, as libhardware's sensors calls. */
     virtual int Activate(bool enabled) = 0;
-    virtual int SetPeriod(int64_t ns) = 0;
+    /* The period asked for, and how long samples may wait before they are
+     * delivered: a sensor whose hub keeps a FIFO batches them that long. */
+    virtual int Batch(int64_t periodNs, int64_t latencyNs) = 0;
     /* Nothing is held back by default, so all there is has been delivered
      * when the call comes. */
     virtual int Flush(std::vector<sensors_event_t>* out);
@@ -81,7 +83,8 @@ class IioSensor : public Sensor {
   public:
     std::vector<int> Fds() const override { return {device_.fd()}; }
     int Activate(bool enabled) override;
-    int SetPeriod(int64_t ns) override;
+    int Batch(int64_t periodNs, int64_t latencyNs) override;
+    int Flush(std::vector<sensors_event_t>* out) override;
     void OnReadable(int fd, std::vector<sensors_event_t>* out) override;
     std::string Describe() const override;
 
@@ -97,6 +100,9 @@ class IioSensor : public Sensor {
     const IioChannel* time_ = nullptr;
     IioDevice device_;
     int64_t periodNs_ = 0;
+
+  private:
+    int SetRate(int64_t periodNs);
 };
 
 /* Accelerometer, gyroscope, magnetometer: integers to scale. */
@@ -148,7 +154,6 @@ class StepCounter : public IioSensor {
   public:
     StepCounter();
     int Activate(bool enabled) override;
-    int SetPeriod(int64_t ns) override;
     void OnActivated(std::vector<sensors_event_t>* out) override;
 
   protected:
@@ -172,7 +177,6 @@ class EventSensor : public IioSensor {
                    float power, bool oneShot);
 
     std::vector<int> Fds() const override;
-    int SetPeriod(int64_t ns) override;
     int Flush(std::vector<sensors_event_t>* out) override;
     void OnReadable(int fd, std::vector<sensors_event_t>* out) override;
 
@@ -188,7 +192,7 @@ class LightSensor : public Sensor {
 
     std::vector<int> Fds() const override { return {input_.fd()}; }
     int Activate(bool enabled) override;
-    int SetPeriod(int64_t ns) override;
+    int Batch(int64_t periodNs, int64_t latencyNs) override;
     void OnReadable(int fd, std::vector<sensors_event_t>* out) override;
     std::string Describe() const override;
 

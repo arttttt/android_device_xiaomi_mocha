@@ -98,7 +98,7 @@ std::string IioDevice::Path(const std::string& attribute) const {
     return sysfs_ + "/" + attribute;
 }
 
-bool IioDevice::Open(const std::string& name) {
+bool IioDevice::Find(const std::string& name) {
     std::unique_ptr<DIR, int (*)(DIR*)> dir(opendir(kIioDevices), closedir);
     if (!dir) return false;
 
@@ -113,9 +113,13 @@ bool IioDevice::Open(const std::string& name) {
         name_ = name;
         sysfs_ = path;
         number_ = number;
-        break;
+        return true;
     }
-    if (number_ < 0) return false;
+    return false;
+}
+
+bool IioDevice::Open(const std::string& name) {
+    if (!Find(name)) return false;
 
     /* A buffer left running by whoever had the device before: the scan
      * elements cannot be changed under it. */
@@ -123,6 +127,7 @@ bool IioDevice::Open(const std::string& name) {
 
     if (!ReadChannels()) return false;
     ReadRates();
+    ReadBatch();
 
     /* The driver sets each device's own trigger at probe; it is only put
      * back if something changed it. */
@@ -189,6 +194,47 @@ bool IioDevice::ReadChannels() {
     }
     recordBytes_ = (offset + widest - 1) / widest * widest;
     return recordBytes_ > 0;
+}
+
+bool IioDevice::ReadBatch() {
+    std::string value;
+    if (!ReadValue(Path("batch_mode_available"), &value)) return false;
+    batchable_ = value.find("continuos") != std::string::npos;
+    if (ReadValue(Path("batch_mode_max_event_count"), &value))
+        android::base::ParseInt(value, &fifoMaxEvents_);
+    if (ReadValue(Path("batch_mode"), &value)) batching_ = value == "continuos";
+    if (ReadValue(Path("batch_mode_timeout"), &value)) android::base::ParseInt(value, &timeoutMs_);
+    return true;
+}
+
+bool IioDevice::SetBatch(bool batch, int timeoutMs) {
+    if (!batchable_) return !batch;
+    if (batch == batching_ && (!batch || timeoutMs == timeoutMs_)) return true;
+
+    bool running = enabled_;
+    if (running && !SetEnabled(false)) return false;
+
+    bool ok = true;
+    if (batch && timeoutMs != timeoutMs_) {
+        ok = WriteValue(Path("batch_mode_timeout"), std::to_string(timeoutMs));
+        if (ok) timeoutMs_ = timeoutMs;
+    }
+    /* The hub's driver spells it so. */
+    if (ok && batch != batching_) {
+        ok = WriteValue(Path("batch_mode"), batch ? "continuos" : "disabled");
+        if (ok) batching_ = batch;
+    }
+
+    if (running) SetEnabled(true);
+    return ok;
+}
+
+bool IioDevice::FlushHub() {
+    static std::string flush = [] {
+        IioDevice core;
+        return core.Find("lsm6db0") ? core.Path("flush") : std::string();
+    }();
+    return !flush.empty() && WriteValue(flush, "1");
 }
 
 bool IioDevice::ReadRates() {

@@ -104,19 +104,37 @@ bool IioSensor::Open(const char* iio, const char* name, int type, const char* st
         info_.minDelay = 1000000 / rates.back();
         info_.maxDelay = 1000000 / rates.front();
     }
+    /* The FIFO is the hub's, shared by every sensor in it: none has any
+     * of it to itself. */
+    if (device_.batchable()) info_.fifoMaxEventCount = device_.fifoMaxEvents();
     ok_ = true;
     return true;
 }
 
 int IioSensor::Activate(bool enabled) {
     if (enabled == active_) return 0;
-    if (enabled && periodNs_ > 0) SetPeriod(periodNs_);
+    if (enabled && periodNs_ > 0) SetRate(periodNs_);
     if (!device_.SetEnabled(enabled)) return -EIO;
     active_ = enabled;
     return 0;
 }
 
-int IioSensor::SetPeriod(int64_t ns) {
+int IioSensor::Batch(int64_t periodNs, int64_t latencyNs) {
+    int err = SetRate(periodNs);
+    if (err) return err;
+
+    /*
+     * Below 300 ms the driver takes no timeout, and a latency that short
+     * saves little anyway: such a sensor reports sample by sample. The
+     * FIFO is read out on the timeout, or by the hub itself when it fills.
+     */
+    constexpr int64_t kShortestBatchNs = 300000000;
+    bool batch = device_.batchable() && latencyNs >= kShortestBatchNs;
+    int timeoutMs = static_cast<int>(std::min<int64_t>(latencyNs / 1000000, 600000));
+    return device_.SetBatch(batch, timeoutMs) ? 0 : -EIO;
+}
+
+int IioSensor::SetRate(int64_t ns) {
     /* Clamped to what the sensor can do, as Android allows. */
     int64_t fastest = int64_t{info_.minDelay} * 1000;
     int64_t slowest = int64_t{info_.maxDelay} * 1000;
@@ -131,24 +149,41 @@ int IioSensor::SetPeriod(int64_t ns) {
     return device_.SetRate(hz) ? 0 : -EIO;
 }
 
-void IioSensor::OnReadable(int /* fd */, std::vector<sensors_event_t>* out) {
-    constexpr size_t kRecords = 16;
-    uint8_t buffer[64 * kRecords];
-    size_t size = std::min(sizeof(buffer), device_.recordBytes() * kRecords);
+/*
+ * A batching sensor's samples wait in the hub's FIFO. The hub's driver
+ * returns from its flush once the FIFO has been pushed to the buffers, so
+ * reading the buffer after it gets all a flush covers, and the completion
+ * goes after that.
+ */
+int IioSensor::Flush(std::vector<sensors_event_t>* out) {
+    if (!active_) return -EINVAL;
+    if (device_.batching()) {
+        if (!IioDevice::FlushHub()) LOG(WARNING) << device_.name() << ": the hub's flush failed";
+        OnReadable(device_.fd(), out);
+    }
+    return Sensor::Flush(out);
+}
 
-    ssize_t got = device_.Read(buffer, size);
-    /* What was left in the buffer from before it was switched on. */
-    if (!active_) return;
-    for (ssize_t at = 0; at + static_cast<ssize_t>(device_.recordBytes()) <= got;
-         at += device_.recordBytes()) {
-        sensors_event_t event = Event(time_ ? IioDevice::Raw(*time_, buffer + at) : 0);
-        if (Convert(buffer + at, &event)) Emit(event, out);
+void IioSensor::OnReadable(int /* fd */, std::vector<sensors_event_t>* out) {
+    /* A batch's read-out comes in at once: up to a FIFO's worth. */
+    uint8_t buffer[4096];
+    size_t size = sizeof(buffer) - sizeof(buffer) % device_.recordBytes();
+
+    ssize_t got;
+    while ((got = device_.Read(buffer, size)) > 0) {
+        /* What was left in the buffer from before it was switched on. */
+        if (!active_) continue;
+        for (ssize_t at = 0; at < got; at += device_.recordBytes()) {
+            sensors_event_t event = Event(time_ ? IioDevice::Raw(*time_, buffer + at) : 0);
+            if (Convert(buffer + at, &event)) Emit(event, out);
+        }
     }
 }
 
 std::string IioSensor::Describe() const {
-    return android::base::StringPrintf("%-18s %s %3d Hz", device_.name().c_str(),
-                                       active_ ? "on " : "off", device_.rate());
+    return android::base::StringPrintf("%-18s %s %3d Hz %s", device_.name().c_str(),
+                                       active_ ? "on " : "off", device_.rate(),
+                                       device_.batching() ? "batch" : "");
 }
 
 /* ---- AxisSensor, UncalibratedAxisSensor ---- */
@@ -233,11 +268,6 @@ StepCounter::StepCounter() {
     info_.maxDelay = 0;
 }
 
-/* It counts at the pace of the steps; there is no rate to set. */
-int StepCounter::SetPeriod(int64_t /* ns */) {
-    return 0;
-}
-
 /*
  * The hub sends a count only on a step, and an on-change sensor owes its
  * current value as soon as it is on: the count is read once through sysfs
@@ -296,14 +326,16 @@ std::vector<int> EventSensor::Fds() const {
     return {device_.fd(), device_.eventFd()};
 }
 
-int EventSensor::SetPeriod(int64_t /* ns */) {
-    return 0;
-}
-
 /* A one-shot sensor has nothing to flush, and Android says to refuse. */
 int EventSensor::Flush(std::vector<sensors_event_t>* out) {
     if (oneShot_) return -EINVAL;
-    return IioSensor::Flush(out);
+    if (!active_) return -EINVAL;
+    /* Batched, its happenings come out of the FIFO onto the event channel. */
+    if (device_.batching()) {
+        if (!IioDevice::FlushHub()) LOG(WARNING) << device_.name() << ": the hub's flush failed";
+        OnReadable(device_.eventFd(), out);
+    }
+    return Sensor::Flush(out);
 }
 
 void EventSensor::OnReadable(int fd, std::vector<sensors_event_t>* out) {
@@ -356,8 +388,9 @@ int LightSensor::Activate(bool enabled) {
     return 0;
 }
 
-/* It interrupts on a change; there is no rate to set. */
-int LightSensor::SetPeriod(int64_t /* ns */) {
+/* It interrupts on a change: there is no rate to set and nothing kept to
+ * batch. */
+int LightSensor::Batch(int64_t /* periodNs */, int64_t /* latencyNs */) {
     return 0;
 }
 

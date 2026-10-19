@@ -87,10 +87,10 @@ int SensorHub::Activate(int handle, bool enabled) {
     return err;
 }
 
-int SensorHub::Batch(int handle, int64_t periodNs, int64_t /* latencyNs */) {
+int SensorHub::Batch(int handle, int64_t periodNs, int64_t latencyNs) {
     std::lock_guard<std::mutex> guard(lock_);
     Sensor* sensor = Find(handle);
-    return sensor ? sensor->SetPeriod(periodNs) : -EINVAL;
+    return sensor ? sensor->Batch(periodNs, latencyNs) : -EINVAL;
 }
 
 int SensorHub::Flush(int handle) {
