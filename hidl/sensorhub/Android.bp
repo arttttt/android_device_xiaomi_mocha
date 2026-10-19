@@ -1,0 +1,49 @@
+// Copyright (C) 2026 Artem Bambalov
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The LSM6DB0 hub's sensors, without an interface on them. Its types are
+// libhardware's sensor_t and sensors_event_t, plain C that outlives any
+// IDL: the sensors HAL links it and only translates, so a new version of
+// the interface is a new wrapper and not a new reader.
+cc_library_static {
+    name: "libmochasensors",
+    proprietary: true,
+    srcs: [
+        "libmochasensors/IioDevice.cpp",
+        "libmochasensors/SensorHub.cpp",
+    ],
+    export_include_dirs: ["libmochasensors/include"],
+    header_libs: ["libhardware_headers"],
+    export_header_lib_headers: ["libhardware_headers"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+}
+
+// The library run from a shell, with the sensors HAL stopped: what each
+// sensor gives, at what rate and how late. Not installed; built by name
+// and pushed by hand.
+cc_binary {
+    name: "sensorhub_test",
+    proprietary: true,
+    srcs: ["tools/sensorhub_test.cpp"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    static_libs: ["libmochasensors"],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+}
