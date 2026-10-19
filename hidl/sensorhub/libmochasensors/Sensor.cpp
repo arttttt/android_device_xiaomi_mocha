@@ -130,7 +130,6 @@ int IioSensor::Batch(int64_t periodNs, int64_t latencyNs) {
     int timeoutMs = static_cast<int>(std::min<int64_t>(latencyNs / 1000000, 600000));
     if (!device_.SetBatch(batch, timeoutMs)) return -EIO;
 
-    /* After the mode: a change of it resets the hub's rate. */
     return SetRate(periodNs);
 }
 

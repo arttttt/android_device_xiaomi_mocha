@@ -68,8 +68,7 @@ class IioDevice {
     int fifoMaxEvents() const { return fifoMaxEvents_; }
     /* Batching on, the FIFO read out every timeoutMs, or off. The driver
      * takes the change only with the buffer off, so a running buffer is
-     * switched off and back on around it. A change of mode puts the hub's
-     * rate for the sensor back to its own, so the rate is sent again. */
+     * switched off and back on around it. */
     bool SetBatch(bool batch, int timeoutMs);
     bool batching() const { return batching_; }
     /* Has the hub hand over its FIFO; returns once it has been pushed to
@@ -106,7 +105,6 @@ class IioDevice {
     bool ReadChannels();
     bool ReadRates();
     bool ReadBatch();
-    void ResendRate();
 
     std::string name_;
     std::string sysfs_;
