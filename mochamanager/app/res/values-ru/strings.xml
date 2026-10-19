@@ -18,6 +18,7 @@
     <string name="tab_device">Устройство</string>
     <string name="tab_power">Питание</string>
     <string name="tab_monitor">Мониторинг</string>
+    <string name="tab_sensors">Датчики</string>
     <string name="tab_display">Экран</string>
 
     <string name="service_unavailable">Служба планшета не отвечает.</string>
@@ -77,6 +78,17 @@
     <string name="swap">Подкачка (zram)</string>
     <string name="zram_ratio">Сжатие</string>
     <string name="psi">Нехватка памяти</string>
+
+    <string name="section_sensors_hub">Сенсорный хаб</string>
+    <string name="section_sensors_computed">Вычисляет Android</string>
+    <string name="sensor_magnitude">Ускорение, модуль</string>
+    <string name="sensor_bias">смещение</string>
+    <string name="sensor_one_shot">срабатывает раз, не слушаем</string>
+    <string name="sensor_no_permission">нужно разрешение «Физическая активность»</string>
+    <string name="sensor_continuous">непрерывный</string>
+    <string name="sensor_on_change">по изменению</string>
+    <string name="sensor_one_shot_mode">однократный</string>
+    <string name="sensor_special">особый</string>
 
     <string name="section_refresh">Частота обновления</string>
     <string name="refresh_current">Сейчас</string>

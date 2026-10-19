@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
             R.id.tab_device to ::DeviceFragment,
             R.id.tab_power to ::PowerFragment,
             R.id.tab_monitor to ::MonitorFragment,
+            R.id.tab_sensors to ::SensorsFragment,
             R.id.tab_display to ::DisplayFragment)
 
     override fun onCreate(savedInstanceState: Bundle?) {

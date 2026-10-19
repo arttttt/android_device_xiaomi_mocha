@@ -20,6 +20,7 @@
     <string name="tab_device">Device</string>
     <string name="tab_power">Power</string>
     <string name="tab_monitor">Monitor</string>
+    <string name="tab_sensors">Sensors</string>
     <string name="tab_display">Display</string>
 
     <string name="service_unavailable">The tablet\'s service does not answer.</string>
@@ -83,6 +84,18 @@
     <string name="swap">Swap (zram)</string>
     <string name="zram_ratio">Compression</string>
     <string name="psi">Memory pressure</string>
+
+    <!-- Sensors -->
+    <string name="section_sensors_hub">Sensor hub</string>
+    <string name="section_sensors_computed">Computed by Android</string>
+    <string name="sensor_magnitude">Acceleration, magnitude</string>
+    <string name="sensor_bias">bias</string>
+    <string name="sensor_one_shot">fires once, not listened to</string>
+    <string name="sensor_no_permission">needs the physical activity permission</string>
+    <string name="sensor_continuous">continuous</string>
+    <string name="sensor_on_change">on change</string>
+    <string name="sensor_one_shot_mode">one-shot</string>
+    <string name="sensor_special">special</string>
 
     <!-- Display -->
     <string name="section_refresh">Refresh rate</string>

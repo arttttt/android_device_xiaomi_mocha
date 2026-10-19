@@ -72,9 +72,11 @@ class Rows(private val context: Context) {
 
     fun row(key: String, label: Int) = row(key, context.getString(label))
 
-    fun note(text: Int) {
+    fun note(text: Int) = note(context.getString(text))
+
+    fun note(text: CharSequence) {
         column.addView(TextView(context).apply {
-            setText(text)
+            this.text = text
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             alpha = 0.7f
             setPadding(0, dp(2), 0, dp(6))
