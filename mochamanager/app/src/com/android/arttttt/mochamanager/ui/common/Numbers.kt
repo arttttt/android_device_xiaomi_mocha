@@ -17,6 +17,7 @@
 package com.android.arttttt.mochamanager.ui.common
 
 import android.animation.ValueAnimator
+import android.text.TextUtils
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
@@ -32,6 +33,11 @@ import com.android.arttttt.mochamanager.domain.model.Loadable
  * the numbers in between. A run as long as the time to the next value
  * keeps a stream of readings moving without a pause: such short runs go at
  * an even pace, longer ones ease out.
+ *
+ * Cheap per frame, as it must be for a screen of them: a frame whose text
+ * comes out as the last one's sets nothing, and a TextView of a fixed or
+ * matched width -- as the screens give every running number -- only
+ * redraws itself on a new text rather than laying the screen out anew.
  */
 
 /* Long enough to see, shorter than the shortest poll. */
@@ -93,7 +99,7 @@ fun TextView.roll(
     }
     r.animator?.cancel()
     if (from.contentEquals(to)) {
-        text = show(from)
+        setIfNew(show(from))
         return
     }
     r.animator = ValueAnimator.ofFloat(0f, 1f).apply {
@@ -102,7 +108,7 @@ fun TextView.roll(
         addUpdateListener { a ->
             val f = a.animatedValue as Float
             for (i in from.indices) r.shown[i] = from[i] + (to[i] - from[i]) * f
-            text = r.show(r.shown)
+            setIfNew(r.show(r.shown))
         }
         start()
     }
@@ -110,6 +116,10 @@ fun TextView.roll(
 
 fun TextView.roll(value: Double, durationMs: Long = NUMBER_MS, wrap: Double = 0.0, show: (Double) -> CharSequence) =
         roll(doubleArrayOf(value), durationMs, wrap) { show(it[0]) }
+
+private fun TextView.setIfNew(new: CharSequence) {
+    if (!TextUtils.equals(text, new)) text = new
+}
 
 /* Text that is no number, or none yet: the next number starts from itself. */
 fun TextView.settle(text: CharSequence) {

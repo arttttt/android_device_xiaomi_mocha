@@ -31,7 +31,7 @@
 
         <TextView
             android:id="@+id/tile_value"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textAppearance="@style/TextAppearance.MochaManager.Mid" />
 
@@ -52,7 +52,7 @@
 
         <TextView
             android:id="@+id/tile_sub"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:textAppearance="@style/TextAppearance.MochaManager.Sub" />

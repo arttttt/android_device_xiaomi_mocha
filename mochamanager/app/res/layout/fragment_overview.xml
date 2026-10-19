@@ -61,7 +61,8 @@
 
                     <TextView
                         android:id="@+id/battery_percent"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
+                        android:gravity="center"
                         android:layout_height="wrap_content"
                         android:layout_gravity="center"
                         android:textAppearance="@style/TextAppearance.MochaManager.Value"
@@ -77,13 +78,13 @@
 
                     <TextView
                         android:id="@+id/power_value"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:textAppearance="@style/TextAppearance.MochaManager.Mid" />
 
                     <TextView
                         android:id="@+id/power_sub"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:textAppearance="@style/TextAppearance.MochaManager.Sub" />
 

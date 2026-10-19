@@ -97,7 +97,8 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
         val u = v.units
         v.root.subtitle(getString(R.string.performance_subtitle, s.cluster))
         renderCores(v, s)
-        /* On the cores' own range, so the scale never moves. */
+        /* On the cores' own range, so the scale seldom moves: only to take in
+         * a minute-old clock above a ceiling since lowered. */
         val ceiling = s.cores.maxOfOrNull { it.maxKhz }?.takeIf { it > 0 }?.toFloat()
         v.spark.submit(state.cpu, floor = 0f, ceiling = ceiling)
 

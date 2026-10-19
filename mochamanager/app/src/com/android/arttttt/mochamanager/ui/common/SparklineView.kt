@@ -45,7 +45,9 @@ class SparklineView @JvmOverloads constructor(
 ) : View(context, attrs) {
     private var series: List<History> = emptyList()
     private var colors: IntArray = intArrayOf()
-    /* The scale's floor and ceiling; null to take them from the samples. */
+    /* The least the scale spans, from floor to ceiling, whatever the
+     * samples; null to take it from them alone. A sample beyond either
+     * widens the scale to it rather than being drawn outside. */
     private var floor: Float? = null
     private var ceiling: Float? = null
     /* Each line about its own mean, all on one span no narrower than this:
@@ -133,8 +135,8 @@ class SparklineView @JvmOverloads constructor(
     private fun range(): Pair<Float, Float> {
         val all = series.flatMapIndexed { i, h -> h.samples.map { it - means[i] } }
         if (all.isEmpty()) return 0f to 1f
-        var lo = floor ?: all.minOrNull()!!
-        var hi = ceiling ?: all.maxOrNull()!!
+        var lo = minOf(floor ?: Float.MAX_VALUE, all.minOrNull()!!)
+        var hi = maxOf(ceiling ?: -Float.MAX_VALUE, all.maxOrNull()!!)
         if (centredSpan > 0) {
             hi = maxOf(-lo, hi, centredSpan / 2)
             lo = -hi
