@@ -21,6 +21,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.arttttt.mochamanager.MochaManagerApp
@@ -42,10 +43,12 @@ fun <T> Fragment.collectWhileShown(flow: Flow<T>, action: suspend (T) -> Unit) {
     }
 }
 
-/* A screen's ViewModel, made from the app's container. */
+/* A screen's ViewModel, made from the app's container: its own, or -- for a
+ * sheet over a screen -- the owner's. */
 inline fun <reified VM : ViewModel> Fragment.screenViewModel(
+    noinline owner: () -> ViewModelStoreOwner = { this },
     crossinline create: (AppContainer) -> VM,
-) = viewModels<VM> {
+) = viewModels<VM>(owner) {
     object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val container = (requireActivity().application as MochaManagerApp).container

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright (C) 2026 Artem Bambalov
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+<resources>
+    <!-- A card is a group of one meaning: flat, outlined, on the surface. -->
+    <style name="Widget.MochaManager.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/surface</item>
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/outline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="contentPadding">18dp</item>
+    </style>
+
+    <style name="Widget.MochaManager.Bar" parent="Widget.MaterialComponents.LinearProgressIndicator">
+        <item name="trackColor">@color/track</item>
+        <item name="indicatorColor">?attr/colorPrimary</item>
+        <item name="trackThickness">8dp</item>
+        <item name="trackCornerRadius">4dp</item>
+    </style>
+
+    <style name="Widget.MochaManager.BottomSheet" parent="Widget.MaterialComponents.BottomSheet.Modal">
+        <item name="backgroundTint">@color/surface</item>
+        <item name="shapeAppearance">@style/Shape.MochaManager.Sheet</item>
+    </style>
+
+    <style name="Shape.MochaManager.Sheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">28dp</item>
+        <item name="cornerSizeTopRight">28dp</item>
+    </style>
+
+    <!-- A short state: "Charging", "High accuracy". Tinted per state. -->
+    <style name="Widget.MochaManager.Chip" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/bg_chip</item>
+        <item name="android:backgroundTint">@color/surface_variant</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/on_surface_variant</item>
+    </style>
+
+    <style name="Widget.MochaManager.Segment" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+        <item name="strokeColor">@color/outline</item>
+    </style>
+
+    <style name="TextAppearance.MochaManager.Title" parent="TextAppearance.MaterialComponents.Headline5">
+        <item name="android:textColor">@color/on_surface</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="TextAppearance.MochaManager.Big" parent="TextAppearance.MaterialComponents.Headline3">
+        <item name="android:textColor">@color/on_surface</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+    <style name="TextAppearance.MochaManager.Mid" parent="TextAppearance.MaterialComponents.Headline5">
+        <item name="android:textColor">@color/on_surface</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+    <style name="TextAppearance.MochaManager.Body" parent="TextAppearance.MaterialComponents.Body1">
+        <item name="android:textColor">@color/on_surface</item>
+    </style>
+    <style name="TextAppearance.MochaManager.Value" parent="TextAppearance.MaterialComponents.Body1">
+        <item name="android:textColor">@color/on_surface</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+    <style name="TextAppearance.MochaManager.Sub" parent="TextAppearance.MaterialComponents.Body2">
+        <item name="android:textColor">@color/on_surface_variant</item>
+    </style>
+    <style name="TextAppearance.MochaManager.Overline" parent="TextAppearance.MaterialComponents.Overline">
+        <item name="android:textColor">@color/on_surface_variant</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
+</resources>

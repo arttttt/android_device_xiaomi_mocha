@@ -16,7 +16,6 @@
 
 package com.android.arttttt.mochamanager.ui.power
 
-import com.android.arttttt.mochamanager.R
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
@@ -24,10 +23,14 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Shader
+import android.util.AttributeSet
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
-import com.android.arttttt.mochamanager.domain.usecase.PowerHistory
+import androidx.core.graphics.ColorUtils
+import com.android.arttttt.mochamanager.R
+import com.android.arttttt.mochamanager.domain.usecase.History
+import com.android.arttttt.mochamanager.ui.common.themeColor
 
 /*
  * The last two minutes of the power drawn from the battery, a sample a
@@ -38,8 +41,11 @@ import com.android.arttttt.mochamanager.domain.usecase.PowerHistory
  * second a sample lasts, the new sample coming in at the right edge, and the
  * scale glides to the new ceiling instead of jumping to it.
  */
-class PowerGraphView(context: Context) : View(context) {
-    private val capacity = PowerHistory.CAPACITY
+class PowerGraphView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+) : View(context, attrs) {
+    private val capacity = CAPACITY
     private val samples = FloatArray(capacity)
     private var count = 0
     private var newest = -1
@@ -66,16 +72,16 @@ class PowerGraphView(context: Context) : View(context) {
         strokeWidth = 2 * density
         strokeJoin = Paint.Join.ROUND
         strokeCap = Paint.Cap.ROUND
-        color = context.getColor(android.R.color.holo_orange_light)
+        color = themeColor(R.attr.colorPrimary)
     }
     private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = stroke.color }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x30FFFFFF
+        color = themeColor(R.attr.colorOutline)
         strokeWidth = density
     }
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xA0FFFFFF.toInt()
+        color = themeColor(R.attr.colorOnSurfaceVariant)
         textSize = 11 * scaled
     }
     private val value = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -87,15 +93,13 @@ class PowerGraphView(context: Context) : View(context) {
     private val curve = Path()
     private val area = Path()
 
-    private val title = context.getString(R.string.graph_title)
     private val now = context.getString(R.string.graph_now)
     private val oneMinute = context.getString(R.string.graph_minutes, 1)
     private val twoMinutes = context.getString(R.string.graph_minutes, 2)
 
-    /* The plot inside the labels: the scale to its left, the time below,
-     * the title above. */
+    /* The plot inside the labels: the scale to its left, the time below. */
     private val plotLeft = 40 * density
-    private val plotTop = 22 * scaled
+    private val plotTop = 8 * scaled
     private val plotBottomGap = 18 * scaled
 
     /* How long a sample lasts on screen before the next: the slide takes
@@ -109,14 +113,14 @@ class PowerGraphView(context: Context) : View(context) {
      * anything else -- the first, a history kept across a rotation -- is
      * drawn as it stands, without a slide.
      */
-    fun submit(history: PowerHistory) {
+    fun submit(history: History) {
         if (history.serial == shownSerial) return
-        val samplesMw = history.samplesMw
+        val samplesMw = history.samples
         if (shownSerial >= 0 && history.serial == shownSerial + 1 && samplesMw.isNotEmpty()) {
             add(samplesMw.last())
         } else {
             count = samplesMw.size
-            for ((i, mw) in samplesMw.withIndex()) samples[i] = mw.coerceAtLeast(0).toFloat()
+            for ((i, mw) in samplesMw.withIndex()) samples[i] = mw.coerceAtLeast(0f)
             newest = count - 1
             slide = 1f
             top = ceiling()
@@ -133,9 +137,9 @@ class PowerGraphView(context: Context) : View(context) {
         return maxOf(1000f, Math.ceil((peak * 1.15f) / 500.0).toFloat() * 500f)
     }
 
-    private fun add(mw: Int) {
+    private fun add(mw: Float) {
         newest = (newest + 1) % capacity
-        samples[newest] = mw.coerceAtLeast(0).toFloat()
+        samples[newest] = mw.coerceAtLeast(0f)
         if (count < capacity) count++
 
         slider.duration = periodMs
@@ -162,7 +166,8 @@ class PowerGraphView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         fill.shader = LinearGradient(0f, plotTop, 0f, h - plotBottomGap,
-                0x60FFBB33, 0x00FFBB33, Shader.TileMode.CLAMP)
+                ColorUtils.setAlphaComponent(stroke.color, 0x60),
+                ColorUtils.setAlphaComponent(stroke.color, 0), Shader.TileMode.CLAMP)
     }
 
     override fun onDetachedFromWindow() {
@@ -183,8 +188,6 @@ class PowerGraphView(context: Context) : View(context) {
         val top = plotTop
         val bottom = height - plotBottomGap
         val plotH = bottom - top
-
-        canvas.drawText(title, 0f, 13 * scaled, label)
 
         /* The scale: the floor, the middle and the ceiling. */
         for ((fraction, mw) in listOf(0f to 0f, 0.5f to this.top / 2, 1f to this.top)) {
@@ -241,5 +244,10 @@ class PowerGraphView(context: Context) : View(context) {
         canvas.drawCircle(right - 3 * density, cy, 3 * density, dot)
         canvas.drawText(watts(current), right - 10 * density,
                 (cy - 8 * density).coerceAtLeast(top + value.textSize), value)
+    }
+
+    companion object {
+        /* Two minutes, a sample a second. */
+        const val CAPACITY = 120
     }
 }

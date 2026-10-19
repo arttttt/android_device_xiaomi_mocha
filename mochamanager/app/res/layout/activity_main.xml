@@ -14,24 +14,37 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 -->
+<!-- The rail at the side, as a tablet has it: it costs no height and sits
+     under the thumb when the tablet is held across. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:background="?android:attr/colorBackground"
+    android:orientation="horizontal">
+
+    <com.google.android.material.navigationrail.NavigationRailView
+        android:id="@+id/navigation"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:background="@color/surface"
+        app:headerLayout="@layout/rail_header"
+        app:labelVisibilityMode="labeled"
+        app:menuGravity="top"
+        app:itemIconTint="@color/rail_item"
+        app:itemTextColor="@color/rail_item"
+        app:menu="@menu/navigation" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="@color/outline" />
 
     <FrameLayout
         android:id="@+id/content"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
         android:layout_weight="1" />
-
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/navigation"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:labelVisibilityMode="labeled"
-        app:menu="@menu/navigation" />
 
 </LinearLayout>

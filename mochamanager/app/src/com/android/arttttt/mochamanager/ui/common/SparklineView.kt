@@ -1,0 +1,106 @@
+/*
+ * Copyright (C) 2026 Artem Bambalov
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.arttttt.mochamanager.ui.common
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.util.AttributeSet
+import android.view.View
+import androidx.core.graphics.ColorUtils
+import com.android.arttttt.mochamanager.R
+import com.android.arttttt.mochamanager.domain.usecase.History
+
+/*
+ * The last few seconds of one reading or of several, as lines with no axes:
+ * how it moves, not what it is. A single line gets a soft fill under it;
+ * several share one scale and are told apart by colour.
+ */
+class SparklineView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+) : View(context, attrs) {
+    private var series: List<History> = emptyList()
+    private var colors: IntArray = intArrayOf()
+    /* The scale's floor and ceiling; null to take them from the samples. */
+    private var floor: Float? = null
+    private var ceiling: Float? = null
+
+    private val density = resources.displayMetrics.density
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.8f * density
+        strokeJoin = Paint.Join.ROUND
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val path = Path()
+
+    fun submit(series: List<History>, colors: IntArray, floor: Float? = null, ceiling: Float? = null) {
+        this.series = series
+        this.colors = colors
+        this.floor = floor
+        this.ceiling = ceiling
+        invalidate()
+    }
+
+    /* One line in the accent. */
+    fun submit(history: History, floor: Float? = null, ceiling: Float? = null) =
+            submit(listOf(history), intArrayOf(themeColor(R.attr.colorPrimary)), floor, ceiling)
+
+    override fun onDraw(canvas: Canvas) {
+        val all = series.flatMap { it.samples }
+        if (all.size < 2) return
+        var lo = floor ?: all.minOrNull()!!
+        var hi = ceiling ?: all.maxOrNull()!!
+        if (hi - lo < 1e-6f) {
+            lo -= 1f
+            hi += 1f
+        }
+        val pad = stroke.strokeWidth
+        val h = height - 2 * pad
+        fun y(v: Float) = pad + h * (1 - (v - lo) / (hi - lo))
+
+        for ((i, history) in series.withIndex()) {
+            val samples = history.samples
+            if (samples.size < 2) continue
+            val step = width.toFloat() / (history.capacity - 1)
+            /* The newest at the right edge, older ones to its left. */
+            val start = width - step * (samples.size - 1)
+            path.reset()
+            for ((n, v) in samples.withIndex()) {
+                val x = start + n * step
+                if (n == 0) path.moveTo(x, y(v)) else path.lineTo(x, y(v))
+            }
+            stroke.color = colors[i % colors.size]
+            if (series.size == 1) {
+                fill.color = ColorUtils.setAlphaComponent(stroke.color, 0x30)
+                path.lineTo(width.toFloat(), height.toFloat())
+                path.lineTo(start, height.toFloat())
+                path.close()
+                canvas.drawPath(path, fill)
+                path.reset()
+                for ((n, v) in samples.withIndex()) {
+                    val x = start + n * step
+                    if (n == 0) path.moveTo(x, y(v)) else path.lineTo(x, y(v))
+                }
+            }
+            canvas.drawPath(path, stroke)
+        }
+    }
+}

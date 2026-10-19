@@ -17,70 +17,73 @@
 package com.android.arttttt.mochamanager.ui.display
 
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.RadioButton
-import android.widget.RadioGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.RefreshMode
-import com.android.arttttt.mochamanager.ui.common.Rows
+import com.android.arttttt.mochamanager.ui.common.Units
 import com.android.arttttt.mochamanager.ui.common.collectWhileShown
+import com.android.arttttt.mochamanager.ui.common.header
 import com.android.arttttt.mochamanager.ui.common.screenViewModel
 import com.android.arttttt.mochamanager.ui.common.text
-import java.util.Locale
+import com.android.arttttt.mochamanager.ui.common.themeColor
+import com.google.android.material.card.MaterialCardView
 
-class DisplayFragment : Fragment() {
+class DisplayFragment : Fragment(R.layout.fragment_display) {
     private val model by screenViewModel { DisplayViewModel(it.display) }
-    private lateinit var rows: Rows
-    private lateinit var choice: RadioGroup
-    private val buttons = HashMap<RefreshMode, RadioButton>()
-    private var rendering = false
+    private var views: Views? = null
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, saved: Bundle?): View {
-        rows = Rows(requireContext())
-        rows.section(R.string.section_refresh)
-        rows.row(CURRENT, R.string.refresh_current)
+    private class Mode(val card: MaterialCardView, val check: RadioButton)
 
-        choice = RadioGroup(requireContext())
-        for ((mode, name) in MODE_NAMES) {
-            val button = RadioButton(requireContext()).apply {
-                id = View.generateViewId()
-                setText(name)
-            }
-            buttons[mode] = button
-            choice.addView(button)
-        }
-        choice.setOnCheckedChangeListener { _, id ->
-            val mode = buttons.entries.firstOrNull { it.value.id == id }?.key
-            if (!rendering && mode != null) model.onAction(DisplayAction.SetMode(mode))
-        }
-        rows.add(choice)
-        return rows.root
+    private class Views(root: View, choose: (RefreshMode) -> Unit) {
+        val units = Units(root.context)
+        val rate: TextView = root.findViewById(R.id.rate_value)
+        val modes = MODES.map { (mode, card, title, sub) ->
+            val view: MaterialCardView = root.findViewById(card)
+            view.findViewById<TextView>(R.id.mode_title).setText(title)
+            view.findViewById<TextView>(R.id.mode_sub).setText(sub)
+            view.setOnClickListener { choose(mode) }
+            mode to Mode(view, view.findViewById(R.id.mode_check))
+        }.toMap()
     }
 
     override fun onViewCreated(view: View, saved: Bundle?) {
+        view.header(R.string.tab_display, getString(R.string.display_subtitle))
+        views = Views(view) { model.onAction(DisplayAction.SetMode(it)) }
         collectWhileShown(model.state, ::render)
         collectWhileShown(model.effects.flow) {
             Toast.makeText(requireContext(), R.string.refresh_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
+    override fun onDestroyView() {
+        views = null
+        super.onDestroyView()
+    }
+
     private fun render(state: DisplayState) {
-        rows[CURRENT] = text(state.refreshRate) { String.format(Locale.getDefault(), "%.2f Hz", it) }
-        rendering = true
-        val mode = state.mode.valueOrNull
-        if (mode != null) buttons[mode]?.let { choice.check(it.id) } else choice.clearCheck()
-        rendering = false
+        val v = views ?: return
+        v.rate.text = text(state.refreshRate) { v.units.number("%.2f", it.toDouble()) }
+        val chosen = state.mode.valueOrNull
+        /* The chosen one outlined in the accent and on its container. */
+        for ((mode, m) in v.modes) {
+            val on = mode == chosen
+            m.check.isChecked = on
+            m.card.strokeColor = m.card.themeColor(if (on) R.attr.colorPrimary else R.attr.colorOutline)
+            m.card.strokeWidth = resources.displayMetrics.density.let { (if (on) 2 * it else it).toInt() }
+            m.card.setCardBackgroundColor(m.card.themeColor(if (on) R.attr.colorPrimaryContainer else R.attr.colorSurface))
+        }
     }
 
     private companion object {
-        const val CURRENT = "current"
-        val MODE_NAMES = listOf(
-                RefreshMode.AUTO to R.string.refresh_auto,
-                RefreshMode.FIXED_60 to R.string.refresh_60,
-                RefreshMode.FIXED_30 to R.string.refresh_30)
+        data class ModeViews(val mode: RefreshMode, val card: Int, val title: Int, val sub: Int)
+
+        val MODES = listOf(
+                ModeViews(RefreshMode.AUTO, R.id.mode_auto, R.string.refresh_auto, R.string.refresh_auto_sub),
+                ModeViews(RefreshMode.FIXED_60, R.id.mode_60, R.string.refresh_60, R.string.refresh_60_sub),
+                ModeViews(RefreshMode.FIXED_30, R.id.mode_30, R.string.refresh_30, R.string.refresh_30_sub))
     }
 }

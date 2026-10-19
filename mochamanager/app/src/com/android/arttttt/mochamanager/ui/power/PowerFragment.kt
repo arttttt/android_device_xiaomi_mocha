@@ -20,162 +20,108 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.Battery
-import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
 import com.android.arttttt.mochamanager.domain.model.Supply
-import com.android.arttttt.mochamanager.ui.common.Format
-import com.android.arttttt.mochamanager.ui.common.Rows
+import com.android.arttttt.mochamanager.domain.usecase.wearLevel
+import com.android.arttttt.mochamanager.ui.common.Units
+import com.android.arttttt.mochamanager.ui.common.addRow
+import com.android.arttttt.mochamanager.ui.common.cardTitle
+import com.android.arttttt.mochamanager.ui.common.chip
 import com.android.arttttt.mochamanager.ui.common.collectWhileShown
+import com.android.arttttt.mochamanager.ui.common.fill
+import com.android.arttttt.mochamanager.ui.common.header
+import com.android.arttttt.mochamanager.ui.common.levelColor
 import com.android.arttttt.mochamanager.ui.common.screenViewModel
 import com.android.arttttt.mochamanager.ui.common.text
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.button.MaterialButtonToggleGroup
-import com.google.android.material.switchmaterial.SwitchMaterial
+import com.google.android.material.progressindicator.LinearProgressIndicator
 
-class PowerFragment : Fragment() {
+class PowerFragment : Fragment(R.layout.fragment_power) {
     private val model by screenViewModel { PowerViewModel(it.power, it.profiles) }
-    private lateinit var rows: Rows
-    private lateinit var graph: PowerGraphView
-    private lateinit var charging: SwitchMaterial
-    private lateinit var profiles: MaterialButtonToggleGroup
-    private val buttons = HashMap<PerformanceProfile, MaterialButton>()
+    private var views: Views? = null
 
-    /* Set while the views are brought in line with the state, so their
-     * listeners do not take it for the user. */
-    private var rendering = false
-
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, saved: Bundle?): View {
-        rows = Rows(requireContext())
-        rows.section(R.string.section_live)
-        rows.row(POWER, R.string.power)
-        rows.row(INA_VOLTAGE, R.string.voltage)
-        rows.row(INA_CURRENT, R.string.current)
-        rows.row(ENERGY, R.string.energy)
-        graph = PowerGraphView(requireContext())
-        rows.add(graph.apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, rows.dp(140))
-        })
-        rows.note(R.string.live_note)
-
-        rows.section(R.string.section_switches)
-        charging = SwitchMaterial(requireContext()).apply {
-            setText(R.string.charging)
-            setOnCheckedChangeListener { _, checked ->
-                if (!rendering) model.onAction(PowerAction.SetCharging(checked))
-            }
-        }
-        rows.add(charging)
-
-        profiles = MaterialButtonToggleGroup(requireContext()).apply {
-            isSingleSelection = true
-            isSelectionRequired = true
-        }
-        for ((profile, name) in PROFILE_NAMES) {
-            val button = MaterialButton(requireContext(), null,
-                    com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                id = View.generateViewId()
-                setText(name)
-                isAllCaps = false
-            }
-            buttons[profile] = button
-            profiles.addView(button)
-        }
-        profiles.addOnButtonCheckedListener { _, id, checked ->
-            val profile = buttons.entries.firstOrNull { it.value.id == id }?.key
-            if (!rendering && checked && profile != null) model.onAction(PowerAction.SetProfile(profile))
-        }
-        rows.row(PROFILE, R.string.profile)
-        rows.add(profiles)
-        rows.note(R.string.profile_saver_note)
-
-        rows.section(R.string.section_battery)
-        for ((key, label) in BATTERY_ROWS) rows.row(key, label)
-        return rows.root
+    private class Views(root: View, val units: Units) {
+        val value: TextView = root.findViewById(R.id.power_value)
+        val volts: TextView = root.findViewById(R.id.chip_volts)
+        val current: TextView = root.findViewById(R.id.chip_current)
+        val energy: TextView = root.findViewById(R.id.chip_energy)
+        val graph: PowerGraphView = root.findViewById(R.id.graph)
+        val liveNote: View = root.findViewById(R.id.live_note)
+        val capacity: TextView = root.findViewById(R.id.capacity)
+        val charge: TextView = root.findViewById(R.id.charge)
+        val wear: TextView = root.findViewById(R.id.wear)
+        val wearSub: TextView = root.findViewById(R.id.wear_sub)
+        val wearBar: LinearProgressIndicator = root.findViewById(R.id.wear_bar)
+        private val rows: ViewGroup = root.findViewById(R.id.battery_rows)
+        val status = rows.addRow(root.context.getString(R.string.status))
+        val temperature = rows.addRow(root.context.getString(R.string.temperature))
+        val health = rows.addRow(root.context.getString(R.string.health))
+        val voltage = rows.addRow(root.context.getString(R.string.battery_voltage))
+        val batteryCurrent = rows.addRow(root.context.getString(R.string.battery_current))
+        lateinit var controls: PowerControls
     }
 
     override fun onViewCreated(view: View, saved: Bundle?) {
+        view.header(R.string.tab_power, getString(R.string.power_subtitle))
+        view.cardTitle(R.id.battery_title, R.string.section_battery)
+        view.cardTitle(R.id.controls_title, R.string.section_controls)
+        views = Views(view, Units(requireContext())).apply {
+            controls = PowerControls(view.findViewById(R.id.controls),
+                    model::onAction)
+        }
         collectWhileShown(model.state, ::render)
         collectWhileShown(model.effects.flow) {
             Toast.makeText(requireContext(), R.string.change_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
+    override fun onDestroyView() {
+        views = null
+        super.onDestroyView()
+    }
+
     private fun render(state: PowerState) {
-        rows[POWER] = text(state.sample) { Format.mw(it.powerMw) }
-        rows[INA_VOLTAGE] = text(state.sample) { Format.volts(it.voltageMv * 1000) }
-        rows[INA_CURRENT] = text(state.sample) { Format.milliamps(it.currentMa * 1000) }
-        rows[ENERGY] = text(state.sample) { s -> s.energyUWs?.let(Format::wh) ?: getString(R.string.unknown) }
-        graph.submit(state.history)
+        val v = views ?: return
+        val u = v.units
+        v.value.text = text(state.sample) { u.number("%.2f", it.powerMw / 1000.0) }
+        val sample = state.sample.valueOrNull
+        if (sample != null) {
+            v.volts.chip(u.volts(sample.voltageMv * 1000), null)
+            v.current.chip(u.milliamps(sample.currentMa * 1000), null)
+            sample.energyUWs?.let { v.energy.chip(u.wh(it), null) }
+        }
+        v.graph.submit(state.history)
+        v.controls.render(state.switches)
 
-        for ((key, _) in BATTERY_ROWS) rows[key] = text(state.battery) { battery(key, it) }
-
-        rendering = true
-        state.battery.valueOrNull?.let { charging.isChecked = !it.chargingDisabled }
-        charging.isEnabled = state.battery.valueOrNull != null
-        state.profile.valueOrNull?.let { buttons[it]?.let { b -> profiles.check(b.id) } }
-        val choosable = state.profile.valueOrNull != null && !state.batterySaver
-        profiles.isEnabled = choosable
-        for (button in buttons.values) button.isEnabled = choosable
-        rendering = false
+        val b = state.battery.valueOrNull
+        v.liveNote.visibility = if (b != null && b.supply != Supply.NONE) View.VISIBLE else View.GONE
+        v.capacity.text = text(state.battery) { u.percent(it.capacityPct.toDouble()) }
+        v.charge.text = text(state.battery) {
+            getString(R.string.charge_held, u.mah(it.chargeNowUah), u.mah(it.chargeFullUah))
+        }
+        v.status.text = text(state.battery) { BatteryText.status(requireContext(), it) }
+        v.temperature.text = text(state.battery) { u.deciCelsius(it.tempDeciC) }
+        v.health.text = text(state.battery) { BatteryText.health(requireContext(), it) }
+        v.voltage.text = text(state.battery) { u.volts(it.voltageUv) }
+        v.batteryCurrent.text = text(state.battery) { u.milliamps(it.currentUa) }
+        if (b != null) renderWear(v, b)
     }
 
-    private fun battery(key: String, b: Battery): CharSequence = when (key) {
-        CAPACITY -> "${b.capacityPct} %"
-        STATUS -> b.status
-        HEALTH -> b.health
-        VOLTAGE -> Format.volts(b.voltageUv)
-        CURRENT -> Format.milliamps(b.currentUa)
-        TEMP -> Format.deciCelsius(b.tempDeciC)
-        CHARGE -> Format.mah(b.chargeNowUah) + " / " + Format.mah(b.chargeFullUah)
-        WEAR -> b.wearPercent?.let {
-            Format.percent(it) + " (" + Format.mah(b.chargeFullUah) + " / " +
-                    Format.mah(b.chargeFullDesignUah) + ")"
-        } ?: getString(R.string.unknown)
-        CYCLES -> b.cycleCount.toString()
-        else -> getString(when (b.supply) {
-            Supply.AC -> R.string.supply_ac
-            Supply.USB -> R.string.supply_usb
-            Supply.NONE -> R.string.supply_none
-        })
-    }
-
-    private companion object {
-        const val POWER = "power"
-        const val INA_VOLTAGE = "ina_voltage"
-        const val INA_CURRENT = "ina_current"
-        const val ENERGY = "energy"
-        const val PROFILE = "profile"
-        const val CAPACITY = "capacity"
-        const val STATUS = "status"
-        const val HEALTH = "health"
-        const val VOLTAGE = "voltage"
-        const val CURRENT = "current"
-        const val TEMP = "temp"
-        const val CHARGE = "charge"
-        const val WEAR = "wear"
-        const val CYCLES = "cycles"
-        const val SUPPLY = "supply"
-
-        val PROFILE_NAMES = listOf(
-                PerformanceProfile.POWER_SAVE to R.string.profile_power_save,
-                PerformanceProfile.EFFICIENCY to R.string.profile_efficiency,
-                PerformanceProfile.BALANCED to R.string.profile_balanced,
-                PerformanceProfile.PERFORMANCE to R.string.profile_performance)
-
-        val BATTERY_ROWS = listOf(
-                CAPACITY to R.string.capacity,
-                STATUS to R.string.status,
-                HEALTH to R.string.health,
-                VOLTAGE to R.string.voltage,
-                CURRENT to R.string.current,
-                TEMP to R.string.temperature,
-                CHARGE to R.string.charge,
-                WEAR to R.string.wear,
-                CYCLES to R.string.cycles,
-                SUPPLY to R.string.supply)
+    /* What is left of the design capacity, coloured by how worn it is. */
+    private fun renderWear(v: Views, b: Battery) {
+        v.health.setTextColor(v.health.levelColor(BatteryText.healthLevel(b)))
+        v.wearSub.text = getString(R.string.capacity_left, b.cycleCount)
+        val left = b.wearPercent
+        if (left == null) {
+            v.wear.setText(R.string.unknown)
+            return
+        }
+        val level = wearLevel(left)
+        v.wear.text = v.units.percent(left)
+        v.wear.setTextColor(v.wear.levelColor(level))
+        v.wearBar.fill(left / 100, level)
     }
 }

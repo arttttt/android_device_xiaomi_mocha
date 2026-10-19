@@ -22,14 +22,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /* The tab on show, kept across a rotation and across the process being
- * killed in the background. */
+ * killed in the background. A screen may open another: the overview's tiles
+ * open their sections. */
 class MainViewModel(private val saved: SavedStateHandle) : ViewModel() {
-    private val tab = MutableStateFlow(saved.get<Tab>(KEY) ?: Tab.DEVICE)
+    private val tab = MutableStateFlow(Tab.named(saved.get<String>(KEY)) ?: Tab.OVERVIEW)
     val state: StateFlow<Tab> = tab
 
     fun select(selected: Tab) {
         tab.value = selected
-        saved.set(KEY, selected)
+        saved.set(KEY, selected.name)
     }
 
     private companion object {

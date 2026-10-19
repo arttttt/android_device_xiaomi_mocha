@@ -18,17 +18,17 @@ package com.android.arttttt.mochamanager.ui.main
 
 import androidx.fragment.app.Fragment
 import com.android.arttttt.mochamanager.R
-import com.android.arttttt.mochamanager.ui.device.DeviceFragment
 import com.android.arttttt.mochamanager.ui.display.DisplayFragment
-import com.android.arttttt.mochamanager.ui.monitor.MonitorFragment
+import com.android.arttttt.mochamanager.ui.overview.OverviewFragment
+import com.android.arttttt.mochamanager.ui.performance.PerformanceFragment
 import com.android.arttttt.mochamanager.ui.power.PowerFragment
 import com.android.arttttt.mochamanager.ui.sensors.SensorsFragment
 
 /* The tabs, their menu items and the screen each shows. */
 enum class Tab(val itemId: Int, val create: () -> Fragment) {
-    DEVICE(R.id.tab_device, ::DeviceFragment),
+    OVERVIEW(R.id.tab_overview, ::OverviewFragment),
     POWER(R.id.tab_power, ::PowerFragment),
-    MONITOR(R.id.tab_monitor, ::MonitorFragment),
+    PERFORMANCE(R.id.tab_performance, ::PerformanceFragment),
     SENSORS(R.id.tab_sensors, ::SensorsFragment),
     DISPLAY(R.id.tab_display, ::DisplayFragment);
 
@@ -37,5 +37,8 @@ enum class Tab(val itemId: Int, val create: () -> Fragment) {
 
     companion object {
         fun of(itemId: Int) = values().first { it.itemId == itemId }
+
+        /* By name, as it is saved; null for one no longer there. */
+        fun named(name: String?) = values().firstOrNull { it.name == name }
     }
 }

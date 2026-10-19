@@ -23,7 +23,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.android.arttttt.mochamanager.R
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.navigationrail.NavigationRailView
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val navigation = findViewById<BottomNavigationView>(R.id.navigation)
+        val navigation = findViewById<NavigationRailView>(R.id.navigation)
         navigation.setOnItemSelectedListener { item ->
             model.select(Tab.of(item.itemId))
             true

@@ -19,17 +19,21 @@ package com.android.arttttt.mochamanager.ui.sensors
 import com.android.arttttt.mochamanager.domain.model.AccelCalibration
 import com.android.arttttt.mochamanager.domain.model.Accuracy
 import com.android.arttttt.mochamanager.domain.model.Loadable
-import com.android.arttttt.mochamanager.domain.model.SensorInfo
 import com.android.arttttt.mochamanager.domain.model.SensorReading
 import com.android.arttttt.mochamanager.domain.usecase.AccelCalibrationSession
 import com.android.arttttt.mochamanager.domain.usecase.CalibrationAdvice
+import com.android.arttttt.mochamanager.domain.usecase.History
 
 data class SensorsState(
-    val sensors: Loadable<List<SensorInfo>> = Loadable.Loading,
-    /* The latest reading of each sensor, by key. */
+    val groups: Loadable<SensorGroups> = Loadable.Loading,
+    /* The latest reading of each sensor listened to, by key. */
     val readings: Map<Int, SensorReading> = emptyMap(),
     /* Steps a step detector has reported since the tab was shown, by key. */
     val steps: Map<Int, Int> = emptyMap(),
+    /* The accelerometer's X, Y and Z over the last seconds. */
+    val motion: List<History> = emptyList(),
+    /* Whether the folded-away sensors are shown, and so listened to. */
+    val othersShown: Boolean = false,
     val calibration: CalibrationState = CalibrationState(),
 )
 
@@ -39,14 +43,17 @@ data class CalibrationState(
     /* As the HAL measures it at rest. */
     val accuracy: Accuracy = Accuracy.UNKNOWN,
     val advice: CalibrationAdvice = CalibrationAdvice.UNKNOWN,
-    /* null unless one is under way. */
+    /* Where one stands, and how the last one ended until it is closed; null
+     * when there is none to show. */
     val progress: AccelCalibrationSession.Progress? = null,
 )
 
 sealed class SensorsAction {
     object StartCalibration : SensorsAction()
-    object CancelCalibration : SensorsAction()
+    /* Called off while under way, or put away once it has ended. */
+    object CloseCalibration : SensorsAction()
     object ResetCalibration : SensorsAction()
+    object ToggleOthers : SensorsAction()
     /* The step sensors' permission was granted; listen to them too. */
     object PermissionGranted : SensorsAction()
 }

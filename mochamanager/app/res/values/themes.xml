@@ -15,5 +15,44 @@
     limitations under the License.
 -->
 <resources>
-    <style name="Theme.MochaManager" parent="Theme.MaterialComponents.DayNight.DarkActionBar" />
+    <!-- One theme for light and dark: every colour is the palette's, which
+         values-night swaps. -->
+    <style name="Theme.MochaManager" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorSecondary">@color/primary</item>
+        <item name="colorOnSecondary">@color/on_primary</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/on_surface</item>
+        <item name="colorOnBackground">@color/on_surface</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="android:textColorPrimary">@color/on_surface</item>
+        <item name="android:textColorSecondary">@color/on_surface_variant</item>
+        <item name="colorGood">@color/good</item>
+        <item name="colorGoodContainer">@color/good_container</item>
+        <item name="colorWarn">@color/warn</item>
+        <item name="colorWarnContainer">@color/warn_container</item>
+        <item name="colorBad">@color/bad</item>
+        <item name="colorBadContainer">@color/bad_container</item>
+        <item name="colorPrimaryContainer">@color/primary_container</item>
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
+        <item name="colorOutline">@color/outline</item>
+        <item name="colorTrack">@color/track</item>
+        <item name="colorAxisX">@color/axis_x</item>
+        <item name="colorAxisY">@color/axis_y</item>
+        <item name="colorAxisZ">@color/axis_z</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar">@bool/light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/light_bars</item>
+        <item name="materialCardViewStyle">@style/Widget.MochaManager.Card</item>
+        <item name="linearProgressIndicatorStyle">@style/Widget.MochaManager.Bar</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.MochaManager.BottomSheet</item>
+    </style>
+
+    <style name="ThemeOverlay.MochaManager.BottomSheet" parent="ThemeOverlay.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.MochaManager.BottomSheet</item>
+    </style>
 </resources>

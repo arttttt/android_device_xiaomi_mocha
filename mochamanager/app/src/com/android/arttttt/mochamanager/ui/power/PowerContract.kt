@@ -18,24 +18,13 @@ package com.android.arttttt.mochamanager.ui.power
 
 import com.android.arttttt.mochamanager.domain.model.Battery
 import com.android.arttttt.mochamanager.domain.model.Loadable
-import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
 import com.android.arttttt.mochamanager.domain.model.PowerSample
-import com.android.arttttt.mochamanager.domain.usecase.PowerHistory
+import com.android.arttttt.mochamanager.domain.usecase.History
 
 data class PowerState(
     val sample: Loadable<PowerSample> = Loadable.Loading,
-    val history: PowerHistory = PowerHistory.EMPTY,
+    /* Milliwatts, a sample a second. */
+    val history: History = History.empty(PowerGraphView.CAPACITY),
     val battery: Loadable<Battery> = Loadable.Loading,
-    val profile: Loadable<PerformanceProfile> = Loadable.Loading,
-    /* While it is on, the profile is held at power save. */
-    val batterySaver: Boolean = false,
+    val switches: Switches = Switches(),
 )
-
-sealed class PowerAction {
-    data class SetCharging(val enabled: Boolean) : PowerAction()
-    data class SetProfile(val profile: PerformanceProfile) : PowerAction()
-}
-
-sealed class PowerEffect {
-    object ChangeFailed : PowerEffect()
-}

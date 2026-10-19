@@ -15,9 +15,9 @@
     limitations under the License.
 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/tab_device" android:icon="@drawable/ic_tab_device" android:title="@string/tab_device" />
+    <item android:id="@+id/tab_overview" android:icon="@drawable/ic_tab_overview" android:title="@string/tab_overview" />
     <item android:id="@+id/tab_power" android:icon="@drawable/ic_tab_power" android:title="@string/tab_power" />
-    <item android:id="@+id/tab_monitor" android:icon="@drawable/ic_tab_monitor" android:title="@string/tab_monitor" />
+    <item android:id="@+id/tab_performance" android:icon="@drawable/ic_tab_performance" android:title="@string/tab_performance" />
     <item android:id="@+id/tab_sensors" android:icon="@drawable/ic_tab_sensors" android:title="@string/tab_sensors" />
     <item android:id="@+id/tab_display" android:icon="@drawable/ic_tab_display" android:title="@string/tab_display" />
 </menu>
