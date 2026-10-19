@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
 
     for (const auto& s : hub.sensors()) {
         printf("%2d %-28s type %2d range %9.3f res %.6f power %.2f delay %d..%ld us\n", s.handle,
-               s.name, s.type, s.maxRange, s.resolution, s.power, s.minDelay, s.maxDelay);
+               s.name, s.type, s.maxRange, s.resolution, s.power, s.minDelay, static_cast<long>(s.maxDelay));
     }
     if (argc < 3) return 0;
 
