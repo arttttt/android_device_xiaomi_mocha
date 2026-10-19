@@ -22,9 +22,16 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.material.button.MaterialButton
+import java.text.DateFormat
+import java.util.Date
 import java.util.Locale
 import kotlin.math.sqrt
+import vendor.arttttt.mochamanager.AccelCalibration
 
 /*
  * Every sensor the system lists, with what it reads right now: the ones the
@@ -41,15 +48,27 @@ class SensorsFragment : Screen(200) {
     private val last = HashMap<Sensor, FloatArray>()
     private val steps = HashMap<Sensor, Int>()
 
+    /* The accelerometer's accuracy as the HAL measures it, at rest, against
+     * gravity; -1 until it has said. */
+    private var accelAccuracy = -1
+    private var calibration: AccelCalibration? = null
+    private lateinit var calibrator: AccelCalibrator
+    private lateinit var hint: TextView
+    private lateinit var calibrate: MaterialButton
+    private lateinit var reset: MaterialButton
+
     private val listener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
             if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
                 steps[event.sensor] = (steps[event.sensor] ?: 0) + 1
             }
             last[event.sensor] = event.values.clone()
+            if (event.sensor == accelerometer) accelAccuracy = event.accuracy
         }
 
-        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
+            if (sensor == accelerometer) accelAccuracy = accuracy
+        }
     }
 
     /* The step sensors are behind a runtime permission; asked for once, the
@@ -65,6 +84,9 @@ class SensorsFragment : Screen(200) {
          * type, so the same kind of reading sits together. */
         sensors = manager.getSensorList(Sensor.TYPE_ALL)
                 .sortedWith(compareBy<Sensor>({ computed(it) }, { it.type }, { it.name }))
+
+        calibrator = AccelCalibrator(manager) { refreshCalibration() }
+        buildCalibration()
 
         var section: Boolean? = null
         for ((i, s) in sensors.withIndex()) {
@@ -83,10 +105,12 @@ class SensorsFragment : Screen(200) {
     override fun onResume() {
         super.onResume()
         listen()
+        loadCalibration()
     }
 
     override fun onPause() {
         manager.unregisterListener(listener)
+        if (calibrator.step != AccelCalibrator.Step.IDLE) calibrator.cancel()
         super.onPause()
     }
 
@@ -102,11 +126,112 @@ class SensorsFragment : Screen(200) {
     }
 
     override fun refresh() {
+        refreshCalibration()
         for ((i, s) in sensors.withIndex()) rows["s$i"] = reading(s)
         val a = accelerometer?.let { last[it] }
         rows["magnitude"] = if (a == null) getString(R.string.unknown) else {
             val g = sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
             f("%.2f m/s² (%+.1f %%)", g, (g / SensorManager.GRAVITY_EARTH - 1) * 100)
+        }
+    }
+
+    /* ---- the accelerometer's calibration ---- */
+
+    private fun buildCalibration() {
+        rows.section(R.string.section_accel_calibration)
+        rows.row("cal_state", R.string.cal_state)
+        rows.row("cal_accuracy", R.string.cal_accuracy)
+
+        hint = TextView(requireContext()).apply {
+            textSize = 14f
+            setPadding(0, rows.dp(6), 0, rows.dp(6))
+        }
+        rows.add(hint)
+
+        calibrate = MaterialButton(requireContext()).apply {
+            setOnClickListener {
+                if (calibrator.step in IN_PROGRESS) calibrator.cancel() else calibrator.start()
+            }
+        }
+        reset = MaterialButton(requireContext(), null,
+                com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            setText(R.string.cal_reset)
+            setOnClickListener {
+                Service.load({ it.resetAccelCalibration() }) { loadCalibration() }
+            }
+        }
+        val buttons = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(calibrate)
+            addView(reset, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { marginStart = rows.dp(12) })
+        }
+        rows.add(buttons)
+        if (!calibrator.available) buttons.visibility = View.GONE
+    }
+
+    private fun loadCalibration() {
+        Service.load({ it.accelCalibration }) { c ->
+            calibration = c
+            refreshCalibration()
+        }
+    }
+
+    private fun refreshCalibration() {
+        if (!isAdded) return
+        val c = calibration
+        rows["cal_state"] = when {
+            c == null -> getString(R.string.unknown)
+            !c.present -> getString(R.string.cal_none)
+            else -> getString(R.string.cal_made,
+                    DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                            .format(Date(c.madeMs)))
+        }
+        rows["cal_accuracy"] = getString(when (accelAccuracy) {
+            SensorManager.SENSOR_STATUS_ACCURACY_HIGH -> R.string.cal_accuracy_high
+            SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> R.string.cal_accuracy_medium
+            SensorManager.SENSOR_STATUS_ACCURACY_LOW -> R.string.cal_accuracy_low
+            else -> R.string.cal_accuracy_unknown
+        })
+
+        val step = calibrator.step
+        hint.text = when (step) {
+            AccelCalibrator.Step.PLACE_UP -> getString(R.string.cal_place_up)
+            AccelCalibrator.Step.HOLD_UP, AccelCalibrator.Step.HOLD_DOWN ->
+                getString(R.string.cal_hold, (calibrator.progress * 100).toInt())
+            AccelCalibrator.Step.PLACE_DOWN -> getString(R.string.cal_place_down)
+            AccelCalibrator.Step.FAILED -> getString(R.string.cal_failed)
+            AccelCalibrator.Step.DONE -> getString(R.string.cal_done)
+            AccelCalibrator.Step.IDLE -> getString(advice(c))
+        }
+        calibrate.setText(if (step in IN_PROGRESS) R.string.cal_cancel else R.string.cal_start)
+        reset.isEnabled = step !in IN_PROGRESS && c?.present == true
+
+        if (step == AccelCalibrator.Step.DONE) save()
+    }
+
+    /* Whether to calibrate goes by what the HAL measures, not by whether a
+     * calibration was ever made: one made long ago may have drifted. */
+    private fun advice(c: AccelCalibration?) = when {
+        accelAccuracy == SensorManager.SENSOR_STATUS_ACCURACY_HIGH -> R.string.cal_advice_good
+        accelAccuracy < 0 -> R.string.cal_advice_unknown
+        c?.present != true -> R.string.cal_advice_none
+        accelAccuracy == SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM -> R.string.cal_advice_fair
+        else -> R.string.cal_advice_redo
+    }
+
+    private fun save() {
+        val result = calibrator.result ?: return
+        calibrator.cancel()
+        val made = AccelCalibration().apply {
+            present = true
+            offset = result.offset
+            scale = result.scale
+        }
+        Service.load({ it.setAccelCalibration(made) }) {
+            accelAccuracy = -1
+            loadCalibration()
         }
     }
 
@@ -167,4 +292,9 @@ class SensorsFragment : Screen(200) {
     private fun trim(value: Float) = if (value == value.toLong().toFloat()) value.toLong().toString() else f("%.1f", value)
 
     private fun f(pattern: String, vararg args: Any) = String.format(Locale.getDefault(), pattern, *args)
+
+    private companion object {
+        val IN_PROGRESS = listOf(AccelCalibrator.Step.PLACE_UP, AccelCalibrator.Step.HOLD_UP,
+                AccelCalibrator.Step.PLACE_DOWN, AccelCalibrator.Step.HOLD_DOWN)
+    }
 }

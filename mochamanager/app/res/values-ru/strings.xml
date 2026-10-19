@@ -90,6 +90,29 @@
     <string name="sensor_one_shot_mode">однократный</string>
     <string name="sensor_special">особый</string>
 
+    <string name="section_accel_calibration">Калибровка акселерометра</string>
+    <string name="cal_state">Калибровка</string>
+    <string name="cal_none">нет</string>
+    <string name="cal_made">сделана %1$s</string>
+    <string name="cal_accuracy">Точность в покое</string>
+    <string name="cal_accuracy_high">высокая (до 0,5 %)</string>
+    <string name="cal_accuracy_medium">средняя (до 1,5 %)</string>
+    <string name="cal_accuracy_low">низкая (больше 1,5 %)</string>
+    <string name="cal_accuracy_unknown">ещё не измерена: положите планшет неподвижно</string>
+    <string name="cal_start">Откалибровать</string>
+    <string name="cal_cancel">Отмена</string>
+    <string name="cal_reset">Сбросить</string>
+    <string name="cal_place_up">Положите планшет экраном вверх на ровную горизонтальную поверхность и не трогайте.</string>
+    <string name="cal_place_down">Теперь переверните: экраном вниз, на ту же поверхность, и не трогайте.</string>
+    <string name="cal_hold">Не двигайте… %1$d %%</string>
+    <string name="cal_done">Откалибровано.</string>
+    <string name="cal_failed">Показания слишком далеки, чтобы быть калибровкой. Попробуйте ещё раз на ровной поверхности.</string>
+    <string name="cal_advice_good">Акселерометр показывает верно, калибровка не нужна.</string>
+    <string name="cal_advice_unknown">Положите планшет неподвижно на пару секунд — точность станет видна.</string>
+    <string name="cal_advice_none">Не откалиброван и показывает с ошибкой: калибровка стоит того.</string>
+    <string name="cal_advice_fair">Откалиброван, и близко к верному; повторная калибровка может сделать точнее.</string>
+    <string name="cal_advice_redo">Откалиброван, но с тех пор уплыл: откалибруйте заново.</string>
+
     <string name="section_refresh">Частота обновления</string>
     <string name="refresh_current">Сейчас</string>
     <string name="refresh_auto">Автоматически: 60 Гц, пока картинка движется, 30 Гц, пока стоит</string>

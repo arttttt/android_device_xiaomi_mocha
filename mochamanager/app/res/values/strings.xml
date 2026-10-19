@@ -97,6 +97,30 @@
     <string name="sensor_one_shot_mode">one-shot</string>
     <string name="sensor_special">special</string>
 
+    <!-- Accelerometer calibration -->
+    <string name="section_accel_calibration">Accelerometer calibration</string>
+    <string name="cal_state">Calibration</string>
+    <string name="cal_none">none</string>
+    <string name="cal_made">made %1$s</string>
+    <string name="cal_accuracy">Accuracy at rest</string>
+    <string name="cal_accuracy_high">high (within 0.5 %)</string>
+    <string name="cal_accuracy_medium">medium (within 1.5 %)</string>
+    <string name="cal_accuracy_low">low (off by more than 1.5 %)</string>
+    <string name="cal_accuracy_unknown">not measured yet: let the tablet lie still</string>
+    <string name="cal_start">Calibrate</string>
+    <string name="cal_cancel">Cancel</string>
+    <string name="cal_reset">Reset</string>
+    <string name="cal_place_up">Lay the tablet screen up on a flat, level surface and leave it be.</string>
+    <string name="cal_place_down">Now turn it over: screen down, on the same surface, and leave it be.</string>
+    <string name="cal_hold">Hold still… %1$d %%</string>
+    <string name="cal_done">Calibrated.</string>
+    <string name="cal_failed">The readings were too far off to be a calibration. Try again on a level surface.</string>
+    <string name="cal_advice_good">The accelerometer reads true; no calibration needed.</string>
+    <string name="cal_advice_unknown">Let the tablet lie still for a moment, and its accuracy will show.</string>
+    <string name="cal_advice_none">Not calibrated, and it reads off: calibrating is worth it.</string>
+    <string name="cal_advice_fair">Calibrated, and close; calibrating again may make it closer.</string>
+    <string name="cal_advice_redo">Calibrated, but it has drifted: calibrate it again.</string>
+
     <!-- Display -->
     <string name="section_refresh">Refresh rate</string>
     <string name="refresh_current">Now</string>
