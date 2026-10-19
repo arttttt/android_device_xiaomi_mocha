@@ -136,6 +136,8 @@ void IioSensor::OnReadable(int /* fd */, std::vector<sensors_event_t>* out) {
     size_t size = std::min(sizeof(buffer), device_.recordBytes() * kRecords);
 
     ssize_t got = device_.Read(buffer, size);
+    /* What was left in the buffer from before it was switched on. */
+    if (!active_) return;
     for (ssize_t at = 0; at + static_cast<ssize_t>(device_.recordBytes()) <= got;
          at += device_.recordBytes()) {
         sensors_event_t event = Event(time_ ? IioDevice::Raw(*time_, buffer + at) : 0);

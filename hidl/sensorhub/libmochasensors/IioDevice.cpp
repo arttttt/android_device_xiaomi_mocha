@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 
@@ -54,21 +55,32 @@ bool WriteValue(const std::string& path, const std::string& value) {
     return false;
 }
 
-/* "le:s16/16>>0": endianness, sign, bits, storage bits, shift. */
+/*
+ * "le:s16/16>>0": endianness, sign, bits, storage bits, shift. A channel of
+ * no data is "le:0/0>>0", with no sign at all: the record then carries only
+ * the time.
+ */
 bool ParseType(const std::string& type, IioChannel* channel) {
-    char endian = 0, sign = 0;
-    int bits = 0, storage = 0, shift = 0;
-    if (sscanf(type.c_str(), "%ce:%c%d/%d>>%d", &endian, &sign, &bits, &storage, &shift) == 5) {
-        channel->isSigned = sign == 's';
-    } else if (sscanf(type.c_str(), "%ce:%d/%d>>%d", &endian, &bits, &storage, &shift) == 4) {
-        /* A channel of no data: the record carries only the time. */
-        channel->isSigned = false;
-    } else {
-        return false;
-    }
-    channel->bits = bits;
-    channel->storageBytes = storage / 8;
-    channel->shift = shift;
+    size_t colon = type.find(':');
+    if (colon == std::string::npos) return false;
+    const char* p = type.c_str() + colon + 1;
+
+    channel->isSigned = *p == 's';
+    if (*p == 's' || *p == 'u') p++;
+
+    char* end;
+    long bits = strtol(p, &end, 10);
+    if (end == p || *end != '/') return false;
+    p = end + 1;
+    long storage = strtol(p, &end, 10);
+    if (end == p || strncmp(end, ">>", 2) != 0) return false;
+    p = end + 2;
+    long shift = strtol(p, &end, 10);
+    if (end == p) return false;
+
+    channel->bits = static_cast<int>(bits);
+    channel->storageBytes = static_cast<int>(storage / 8);
+    channel->shift = static_cast<int>(shift);
     return true;
 }
 
@@ -105,12 +117,18 @@ bool IioDevice::Open(const std::string& name) {
     }
     if (number_ < 0) return false;
 
+    /* A buffer left running by whoever had the device before: the scan
+     * elements cannot be changed under it. */
+    WriteValue(Path("buffer/enable"), "0");
+
     if (!ReadChannels()) return false;
     ReadRates();
 
-    /* A buffer left running by whoever had the device before. */
-    WriteValue(Path("buffer/enable"), "0");
-    WriteValue(Path("trigger/current_trigger"), name_ + "-dev" + std::to_string(number_));
+    /* The driver sets each device's own trigger at probe; it is only put
+     * back if something changed it. */
+    std::string trigger = name_ + "-dev" + std::to_string(number_), current;
+    if (!ReadValue(Path("trigger/current_trigger"), &current) || current != trigger)
+        WriteValue(Path("trigger/current_trigger"), trigger);
 
     std::string node = "/dev/iio:device" + std::to_string(number_);
     fd_ = open(node.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
