@@ -144,8 +144,11 @@ int IioSensor::SetRate(int64_t ns) {
     if (ns <= 0) return 0;
 
     /* The rate at or above the asked one: a sensor may report faster than
-     * asked, never slower. */
-    int hz = static_cast<int>((1000000000 + ns - 1) / ns);
+     * asked, never slower. A period is often 1 s / rate cut to whole
+     * nanoseconds, a hair short, so the asked rate is rounded down first
+     * by a part in a thousand rather than up to the next one. */
+    int hz = static_cast<int>(999000000LL / ns + 1);
+    if (999000000LL % ns == 0) hz--;
     return device_.SetRate(hz) ? 0 : -EIO;
 }
 
