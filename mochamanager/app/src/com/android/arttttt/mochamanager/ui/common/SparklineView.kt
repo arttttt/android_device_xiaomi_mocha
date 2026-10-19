@@ -40,6 +40,9 @@ class SparklineView @JvmOverloads constructor(
     /* The scale's floor and ceiling; null to take them from the samples. */
     private var floor: Float? = null
     private var ceiling: Float? = null
+    /* Each line about its own mean, all on one span no narrower than this:
+     * how each moves, whatever its level. 0 for one scale of values. */
+    private var centredSpan = 0f
 
     private val density = resources.displayMetrics.density
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -56,7 +59,15 @@ class SparklineView @JvmOverloads constructor(
         this.colors = colors
         this.floor = floor
         this.ceiling = ceiling
+        centredSpan = 0f
         invalidate()
+    }
+
+    /* Several lines that sit at different levels -- an accelerometer's
+     * axes, one bearing gravity -- each drawn about its own mean. */
+    fun submitCentred(series: List<History>, colors: IntArray, minSpan: Float) {
+        submit(series, colors)
+        centredSpan = minSpan
     }
 
     /* One line in the accent. */
@@ -64,10 +75,15 @@ class SparklineView @JvmOverloads constructor(
             submit(listOf(history), intArrayOf(themeColor(R.attr.colorPrimary)), floor, ceiling)
 
     override fun onDraw(canvas: Canvas) {
-        val all = series.flatMap { it.samples }
+        val means = series.map { if (centredSpan > 0 && it.samples.isNotEmpty()) it.samples.average().toFloat() else 0f }
+        val all = series.flatMapIndexed { i, h -> h.samples.map { it - means[i] } }
         if (all.size < 2) return
         var lo = floor ?: all.minOrNull()!!
         var hi = ceiling ?: all.maxOrNull()!!
+        if (centredSpan > 0) {
+            hi = maxOf(-lo, hi, centredSpan / 2)
+            lo = -hi
+        }
         if (hi - lo < 1e-6f) {
             lo -= 1f
             hi += 1f
@@ -85,7 +101,7 @@ class SparklineView @JvmOverloads constructor(
             path.reset()
             for ((n, v) in samples.withIndex()) {
                 val x = start + n * step
-                if (n == 0) path.moveTo(x, y(v)) else path.lineTo(x, y(v))
+                if (n == 0) path.moveTo(x, y(v - means[i])) else path.lineTo(x, y(v - means[i]))
             }
             stroke.color = colors[i % colors.size]
             if (series.size == 1) {

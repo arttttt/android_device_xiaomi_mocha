@@ -58,14 +58,14 @@
 
                         <TextView
                             android:id="@+id/cal_now"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:textAppearance="@style/TextAppearance.MochaManager.Value"
                             android:textSize="17sp" />
 
                         <TextView
                             android:id="@+id/cal_state"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
                             android:textAppearance="@style/TextAppearance.MochaManager.Sub" />

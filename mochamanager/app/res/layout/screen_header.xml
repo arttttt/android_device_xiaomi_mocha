@@ -20,19 +20,23 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="16dp"
-    android:gravity="bottom"
+    android:baselineAligned="true"
     android:orientation="horizontal">
 
     <TextView
         android:id="@+id/screen_title"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
         android:textAppearance="@style/TextAppearance.MochaManager.Title" />
 
     <TextView
         android:id="@+id/screen_subtitle"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:gravity="end"
+        android:maxLines="1"
         android:textAppearance="@style/TextAppearance.MochaManager.Sub" />
 </LinearLayout>

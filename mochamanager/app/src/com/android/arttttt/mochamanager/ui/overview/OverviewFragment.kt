@@ -17,6 +17,7 @@
 package com.android.arttttt.mochamanager.ui.overview
 
 import android.os.Bundle
+import android.os.SystemProperties
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
@@ -149,7 +150,8 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     }
 
     private fun renderDevice(v: Views, d: DeviceInfo) {
-        view?.subtitle(d.model + " · " + d.build.substringBefore(' '))
+        val lineage = SystemProperties.get("ro.lineage.build.version")
+        view?.subtitle(if (lineage.isEmpty()) d.model else d.model + " · LineageOS " + lineage)
         v.modelName.text = d.model
         v.memoryVariant.text = v.units.gb(d.memoryGb) + " (" + v.units.mb(d.memTotalKb) + ")"
         v.build.text = d.build

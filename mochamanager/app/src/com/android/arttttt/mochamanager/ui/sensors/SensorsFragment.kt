@@ -140,7 +140,7 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
                         " · " + f.describe(s)
             } ?: f.describe(s)
         }
-        v.spark.submit(state.motion, v.axes)
+        v.spark.submitCentred(state.motion, v.axes, MOTION_SPAN)
         renderRow(v, v.gyroscope, g.gyroscope, state)
         renderRow(v, v.linear, g.linearAcceleration, state)
 
@@ -259,5 +259,7 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
 
     private companion object {
         const val SHEET = "calibration"
+        /* m/s²: at rest the lines lie calm, a nudge shows. */
+        const val MOTION_SPAN = 0.5f
     }
 }
