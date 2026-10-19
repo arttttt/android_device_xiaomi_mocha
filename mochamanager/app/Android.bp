@@ -41,4 +41,5 @@ prebuilt_etc {
     system_ext_specific: true,
     sub_dir: "permissions",
     src: "privapp-permissions-mochamanager.xml",
+    filename_from_src: true,
 }
