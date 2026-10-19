@@ -47,3 +47,41 @@ cc_binary {
         "liblog",
     ],
 }
+
+// The hub's sensors as a sub-HAL of AOSP's android.hardware.sensors@2.1
+// multi-HAL service, which loads it by the name in hals.conf.
+cc_library_shared {
+    name: "sensors-subhal.mocha",
+    proprietary: true,
+    srcs: ["subhal/SubHal.cpp"],
+    cflags: ["-Wall", "-Wextra", "-Werror"],
+    header_libs: [
+        "android.hardware.sensors@2.X-multihal.header",
+        "android.hardware.sensors@2.X-shared-utils",
+    ],
+    static_libs: [
+        "android.hardware.sensors@1.0-convert",
+        "libmochasensors",
+    ],
+    shared_libs: [
+        "android.hardware.sensors@1.0",
+        "android.hardware.sensors@2.0",
+        "android.hardware.sensors@2.0-ScopedWakelock",
+        "android.hardware.sensors@2.1",
+        "libbase",
+        "libcutils",
+        "libfmq",
+        "libhardware",
+        "libhidlbase",
+        "liblog",
+        "libutils",
+    ],
+}
+
+prebuilt_etc {
+    name: "hals.conf.mocha",
+    src: "hals.conf",
+    filename: "hals.conf",
+    sub_dir: "sensors",
+    proprietary: true,
+}
