@@ -18,8 +18,15 @@
 
 #include "MochaManager.h"
 
+#include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <cstdint>
+
 #include <android-base/logging.h>
 #include <android/binder_manager.h>
+#include <mochasensors/Calibration.h>
 
 namespace aidl {
 namespace vendor {
@@ -164,6 +171,58 @@ int64_t MochaManager::BatteryEnergyUWs() {
         return energy[0].energyUWs;
     }
     return -1;
+}
+
+}  // namespace mochamanager
+}  // namespace arttttt
+}  // namespace vendor
+}  // namespace aidl
+
+namespace aidl {
+namespace vendor {
+namespace arttttt {
+namespace mochamanager {
+
+/*
+ * The calibration file is the sensors HAL's, in its format: the HAL's own
+ * code reads and writes it here, so the two cannot drift apart.
+ */
+using HalCalibration = ::mocha::sensors::AccelCalibration;
+using ::mocha::sensors::HubCalibration;
+
+ndk::ScopedAStatus MochaManager::getAccelCalibration(AccelCalibration* _aidl_return) {
+    HalCalibration cal;
+    _aidl_return->present = cal.Load(HubCalibration::kAccel);
+    _aidl_return->offset.assign(cal.offset, cal.offset + 3);
+    _aidl_return->scale.assign(cal.scale, cal.scale + 3);
+
+    struct stat made;
+    _aidl_return->madeMs = _aidl_return->present && stat(HubCalibration::kAccel, &made) == 0
+                                   ? made.st_mtime * 1000LL
+                                   : 0;
+    return ndk::ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus MochaManager::setAccelCalibration(const AccelCalibration& in_calibration) {
+    if (in_calibration.offset.size() != 3 || in_calibration.scale.size() != 3)
+        return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+
+    HalCalibration cal;
+    for (int i = 0; i < 3; i++) {
+        int offset = in_calibration.offset[i];
+        float scale = in_calibration.scale[i];
+        if (offset < INT16_MIN || offset > INT16_MAX || scale < 0.9f || scale > 1.1f)
+            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+        cal.offset[i] = static_cast<int16_t>(offset);
+        cal.scale[i] = scale;
+    }
+    return cal.Save(HubCalibration::kAccel) ? ndk::ScopedAStatus::ok()
+                                            : Failed("cannot write the calibration");
+}
+
+ndk::ScopedAStatus MochaManager::resetAccelCalibration() {
+    if (unlink(HubCalibration::kAccel) == 0 || errno == ENOENT) return ndk::ScopedAStatus::ok();
+    return Failed("cannot remove the calibration");
 }
 
 }  // namespace mochamanager

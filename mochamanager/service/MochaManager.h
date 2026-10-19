@@ -40,6 +40,9 @@ class MochaManager : public BnMochaManager {
     ndk::ScopedAStatus getPerformanceProfile(int32_t* _aidl_return) override;
     ndk::ScopedAStatus getActivePerformanceProfile(int32_t* _aidl_return) override;
     ndk::ScopedAStatus setPerformanceProfile(int32_t in_profile) override;
+    ndk::ScopedAStatus getAccelCalibration(AccelCalibration* _aidl_return) override;
+    ndk::ScopedAStatus setAccelCalibration(const AccelCalibration& in_calibration) override;
+    ndk::ScopedAStatus resetAccelCalibration() override;
 
   private:
     /* The battery's energy since boot from the power.stats HAL, which already

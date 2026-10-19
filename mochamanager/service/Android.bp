@@ -28,6 +28,9 @@ cc_binary {
         "android.hardware.power.stats-V1-ndk_platform",
         "vendor.arttttt.mochamanager-V1-ndk_platform",
     ],
-    static_libs: ["libmochamanager"],
+    static_libs: [
+        "libmochamanager",
+        "libmochasensors",
+    ],
     proprietary: true,
 }

@@ -77,10 +77,10 @@ bool SensorHub::Start() {
     if (haveHub_) calibration_.Restore();
 
     /* A new calibration from the settings is taken as soon as it is
-     * written. */
+     * written, and a removed one dropped as soon as it is gone. */
     inotify_ = inotify_init1(IN_CLOEXEC | IN_NONBLOCK);
     if (inotify_ >= 0 && inotify_add_watch(inotify_, HubCalibration::kDirectory,
-                                           IN_CLOSE_WRITE | IN_MOVED_TO) >= 0) {
+                                           IN_CLOSE_WRITE | IN_MOVED_TO | IN_DELETE) >= 0) {
         ready.data.fd = inotify_;
         epoll_ctl(epoll_, EPOLL_CTL_ADD, inotify_, &ready);
     } else {

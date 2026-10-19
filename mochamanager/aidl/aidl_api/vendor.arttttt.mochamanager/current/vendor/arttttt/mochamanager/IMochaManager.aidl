@@ -45,4 +45,7 @@ interface IMochaManager {
   int getPerformanceProfile();
   int getActivePerformanceProfile();
   void setPerformanceProfile(int profile);
+  vendor.arttttt.mochamanager.AccelCalibration getAccelCalibration();
+  void setAccelCalibration(in vendor.arttttt.mochamanager.AccelCalibration calibration);
+  void resetAccelCalibration();
 }

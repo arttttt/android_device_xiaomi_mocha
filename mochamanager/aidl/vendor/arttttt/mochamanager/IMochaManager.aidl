@@ -16,6 +16,7 @@
 
 package vendor.arttttt.mochamanager;
 
+import vendor.arttttt.mochamanager.AccelCalibration;
 import vendor.arttttt.mochamanager.BatteryInfo;
 import vendor.arttttt.mochamanager.DeviceInfo;
 import vendor.arttttt.mochamanager.PowerSample;
@@ -51,4 +52,12 @@ interface IMochaManager {
     /* Records the choice; power.mocha.rc puts it in force unless the battery
      * saver holds power save. EX_ILLEGAL_ARGUMENT for an unknown profile. */
     void setPerformanceProfile(int profile);
+
+    AccelCalibration getAccelCalibration();
+    /* Written where the sensors HAL watches for it; it takes it at once.
+     * EX_ILLEGAL_ARGUMENT for three offsets and three scales it would not
+     * take: a scale more than a tenth off one is no calibration. */
+    void setAccelCalibration(in AccelCalibration calibration);
+    /* Back to the chip as it reads. */
+    void resetAccelCalibration();
 }
