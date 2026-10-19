@@ -92,6 +92,8 @@ class SensorHub {
     HubCalibration calibration_;
     bool haveHub_ = false;
     int64_t lastFaultNs_ = 0;
+    /* When what the hub has learnt was last kept, CLOCK_BOOTTIME. */
+    int64_t lastSaveNs_ = 0;
     int epoll_ = -1;
     int wake_ = -1;
     int inotify_ = -1;

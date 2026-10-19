@@ -36,7 +36,7 @@ namespace sensors {
 namespace {
 
 /* What the hub has learnt is kept this often while sensors run. */
-constexpr int kSaveEveryMs = 5 * 60 * 1000;
+constexpr int64_t kSaveEveryNs = 5 * 60 * 1000000000LL;
 /* ...and not this soon after the fusion has failed. */
 constexpr int64_t kNoSaveAfterFaultNs = 60LL * 1000000000;
 
@@ -98,6 +98,8 @@ bool SensorHub::Start() {
     }
     if (sensors_.empty()) return false;
 
+    /* What was just restored need not be kept again at once. */
+    lastSaveNs_ = BootNs();
     thread_ = std::thread(&SensorHub::Loop, this);
     return true;
 }
@@ -154,7 +156,11 @@ void SensorHub::Loop() {
     epoll_event ready[8];
 
     while (!stop_) {
-        int count = epoll_wait(epoll_, ready, 8, kSaveEveryMs);
+        /* Sensors that run wake this up many times a second, so the time to
+         * keep the calibration comes by the clock, not by an idle wait. */
+        int64_t untilSave = lastSaveNs_ + kSaveEveryNs - BootNs();
+        int count = epoll_wait(epoll_, ready, 8,
+                               untilSave > 0 ? static_cast<int>(untilSave / 1000000) + 1 : 0);
         if (count < 0) {
             if (errno == EINTR) continue;
             PLOG(ERROR) << "epoll_wait";
@@ -164,7 +170,7 @@ void SensorHub::Loop() {
         events.clear();
         {
             std::lock_guard<std::mutex> guard(lock_);
-            if (count == 0) SaveCalibration();
+            if (BootNs() - lastSaveNs_ >= kSaveEveryNs) SaveCalibration();
             for (int i = 0; i < count; i++) {
                 int fd = ready[i].data.fd;
                 if (fd == inotify_) {
@@ -217,6 +223,7 @@ void SensorHub::ResetFusion() {
 }
 
 void SensorHub::SaveCalibration() {
+    lastSaveNs_ = BootNs();
     if (!haveHub_) return;
     if (lastFaultNs_ > 0 && BootNs() - lastFaultNs_ < kNoSaveAfterFaultNs) return;
     calibration_.Save();
