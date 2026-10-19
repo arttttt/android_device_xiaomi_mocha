@@ -221,20 +221,21 @@ class SensorsFragment : Screen(200) {
 
     /*
      * Felt rather than seen: the screen faces the table for the second pose.
-     * One short pulse when a pose has been taken, two when the calibration
-     * is made, a long one when it failed.
+     * A click when a pose has been taken, a double click when the
+     * calibration is made, a heavy click when it failed -- the vibrator HAL
+     * plays the platform's own effects.
      */
     private fun signal(from: AccelCalibrator.Step, to: AccelCalibrator.Step) {
-        val pattern = when {
+        val effect = when {
             from == AccelCalibrator.Step.HOLD_UP && to == AccelCalibrator.Step.PLACE_DOWN ->
-                longArrayOf(0, 60)
-            to == AccelCalibrator.Step.DONE -> longArrayOf(0, 60, 120, 60)
-            to == AccelCalibrator.Step.FAILED -> longArrayOf(0, 400)
+                VibrationEffect.EFFECT_CLICK
+            to == AccelCalibrator.Step.DONE -> VibrationEffect.EFFECT_DOUBLE_CLICK
+            to == AccelCalibrator.Step.FAILED -> VibrationEffect.EFFECT_HEAVY_CLICK
             else -> return
         }
         val vibrator = requireContext().getSystemService(VibratorManager::class.java)
                 ?.defaultVibrator ?: return
-        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+        vibrator.vibrate(VibrationEffect.createPredefined(effect))
     }
 
     /* Whether to calibrate goes by what the HAL measures, not by whether a
