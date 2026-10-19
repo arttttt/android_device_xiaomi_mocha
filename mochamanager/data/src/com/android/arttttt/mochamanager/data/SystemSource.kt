@@ -44,11 +44,11 @@ class SystemSource(private val context: Context) {
         val power = context.getSystemService(PowerManager::class.java)
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
-                offer(power.isPowerSaveMode)
+                offerIfOpen(power.isPowerSaveMode)
             }
         }
         context.registerReceiver(receiver, IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED))
-        offer(power.isPowerSaveMode)
+        offerIfOpen(power.isPowerSaveMode)
         awaitClose { context.unregisterReceiver(receiver) }
     }.distinctUntilChanged()
 
@@ -58,11 +58,11 @@ class SystemSource(private val context: Context) {
         val read = { Settings.System.getFloat(resolver, name, default) }
         val observer = object : ContentObserver(main) {
             override fun onChange(selfChange: Boolean) {
-                offer(read())
+                offerIfOpen(read())
             }
         }
         resolver.registerContentObserver(Settings.System.getUriFor(name), false, observer)
-        offer(read())
+        offerIfOpen(read())
         awaitClose { resolver.unregisterContentObserver(observer) }
     }.distinctUntilChanged()
 
@@ -71,13 +71,13 @@ class SystemSource(private val context: Context) {
         val read = { displays.getDisplay(Display.DEFAULT_DISPLAY)?.refreshRate ?: 0f }
         val listener = object : DisplayManager.DisplayListener {
             override fun onDisplayChanged(id: Int) {
-                if (id == Display.DEFAULT_DISPLAY) offer(read())
+                if (id == Display.DEFAULT_DISPLAY) offerIfOpen(read())
             }
             override fun onDisplayAdded(id: Int) {}
             override fun onDisplayRemoved(id: Int) {}
         }
         displays.registerDisplayListener(listener, main)
-        offer(read())
+        offerIfOpen(read())
         awaitClose { displays.unregisterDisplayListener(listener) }
     }.distinctUntilChanged()
 }

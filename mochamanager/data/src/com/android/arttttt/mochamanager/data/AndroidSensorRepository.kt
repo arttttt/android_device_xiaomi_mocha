@@ -81,7 +81,7 @@ class AndroidSensorRepository(
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 val key = keys[event.sensor] ?: return
-                offer(SensorUpdate(key, SensorReading(event.values.toList(), accuracy(event.accuracy))))
+                offerIfOpen(SensorUpdate(key, SensorReading(event.values.toList(), accuracy(event.accuracy))))
             }
 
             /* Every event carries its accuracy. */
@@ -104,7 +104,7 @@ class AndroidSensorRepository(
         return callbackFlow {
             val listener = object : SensorEventListener {
                 override fun onSensorChanged(event: SensorEvent) {
-                    offer(event.values.copyOf(3))
+                    offerIfOpen(event.values.copyOf(3))
                 }
                 override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
             }
