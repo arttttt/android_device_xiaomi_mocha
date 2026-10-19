@@ -48,7 +48,8 @@ class MonitorFragment : Screen(2000) {
             rows["mem_available"] = Format.mib(m.availableKb) + " / " + Format.mib(m.totalKb)
             rows["mem_nvmap"] = Format.mib(m.nvmapUsedKb)
             rows["swap"] = Format.mib(m.swapTotalKb - m.swapFreeKb) + " / " + Format.mib(m.swapTotalKb)
-            rows["zram_ratio"] = if (m.zramComprBytes > 0) {
+            /* Over a nearly empty device the ratio says nothing. */
+            rows["zram_ratio"] = if (m.zramOrigBytes >= 1L shl 20 && m.zramComprBytes > 0) {
                 Format.ratio(m.zramOrigBytes.toDouble() / m.zramComprBytes)
             } else getString(R.string.unknown)
             rows["psi"] = String.format("%.2f / %.2f", m.psiSome, m.psiFull)

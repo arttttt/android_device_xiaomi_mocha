@@ -19,10 +19,21 @@ package com.android.arttttt.mochamanager
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
-/* One activity, a screen per tab. */
+/*
+ * One activity, a screen per tab. A screen is made the first time its tab is
+ * shown and kept after that: switching tabs only hides one and shows the
+ * other. A hidden screen is held at STARTED, so it pauses and stops reading
+ * the service until it is shown again.
+ */
 class MainActivity : AppCompatActivity() {
+    private val screens = linkedMapOf<Int, () -> Fragment>(
+            R.id.tab_device to ::DeviceFragment,
+            R.id.tab_power to ::PowerFragment,
+            R.id.tab_monitor to ::MonitorFragment,
+            R.id.tab_display to ::DisplayFragment)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,19 +41,31 @@ class MainActivity : AppCompatActivity() {
 
         val navigation = findViewById<BottomNavigationView>(R.id.navigation)
         navigation.setOnItemSelectedListener { item ->
-            show(when (item.itemId) {
-                R.id.tab_power -> PowerFragment()
-                R.id.tab_monitor -> MonitorFragment()
-                R.id.tab_display -> DisplayFragment()
-                else -> DeviceFragment()
-            })
+            show(item.itemId)
             true
         }
-        /* The fragment manager brings the shown screen back by itself. */
-        if (savedInstanceState == null) navigation.selectedItemId = R.id.tab_device
+        /* After a recreation the fragment manager has the screens back
+         * already, under their tags; only which one is shown needs saying. */
+        show(navigation.selectedItemId)
     }
 
-    private fun show(fragment: Fragment) {
-        supportFragmentManager.beginTransaction().replace(R.id.content, fragment).commit()
+    private fun show(tab: Int) {
+        val fm = supportFragmentManager
+        val transaction = fm.beginTransaction().setReorderingAllowed(true)
+        for (id in screens.keys) {
+            val existing = fm.findFragmentByTag(tag(id))
+            if (id == tab) {
+                if (existing == null) {
+                    transaction.add(R.id.content, screens.getValue(id)(), tag(id))
+                } else {
+                    transaction.show(existing).setMaxLifecycle(existing, Lifecycle.State.RESUMED)
+                }
+            } else if (existing != null && !existing.isHidden) {
+                transaction.hide(existing).setMaxLifecycle(existing, Lifecycle.State.STARTED)
+            }
+        }
+        transaction.commit()
     }
+
+    private fun tag(tab: Int) = "screen:" + resources.getResourceEntryName(tab)
 }
