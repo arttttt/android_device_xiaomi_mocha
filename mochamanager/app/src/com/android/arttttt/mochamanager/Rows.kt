@@ -20,6 +20,7 @@ import android.content.Context
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -39,6 +40,12 @@ class Rows(private val context: Context) {
     private val values = HashMap<String, TextView>()
 
     init {
+        /* The values are selectable, so focusable, and a ScrollView keeps
+         * its focused child in view on every layout: with the first value
+         * holding focus, each refresh would scroll the screen back to the
+         * top. The ScrollView takes the focus itself instead. */
+        root.isFocusableInTouchMode = true
+        root.descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
         root.addView(column)
     }
 
