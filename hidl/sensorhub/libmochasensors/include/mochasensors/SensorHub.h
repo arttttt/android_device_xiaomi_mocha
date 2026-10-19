@@ -19,18 +19,20 @@
 #include <hardware/sensors.h>
 
 #include <atomic>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "mochasensors/IioDevice.h"
+#include "mochasensors/Sensor.h"
 
 namespace mocha {
 namespace sensors {
 
-/* Where the hub's events go. Called from the hub's own thread. */
+/* Where the sensors' events go: from the hub's own thread, and from the
+ * caller's for a flush. */
 class EventSink {
   public:
     virtual ~EventSink() = default;
@@ -38,14 +40,15 @@ class EventSink {
 };
 
 /*
- * The sensors of the LSM6DB0 hub, without an interface on them.
+ * The board's sensors, without an interface on them: the LSM6DB0 hub's,
+ * which it reads, fuses and hands over as IIO devices, and the ambient light
+ * sensor beside it.
  *
- * The hub reads its chips, fuses them and hands the results over as IIO
- * devices; this keeps those devices, turns their records into sensor events
- * in Android's units and Android's clock, and takes the calls a sensors HAL
- * takes -- activate, batch, flush -- in the shapes of libhardware's sensor_t
- * and sensors_event_t, which are plain C and outlive any IDL. A sensors
- * interface on top only translates.
+ * This only holds the set of them, waits on their descriptors with one
+ * thread and routes the calls a sensors HAL takes -- activate, batch, flush
+ * -- to the sensor they are for. The types are libhardware's sensor_t and
+ * sensors_event_t, plain C that outlives any IDL; a sensors interface on top
+ * only translates.
  */
 class SensorHub {
   public:
@@ -67,25 +70,16 @@ class SensorHub {
 
     std::string Dump();
 
-    struct Spec;
-
   private:
-    struct Sensor {
-        const Spec* spec;
-        sensor_t info;
-        std::unique_ptr<IioDevice> device;
-        bool active = false;
-        int64_t periodNs = 0;
-        uint64_t events = 0;
-    };
-
     Sensor* Find(int handle);
     void Loop();
-    void Convert(const Sensor& sensor, const uint8_t* record, sensors_event_t* event) const;
 
     EventSink* sink_;
-    std::vector<Sensor> sensors_;
+    std::vector<std::unique_ptr<Sensor>> sensors_;
     std::vector<sensor_t> list_;
+    /* Which sensor a descriptor belongs to. */
+    std::map<int, Sensor*> owners_;
+    /* Held over every call into a sensor, from either side. */
     std::mutex lock_;
     std::thread thread_;
     int epoll_ = -1;

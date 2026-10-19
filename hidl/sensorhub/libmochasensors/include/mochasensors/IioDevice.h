@@ -70,6 +70,13 @@ class IioDevice {
     /* Whole records; 0 when there is nothing, -errno on failure. */
     ssize_t Read(uint8_t* buffer, size_t size);
 
+    /* The device's event channel, where the hub's driver puts what is no
+     * sample: a step, a significant motion. -1 on failure. */
+    int OpenEvents();
+    int eventFd() const { return eventFd_; }
+    /* One event's time; false when there is none. */
+    bool ReadEvent(int64_t* timestamp);
+
     /* A channel of a record, sign-extended and shifted, not scaled. */
     static int64_t Raw(const IioChannel& channel, const uint8_t* record);
     /* The same bits, taken as the IEEE float the hub sends them as. */
@@ -84,6 +91,7 @@ class IioDevice {
     std::string sysfs_;
     int number_ = -1;
     int fd_ = -1;
+    int eventFd_ = -1;
     bool enabled_ = false;
     int rate_ = 0;
     size_t recordBytes_ = 0;

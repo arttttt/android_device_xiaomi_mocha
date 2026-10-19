@@ -21,6 +21,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/iio/events.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -73,6 +75,7 @@ bool ParseType(const std::string& type, IioChannel* channel) {
 }  // namespace
 
 IioDevice::~IioDevice() {
+    if (eventFd_ >= 0) close(eventFd_);
     if (fd_ >= 0) {
         if (enabled_) SetEnabled(false);
         close(fd_);
@@ -216,6 +219,26 @@ ssize_t IioDevice::Read(uint8_t* buffer, size_t size) {
     ssize_t got = read(fd_, buffer, size);
     if (got < 0) return errno == EAGAIN ? 0 : -errno;
     return got - got % recordBytes_;
+}
+
+int IioDevice::OpenEvents() {
+    if (eventFd_ >= 0) return eventFd_;
+    int fd = -1;
+    if (ioctl(fd_, IIO_GET_EVENT_FD_IOCTL, &fd) < 0) {
+        PLOG(ERROR) << name_ << ": no event channel";
+        return -1;
+    }
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
+    eventFd_ = fd;
+    return eventFd_;
+}
+
+bool IioDevice::ReadEvent(int64_t* timestamp) {
+    iio_event_data event;
+    if (read(eventFd_, &event, sizeof(event)) != sizeof(event)) return false;
+    *timestamp = event.timestamp;
+    return true;
 }
 
 int64_t IioDevice::Raw(const IioChannel& channel, const uint8_t* record) {
