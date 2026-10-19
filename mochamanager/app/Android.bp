@@ -29,20 +29,33 @@ android_app {
     platform_apis: true,
     certificate: "platform",
     required: ["privapp-permissions-mochamanager"],
+    // The androidx ktx libraries come in -nodeps form with their
+    // dependencies named here, because the full forms of lifecycle-runtime-
+    // and lifecycle-viewmodel-ktx -- and so of activity- and fragment-ktx --
+    // bring the prebuilt kotlinx-coroutines 1.3.0 along, which shadows the
+    // tree's 1.4 (no stateIn, no receiveAsFlow). One coroutines, the tree's.
     static_libs: [
         "MochaManagerClient",
         "MochaManagerData",
         "MochaManagerDomain",
-        "androidx.activity_activity-ktx",
-        "androidx.appcompat_appcompat",
-        "androidx.core_core-ktx",
-        "androidx.fragment_fragment-ktx",
-        "androidx.lifecycle_lifecycle-runtime-ktx",
-        "androidx.lifecycle_lifecycle-viewmodel-ktx",
-        "androidx.lifecycle_lifecycle-viewmodel-savedstate",
-        "com.google.android.material_material",
+        "kotlin-stdlib",
         "kotlinx_coroutines",
         "kotlinx_coroutines_android",
+        "androidx.activity_activity",
+        "androidx.activity_activity-ktx-nodeps",
+        "androidx.appcompat_appcompat",
+        "androidx.collection_collection-ktx",
+        "androidx.core_core-ktx",
+        "androidx.fragment_fragment",
+        "androidx.fragment_fragment-ktx-nodeps",
+        "androidx.lifecycle_lifecycle-livedata-core-ktx",
+        "androidx.lifecycle_lifecycle-runtime",
+        "androidx.lifecycle_lifecycle-runtime-ktx-nodeps",
+        "androidx.lifecycle_lifecycle-viewmodel",
+        "androidx.lifecycle_lifecycle-viewmodel-ktx-nodeps",
+        "androidx.lifecycle_lifecycle-viewmodel-savedstate",
+        "androidx.savedstate_savedstate-ktx",
+        "com.google.android.material_material",
     ],
     kotlincflags: [
         "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",

@@ -17,6 +17,7 @@
 package com.android.arttttt.mochamanager.ui.common
 
 import androidx.fragment.app.Fragment
+import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.Loadable
 import java.util.Locale
 
