@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright (C) 2026 Artem Bambalov
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+<resources>
+    <string name="tab_device">Устройство</string>
+    <string name="tab_power">Питание</string>
+    <string name="tab_monitor">Мониторинг</string>
+    <string name="tab_display">Экран</string>
+
+    <string name="service_unavailable">Служба планшета не отвечает.</string>
+
+    <string name="model">Модель</string>
+    <string name="memory_variant">Память</string>
+    <string name="build">Сборка</string>
+    <string name="kernel">Ядро</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="serial">Серийный номер</string>
+
+    <string name="section_battery">Батарея</string>
+    <string name="section_live">Расход от батареи</string>
+    <string name="section_switches">Управление</string>
+    <string name="capacity">Заряд</string>
+    <string name="status">Состояние</string>
+    <string name="health">Здоровье</string>
+    <string name="voltage">Напряжение</string>
+    <string name="current">Ток</string>
+    <string name="temperature">Температура</string>
+    <string name="charge">Запас</string>
+    <string name="wear">Остаточная ёмкость</string>
+    <string name="cycles">Циклы заряда</string>
+    <string name="supply">Внешнее питание</string>
+    <string name="supply_usb">USB</string>
+    <string name="supply_ac">Зарядное устройство</string>
+    <string name="supply_none">Нет</string>
+    <string name="power">Мощность</string>
+    <string name="energy">С включения</string>
+    <string name="live_note">INA231 на линии батареи. На внешнем питании он видит ток самой батареи, а не то, что потребляет планшет.</string>
+    <string name="charging">Зарядка</string>
+    <string name="profile">Профиль производительности</string>
+    <string name="profile_power_save">Энергосбережение</string>
+    <string name="profile_efficiency">Эффективность</string>
+    <string name="profile_balanced">Баланс</string>
+    <string name="profile_performance">Производительность</string>
+    <string name="profile_saver_note">Пока включена экономия заряда, действует энергосбережение.</string>
+
+    <string name="section_cpu">Процессор</string>
+    <string name="section_gpu">Графика</string>
+    <string name="section_thermal">Температуры</string>
+    <string name="section_memory">Память</string>
+    <string name="cluster">Кластер</string>
+    <string name="core">Ядро %d</string>
+    <string name="core_offline">выключено</string>
+    <string name="gpu_freq">Частота</string>
+    <string name="gpu_load">Загрузка</string>
+    <string name="gpu_rail">Питание</string>
+    <string name="gpu_rail_off">снято</string>
+    <string name="gpu_rail_on">подано</string>
+    <string name="emc">Частота памяти</string>
+    <string name="mem_available">Доступно</string>
+    <string name="mem_nvmap">Графические буферы</string>
+    <string name="swap">Подкачка (zram)</string>
+    <string name="zram_ratio">Сжатие</string>
+    <string name="psi">Нехватка памяти</string>
+
+    <string name="section_refresh">Частота обновления</string>
+    <string name="refresh_current">Сейчас</string>
+    <string name="refresh_auto">Автоматически: 60 Гц, пока картинка движется, 30 Гц, пока стоит</string>
+    <string name="refresh_60">Всегда 60 Гц</string>
+    <string name="refresh_30">Всегда 30 Гц</string>
+    <string name="refresh_failed">Не удалось изменить настройку.</string>
+</resources>

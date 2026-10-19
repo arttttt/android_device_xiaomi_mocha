@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright (C) 2026 Artem Bambalov
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+<resources>
+    <string name="app_name">MiPad Manager</string>
+
+    <string name="tab_device">Device</string>
+    <string name="tab_power">Power</string>
+    <string name="tab_monitor">Monitor</string>
+    <string name="tab_display">Display</string>
+
+    <string name="service_unavailable">The tablet\'s service does not answer.</string>
+    <string name="unknown">—</string>
+
+    <!-- Device -->
+    <string name="model">Model</string>
+    <string name="memory_variant">Memory</string>
+    <string name="build">Build</string>
+    <string name="kernel">Kernel</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="serial">Serial number</string>
+
+    <!-- Power -->
+    <string name="section_battery">Battery</string>
+    <string name="section_live">Drawn from the battery</string>
+    <string name="section_switches">Switches</string>
+    <string name="capacity">Charge</string>
+    <string name="status">Status</string>
+    <string name="health">Health</string>
+    <string name="voltage">Voltage</string>
+    <string name="current">Current</string>
+    <string name="temperature">Temperature</string>
+    <string name="charge">Charge held</string>
+    <string name="wear">Capacity left</string>
+    <string name="cycles">Charge cycles</string>
+    <string name="supply">External power</string>
+    <string name="supply_usb">USB</string>
+    <string name="supply_ac">Charger</string>
+    <string name="supply_none">None</string>
+    <string name="power">Power</string>
+    <string name="energy">Since boot</string>
+    <string name="live_note">The INA231 on the battery line. On external power it sees the battery\'s own current, not what the tablet draws.</string>
+    <string name="charging">Charging</string>
+    <string name="profile">Performance profile</string>
+    <string name="profile_power_save">Power save</string>
+    <string name="profile_efficiency">Efficiency</string>
+    <string name="profile_balanced">Balanced</string>
+    <string name="profile_performance">Performance</string>
+    <string name="profile_saver_note">The battery saver holds power save while it is on.</string>
+
+    <!-- Monitor -->
+    <string name="section_cpu">Processor</string>
+    <string name="section_gpu">Graphics</string>
+    <string name="section_thermal">Temperatures</string>
+    <string name="section_memory">Memory</string>
+    <string name="cluster">Cluster</string>
+    <string name="core">Core %d</string>
+    <string name="core_offline">offline</string>
+    <string name="gpu_freq">Frequency</string>
+    <string name="gpu_load">Load</string>
+    <string name="gpu_rail">Rail</string>
+    <string name="gpu_rail_off">gated off</string>
+    <string name="gpu_rail_on">on</string>
+    <string name="emc">Memory clock</string>
+    <string name="mem_available">Available</string>
+    <string name="mem_nvmap">Graphics buffers</string>
+    <string name="swap">Swap (zram)</string>
+    <string name="zram_ratio">Compression</string>
+    <string name="psi">Memory pressure</string>
+
+    <!-- Display -->
+    <string name="section_refresh">Refresh rate</string>
+    <string name="refresh_current">Now</string>
+    <string name="refresh_auto">Automatic: 60 Hz while the picture moves, 30 Hz while it stands</string>
+    <string name="refresh_60">Always 60 Hz</string>
+    <string name="refresh_30">Always 30 Hz</string>
+    <string name="refresh_failed">The setting could not be changed.</string>
+</resources>

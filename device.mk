@@ -129,9 +129,10 @@ PRODUCT_PACKAGES += \
     ChargerTile \
     PerformanceTile
 
-# MiPad Manager's service, which the tiles use as well: the tablet's
+# MiPad Manager, and its service, which the tiles use as well: the tablet's
 # information and its two switches (mochamanager/).
 PRODUCT_PACKAGES += \
+    MochaManager \
     vendor.arttttt.mochamanager-service
     
 # Filesystem management tools
