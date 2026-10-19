@@ -156,10 +156,13 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     android.hardware.renderscript@1.0-impl
 
-# Sensors
+# Sensors: our own HAL, libmochasensors, as a sub-HAL of AOSP's multi-HAL
+# 2.1, which brings its own init script and VINTF fragment. hals.conf names
+# the sub-HAL for it to load.
 PRODUCT_PACKAGES += \
-    android.hardware.sensors@1.0-impl \
-    android.hardware.sensors@1.0-service
+    android.hardware.sensors@2.1-service.multihal \
+    sensors-subhal.mocha \
+    hals.conf.mocha
 
 # Thermal
 PRODUCT_PACKAGES += \
