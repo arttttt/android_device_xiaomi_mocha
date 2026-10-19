@@ -32,6 +32,15 @@ class PowerFragment : Screen(1000) {
     /* Set while the views are being brought in line with the service, so
      * their listeners do not take it for the user. */
     private var updating = false
+    /* The first reading after the tab is shown measures the tab being
+     * shown -- the layout, the first frames -- and would set the scale for
+     * the two minutes after it. It goes in the rows, not the graph. */
+    private var warmup = true
+
+    override fun onResume() {
+        warmup = true
+        super.onResume()
+    }
 
     override fun build() {
         rows.section(R.string.section_live)
@@ -102,7 +111,7 @@ class PowerFragment : Screen(1000) {
             rows["ina_voltage"] = Format.volts(p.voltageMv * 1000)
             rows["ina_current"] = Format.milliamps(p.currentMa * 1000)
             rows["energy"] = if (p.energyUWs >= 0) Format.wh(p.energyUWs) else getString(R.string.unknown)
-            graph.add(p.powerMw)
+            if (warmup) warmup = false else graph.add(p.powerMw)
         }
         Service.load({ Pair(it.battery, it.performanceProfile) }) { r ->
             if (r == null) return@load unavailable()

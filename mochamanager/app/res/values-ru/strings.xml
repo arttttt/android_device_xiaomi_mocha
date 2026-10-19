@@ -47,6 +47,9 @@
     <string name="supply_none">Нет</string>
     <string name="power">Мощность</string>
     <string name="energy">С включения</string>
+    <string name="graph_title">Мощность, Вт</string>
+    <string name="graph_now">сейчас</string>
+    <string name="graph_minutes">−%d мин</string>
     <string name="live_note">INA231 на линии батареи. На внешнем питании он видит ток самой батареи, а не то, что потребляет планшет.</string>
     <string name="charging">Зарядка</string>
     <string name="profile">Профиль производительности</string>

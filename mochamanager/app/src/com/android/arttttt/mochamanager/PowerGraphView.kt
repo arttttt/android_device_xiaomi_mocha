@@ -58,6 +58,7 @@ class PowerGraphView(context: Context) : View(context) {
     private var scaler: ValueAnimator? = null
 
     private val density = resources.displayMetrics.density
+    private val scaled = resources.displayMetrics.scaledDensity
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 2 * density
@@ -65,17 +66,35 @@ class PowerGraphView(context: Context) : View(context) {
         strokeCap = Paint.Cap.ROUND
         color = context.getColor(android.R.color.holo_orange_light)
     }
+    private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = stroke.color }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-    private val axis = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x30FFFFFF
         strokeWidth = density
     }
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xB0FFFFFF.toInt()
-        textSize = 12 * resources.displayMetrics.scaledDensity
+        color = 0xA0FFFFFF.toInt()
+        textSize = 11 * scaled
+    }
+    private val value = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = stroke.color
+        textSize = 13 * scaled
+        textAlign = Paint.Align.RIGHT
+        isFakeBoldText = true
     }
     private val curve = Path()
     private val area = Path()
+
+    private val title = context.getString(R.string.graph_title)
+    private val now = context.getString(R.string.graph_now)
+    private val oneMinute = context.getString(R.string.graph_minutes, 1)
+    private val twoMinutes = context.getString(R.string.graph_minutes, 2)
+
+    /* The plot inside the labels: the scale to its left, the time below,
+     * the title above. */
+    private val plotLeft = 40 * density
+    private val plotTop = 22 * scaled
+    private val plotBottomGap = 18 * scaled
 
     /* How long a sample lasts on screen before the next: the slide takes
      * that long, so the curve never stops between samples. */
@@ -112,7 +131,7 @@ class PowerGraphView(context: Context) : View(context) {
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        fill.shader = LinearGradient(0f, 0f, 0f, h.toFloat(),
+        fill.shader = LinearGradient(0f, plotTop, 0f, h - plotBottomGap,
                 0x60FFBB33, 0x00FFBB33, Shader.TileMode.CLAMP)
     }
 
@@ -122,22 +141,48 @@ class PowerGraphView(context: Context) : View(context) {
         super.onDetachedFromWindow()
     }
 
+    /* Watts with no more digits than the value needs: 2.5, 1.25, 0. */
+    private fun watts(mw: Float): String {
+        val s = String.format(java.util.Locale.getDefault(), "%.2f", mw / 1000f)
+        return s.trimEnd('0').trimEnd('.', ',')
+    }
+
     override fun onDraw(canvas: Canvas) {
-        val w = width.toFloat()
-        val h = height.toFloat()
-        canvas.drawLine(0f, h - 1, w, h - 1, axis)
-        canvas.drawLine(0f, h / 2, w, h / 2, axis)
-        canvas.drawText(Format.mw(top.toInt()), 0f, label.textSize, label)
+        val left = plotLeft
+        val right = width.toFloat()
+        val top = plotTop
+        val bottom = height - plotBottomGap
+        val plotH = bottom - top
+
+        canvas.drawText(title, 0f, 13 * scaled, label)
+
+        /* The scale: the floor, the middle and the ceiling. */
+        for ((fraction, mw) in listOf(0f to 0f, 0.5f to this.top / 2, 1f to this.top)) {
+            val y = bottom - plotH * fraction
+            canvas.drawLine(left, y, right, y, grid)
+            canvas.drawText(watts(mw), 0f, y + label.textSize / 3, label)
+        }
+
+        /* The time: a sample a second, so the plot spans two minutes. */
+        val labelY = height - 4 * density
+        label.textAlign = Paint.Align.LEFT
+        canvas.drawText(twoMinutes, left, labelY, label)
+        label.textAlign = Paint.Align.CENTER
+        canvas.drawText(oneMinute, (left + right) / 2, labelY, label)
+        label.textAlign = Paint.Align.RIGHT
+        canvas.drawText(now, right, labelY, label)
+        label.textAlign = Paint.Align.LEFT
+
         if (count < 2) return
 
-        val step = w / (capacity - 2)
+        val step = (right - left) / (capacity - 2)
         /* The newest sample sits a step beyond the edge and slides onto it. */
-        val right = w + step * (1 - slide)
-        fun x(age: Int) = right - age * step
-        fun y(age: Int) = h - h * samples[(newest - age + capacity) % capacity] / top
+        val edge = right + step * (1 - slide)
+        fun x(age: Int) = edge - age * step
+        fun y(age: Int) = bottom - plotH * samples[(newest - age + capacity) % capacity] / this.top
 
         canvas.save()
-        canvas.clipRect(0f, 0f, w, h)
+        canvas.clipRect(left, 0f, right, bottom)
         curve.reset()
         val oldest = count - 1
         curve.moveTo(x(oldest), y(oldest))
@@ -151,11 +196,20 @@ class PowerGraphView(context: Context) : View(context) {
         curve.lineTo(x(0), y(0))
 
         area.set(curve)
-        area.lineTo(x(0), h)
-        area.lineTo(x(oldest), h)
+        area.lineTo(x(0), bottom)
+        area.lineTo(x(oldest), bottom)
         area.close()
         canvas.drawPath(area, fill)
         canvas.drawPath(curve, stroke)
         canvas.restore()
+
+        /* The reading now, where the line meets the edge: the newest sample
+         * eased in from the one before, as the slide brings it on. */
+        val previous = samples[(newest - 1 + capacity) % capacity]
+        val current = previous + (samples[newest] - previous) * slide
+        val cy = bottom - plotH * current / this.top
+        canvas.drawCircle(right - 3 * density, cy, 3 * density, dot)
+        canvas.drawText(watts(current), right - 10 * density,
+                (cy - 8 * density).coerceAtLeast(top + value.textSize), value)
     }
 }

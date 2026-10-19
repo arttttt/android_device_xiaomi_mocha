@@ -52,6 +52,9 @@
     <string name="supply_none">None</string>
     <string name="power">Power</string>
     <string name="energy">Since boot</string>
+    <string name="graph_title">Power, W</string>
+    <string name="graph_now">now</string>
+    <string name="graph_minutes">−%d min</string>
     <string name="live_note">The INA231 on the battery line. On external power it sees the battery\'s own current, not what the tablet draws.</string>
     <string name="charging">Charging</string>
     <string name="profile">Performance profile</string>
