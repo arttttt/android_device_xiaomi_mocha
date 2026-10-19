@@ -208,7 +208,10 @@ class PowerGraphView @JvmOverloads constructor(
 
         if (count < 2) return
 
-        val step = (right - left) / (capacity - 2)
+        /* The three oldest samples of a full history beyond the left edge:
+         * the curve's first stretch, which changes shape when the oldest is
+         * dropped, is out of sight by then. */
+        val step = (right - left) / (capacity - 4)
         /* The newest sample sits a step beyond the edge and slides onto it. */
         val edge = right + step * (1 - slide)
         fun x(age: Int) = edge - age * step

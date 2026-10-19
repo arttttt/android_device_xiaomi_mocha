@@ -37,7 +37,9 @@ import com.android.arttttt.mochamanager.domain.usecase.History
  * It moves as the power graph does: a new sample comes in a step beyond the
  * right edge and the lines slide onto it over the time a sample lasts, so
  * they never stand still and never jump; a scale that has to change glides
- * to its new bounds.
+ * to its new bounds. A full history spans one step more than the width: its
+ * oldest sample is already past the left edge, sliding further out, when it
+ * is dropped -- dropped on screen, it would take the line's end with it.
  */
 class SparklineView @JvmOverloads constructor(
     context: Context,
@@ -53,6 +55,7 @@ class SparklineView @JvmOverloads constructor(
     /* Each line about its own mean, all on one span no narrower than this:
      * how each moves, whatever its level. 0 for one scale of values. */
     private var centredSpan = 0f
+    /* Each line's mean as drawn, gliding to the samples' with the scale. */
     private var means = FloatArray(0)
 
     /* How long a sample lasts: the slide takes that long. */
@@ -110,15 +113,16 @@ class SparklineView @JvmOverloads constructor(
         this.ceiling = ceiling
         centredSpan = span
         shownSerial = serial
-        means = FloatArray(series.size) { i ->
+        val newMeans = FloatArray(series.size) { i ->
             val s = series[i].samples
             if (span > 0 && s.isNotEmpty()) s.average().toFloat() else 0f
         }
-        val (newLo, newHi) = range()
-        if (!next) {
+        val (newLo, newHi) = range(newMeans)
+        if (!next || means.size != newMeans.size) {
             slider.cancel()
             scaler?.cancel()
             slide = 1f
+            means = newMeans
             lo = newLo
             hi = newHi
             targetLo = newLo
@@ -128,11 +132,11 @@ class SparklineView @JvmOverloads constructor(
         }
         slider.duration = periodMs
         slider.start()
-        if (newLo != targetLo || newHi != targetHi) glideTo(newLo, newHi)
+        if (newLo != targetLo || newHi != targetHi || !newMeans.contentEquals(means)) glideTo(newLo, newHi, newMeans)
     }
 
     /* The bounds the samples need, with room above and below. */
-    private fun range(): Pair<Float, Float> {
+    private fun range(means: FloatArray): Pair<Float, Float> {
         val all = series.flatMapIndexed { i, h -> h.samples.map { it - means[i] } }
         if (all.isEmpty()) return 0f to 1f
         var lo = minOf(floor ?: Float.MAX_VALUE, all.minOrNull()!!)
@@ -149,11 +153,12 @@ class SparklineView @JvmOverloads constructor(
     }
 
     /* From wherever the scale is now, even halfway through a glide. */
-    private fun glideTo(newLo: Float, newHi: Float) {
+    private fun glideTo(newLo: Float, newHi: Float, newMeans: FloatArray) {
         targetLo = newLo
         targetHi = newHi
         val fromLo = lo
         val fromHi = hi
+        val fromMeans = means.copyOf()
         scaler?.cancel()
         scaler = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = maxOf(periodMs, 300L)
@@ -162,6 +167,7 @@ class SparklineView @JvmOverloads constructor(
                 val f = it.animatedValue as Float
                 lo = fromLo + (newLo - fromLo) * f
                 hi = fromHi + (newHi - fromHi) * f
+                for (i in means.indices) means[i] = fromMeans[i] + (newMeans[i] - fromMeans[i]) * f
                 invalidate()
             }
             start()
@@ -184,7 +190,8 @@ class SparklineView @JvmOverloads constructor(
         for ((i, history) in series.withIndex()) {
             val samples = history.samples
             if (samples.size < 2) continue
-            val step = width.toFloat() / (history.capacity - 1)
+            /* The oldest of a full history a step beyond the left edge. */
+            val step = width.toFloat() / (history.capacity - 2)
             /* The newest a step beyond the edge, sliding onto it. */
             val edge = width + step * (1 - slide)
             fun x(n: Int) = edge - (samples.size - 1 - n) * step
