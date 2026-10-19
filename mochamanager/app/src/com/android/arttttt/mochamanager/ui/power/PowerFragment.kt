@@ -30,11 +30,14 @@ import com.android.arttttt.mochamanager.domain.usecase.wearLevel
 import com.android.arttttt.mochamanager.ui.common.Units
 import com.android.arttttt.mochamanager.ui.common.addRow
 import com.android.arttttt.mochamanager.ui.common.cardTitle
-import com.android.arttttt.mochamanager.ui.common.chip
 import com.android.arttttt.mochamanager.ui.common.collectWhileShown
 import com.android.arttttt.mochamanager.ui.common.fill
 import com.android.arttttt.mochamanager.ui.common.header
 import com.android.arttttt.mochamanager.ui.common.levelColor
+import com.android.arttttt.mochamanager.ui.common.roll
+import com.android.arttttt.mochamanager.ui.common.rollAll
+import com.android.arttttt.mochamanager.ui.common.settle
+import com.android.arttttt.mochamanager.ui.common.tone
 import com.android.arttttt.mochamanager.ui.common.screenViewModel
 import com.android.arttttt.mochamanager.ui.common.text
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -86,27 +89,31 @@ class PowerFragment : Fragment(R.layout.fragment_power) {
     private fun render(state: PowerState) {
         val v = views ?: return
         val u = v.units
-        v.value.text = text(state.sample) { u.number("%.2f", it.powerMw / 1000.0) }
-        val sample = state.sample.valueOrNull
-        if (sample != null) {
-            v.volts.chip(u.volts(sample.voltageMv * 1000), null)
-            v.current.chip(u.milliamps(sample.currentMa * 1000), null)
-            sample.energyUWs?.let { v.energy.chip(u.wh(it), null) }
+        roll(v.value, state.sample, { it.powerMw.toDouble() }) { u.number("%.2f", it / 1000) }
+        state.sample.valueOrNull?.let { sample ->
+            v.volts.tone(null)
+            v.volts.roll(sample.voltageMv * 1000.0) { u.volts(it) }
+            v.current.tone(null)
+            v.current.roll(sample.currentMa * 1000.0) { u.milliamps(it) }
+            sample.energyUWs?.let { e ->
+                v.energy.tone(null)
+                v.energy.roll(e.toDouble()) { u.wh(it) }
+            }
         }
         v.graph.submit(state.history)
         v.controls.render(state.switches)
 
         val b = state.battery.valueOrNull
         v.liveNote.visibility = if (b != null && b.supply != Supply.NONE) View.VISIBLE else View.GONE
-        v.capacity.text = text(state.battery) { u.percent(it.capacityPct.toDouble()) }
-        v.charge.text = text(state.battery) {
-            getString(R.string.charge_held, u.mah(it.chargeNowUah), u.mah(it.chargeFullUah))
+        roll(v.capacity, state.battery, { it.capacityPct.toDouble() }) { u.percent(it) }
+        rollAll(v.charge, state.battery, { doubleArrayOf(it.chargeNowUah.toDouble(), it.chargeFullUah.toDouble()) }) {
+            getString(R.string.charge_held, u.mah(it[0]), u.mah(it[1]))
         }
         v.status.text = text(state.battery) { BatteryText.status(requireContext(), it) }
-        v.temperature.text = text(state.battery) { u.deciCelsius(it.tempDeciC) }
+        roll(v.temperature, state.battery, { it.tempDeciC.toDouble() }) { u.deciCelsius(it) }
         v.health.text = text(state.battery) { BatteryText.health(requireContext(), it) }
-        v.voltage.text = text(state.battery) { u.volts(it.voltageUv) }
-        v.batteryCurrent.text = text(state.battery) { u.milliamps(it.currentUa) }
+        roll(v.voltage, state.battery, { it.voltageUv.toDouble() }) { u.volts(it) }
+        roll(v.batteryCurrent, state.battery, { it.currentUa.toDouble() }) { u.milliamps(it) }
         if (b != null) renderWear(v, b)
     }
 
@@ -116,11 +123,11 @@ class PowerFragment : Fragment(R.layout.fragment_power) {
         v.wearSub.text = getString(R.string.capacity_left, b.cycleCount)
         val left = b.wearPercent
         if (left == null) {
-            v.wear.setText(R.string.unknown)
+            v.wear.settle(getString(R.string.unknown))
             return
         }
         val level = wearLevel(left)
-        v.wear.text = v.units.percent(left)
+        v.wear.roll(left) { v.units.percent(it) }
         v.wear.setTextColor(v.wear.levelColor(level))
         v.wearBar.fill(left / 100, level)
     }

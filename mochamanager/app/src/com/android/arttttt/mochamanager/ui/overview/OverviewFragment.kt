@@ -39,9 +39,11 @@ import com.android.arttttt.mochamanager.ui.common.collectWhileShown
 import com.android.arttttt.mochamanager.ui.common.fill
 import com.android.arttttt.mochamanager.ui.common.header
 import com.android.arttttt.mochamanager.ui.common.levelColor
+import com.android.arttttt.mochamanager.ui.common.roll
+import com.android.arttttt.mochamanager.ui.common.rollAll
+import com.android.arttttt.mochamanager.ui.common.tone
 import com.android.arttttt.mochamanager.ui.common.screenViewModel
 import com.android.arttttt.mochamanager.ui.common.subtitle
-import com.android.arttttt.mochamanager.ui.common.text
 import com.android.arttttt.mochamanager.ui.main.MainViewModel
 import com.android.arttttt.mochamanager.ui.main.Tab
 import com.android.arttttt.mochamanager.ui.power.BatteryText
@@ -104,9 +106,9 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
         val v = views ?: return
         val u = v.units
         v.controls.render(state.switches)
-        v.power.text = text(state.sample) { u.watts(it.powerMw) }
-        v.powerSub.text = text(state.sample) {
-            getString(R.string.overview_power_now, u.volts(it.voltageMv * 1000), u.milliamps(it.currentMa * 1000))
+        roll(v.power, state.sample, { it.powerMw.toDouble() }) { u.watts(it) }
+        rollAll(v.powerSub, state.sample, { doubleArrayOf(it.voltageMv * 1000.0, it.currentMa * 1000.0) }) {
+            getString(R.string.overview_power_now, u.volts(it[0]), u.milliamps(it[1]))
         }
         state.battery.valueOrNull?.let { renderBattery(v, it) }
         state.snapshot.valueOrNull?.let { renderSnapshot(v, it) }
@@ -114,46 +116,51 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     }
 
     private fun renderBattery(v: Views, b: Battery) {
+        val u = v.units
         val level = chargeLevel(b.capacityPct)
         v.ring.setIndicatorColor(v.ring.levelColor(level))
         v.ring.setProgressCompat(b.capacityPct, true)
-        v.percent.text = v.units.percent(b.capacityPct.toDouble())
+        v.percent.roll(b.capacityPct.toDouble()) { u.percent(it) }
         v.status.chip(BatteryText.status(requireContext(), b), BatteryText.statusLevel(b))
-        v.temp.chip(v.units.deciCelsius(b.tempDeciC), null)
-        b.wearPercent?.let {
-            v.wear.chip(getString(R.string.wear_chip, v.units.percent(100 - it)), wearLevel(it))
+        v.temp.tone(null)
+        v.temp.roll(b.tempDeciC.toDouble()) { u.deciCelsius(it) }
+        b.wearPercent?.let { left ->
+            v.wear.tone(wearLevel(left))
+            v.wear.roll(100 - left) { getString(R.string.wear_chip, u.percent(it)) }
         }
     }
 
     private fun renderSnapshot(v: Views, s: Snapshot) {
         val u = v.units
-        v.cpu.value.text = u.mhz(s.busiestKhz)
+        v.cpu.value.roll(s.busiestKhz.toDouble()) { u.mhz(it) }
         v.cpu.bars.submit(FloatArray(s.cores.size) { s.cores[it].load })
         v.cpu.sub.text = s.cores.firstOrNull { it.online }?.governor ?: ""
 
-        v.gpu.value.text = u.mhzOfHz(s.gpu.curHz)
+        v.gpu.value.roll(s.gpu.curHz.toDouble()) { u.mhzOfHz(it) }
         v.gpu.bar.fill(s.gpu.loadPermille / 1000.0)
-        v.gpu.sub.text = getString(R.string.tile_gpu_sub, u.percent(s.gpu.loadPermille / 10.0),
-                getString(if (s.gpu.railgated) R.string.gpu_rail_off else R.string.gpu_rail_on))
+        val rail = getString(if (s.gpu.railgated) R.string.gpu_rail_off else R.string.gpu_rail_on)
+        v.gpu.sub.roll(s.gpu.loadPermille / 10.0) { getString(R.string.tile_gpu_sub, u.percent(it), rail) }
 
         val hottest = s.hottest
         if (hottest != null) {
-            v.temperature.value.text = u.celsius(hottest.milliCelsius)
+            v.temperature.value.roll(hottest.milliCelsius.toDouble()) { u.celsius(it) }
             v.temperature.value.setTextColor(v.temperature.value.levelColor(thermalLevel(hottest.milliCelsius)))
             v.temperature.sub.text = getString(R.string.tile_temperature_sub, hottest.name)
         }
 
         val m = s.memory
-        v.memory.value.text = u.mb(m.availableKb)
+        v.memory.value.roll(m.availableKb.toDouble()) { u.mb(it) }
         v.memory.bar.fill(m.usedFraction)
-        v.memory.sub.text = getString(R.string.tile_memory_sub, u.mb(m.totalKb), u.percent(m.swapFraction * 100))
+        v.memory.sub.roll(doubleArrayOf(m.totalKb.toDouble(), m.swapFraction * 100)) {
+            getString(R.string.tile_memory_sub, u.mb(it[0]), u.percent(it[1]))
+        }
     }
 
     private fun renderDevice(v: Views, d: DeviceInfo) {
         val lineage = SystemProperties.get("ro.lineage.build.version")
         view?.subtitle(if (lineage.isEmpty()) d.model else d.model + " · LineageOS " + lineage)
         v.modelName.text = d.model
-        v.memoryVariant.text = v.units.gb(d.memoryGb) + " (" + v.units.mb(d.memTotalKb) + ")"
+        v.memoryVariant.text = v.units.gb(d.memoryGb.toDouble()) + " (" + v.units.mb(d.memTotalKb.toDouble()) + ")"
         v.build.text = d.build
         v.kernel.text = d.kernel
         v.wifi.text = d.wifi.ifBlank { getString(R.string.unknown) }

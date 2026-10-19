@@ -44,7 +44,10 @@ import com.android.arttttt.mochamanager.ui.common.cardTitle
 import com.android.arttttt.mochamanager.ui.common.chip
 import com.android.arttttt.mochamanager.ui.common.collectWhileShown
 import com.android.arttttt.mochamanager.ui.common.header
+import com.android.arttttt.mochamanager.ui.common.STREAM_MS
+import com.android.arttttt.mochamanager.ui.common.roll
 import com.android.arttttt.mochamanager.ui.common.screenViewModel
+import com.android.arttttt.mochamanager.ui.common.settle
 import com.android.arttttt.mochamanager.ui.common.text
 import com.android.arttttt.mochamanager.ui.common.themeColor
 import java.text.DateFormat
@@ -81,14 +84,14 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
         val accelerometer = Row(root.findViewById(R.id.accelerometer))
         val gyroscope = Row(root.findViewById(R.id.gyroscope))
         val linear = Row(root.findViewById(R.id.linear))
-        val spark: SparklineView = root.findViewById(R.id.motion_spark)
+        val spark: SparklineView = root.findViewById<SparklineView>(R.id.motion_spark).apply {
+            periodMs = STREAM_MS
+        }
         val orientation = Tile(root, R.id.tile_orientation, R.string.group_orientation)
         val light = Tile(root, R.id.tile_light, R.string.group_light)
         val magnetic = Tile(root, R.id.tile_magnetic, R.string.group_magnetic)
         val steps = Tile(root, R.id.tile_steps, R.string.group_steps)
-        val othersToggle: View = root.findViewById(R.id.others_toggle)
-        val othersTitle: TextView = root.findViewById(R.id.others_title)
-        val othersAction: TextView = root.findViewById(R.id.others_action)
+        val othersTitle = CardTitle(root.findViewById(R.id.others_title))
         val others: ViewGroup = root.findViewById(R.id.others)
         /* The folded-away sensors' rows, by key, made once the list comes. */
         val otherRows = LinkedHashMap<Int, Row>()
@@ -106,7 +109,6 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
         views = Views(view).apply {
             calibrate.setOnClickListener { model.onAction(SensorsAction.StartCalibration) }
             reset.setOnClickListener { model.onAction(SensorsAction.ResetCalibration) }
-            othersToggle.setOnClickListener { model.onAction(SensorsAction.ToggleOthers) }
         }
         collectWhileShown(model.state, ::render)
         collectWhileShown(model.effects.flow, ::onEffect)
@@ -131,62 +133,71 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
         val f = v.format
         val u = v.units
 
+        renderRow(v, v.accelerometer, g.accelerometer, state)
         g.accelerometer?.let { s ->
-            val reading = r[s.key]
-            v.accelerometer.value.text = f.reading(s, reading, null)
-            v.accelerometer.about.text = reading?.let {
-                val a = SensorText.length(it.values)
-                getString(R.string.accel_magnitude, u.ms2(a), u.percentFine(((a / SensorManager.GRAVITY_EARTH) - 1) * 100.0)) +
+            val a = r[s.key]?.values?.let(SensorText::length)
+            if (a == null) v.accelerometer.about.settle(f.describe(s))
+            else v.accelerometer.about.roll(a, STREAM_MS) {
+                getString(R.string.accel_magnitude, u.ms2(it), u.percentFine((it / SensorManager.GRAVITY_EARTH - 1) * 100)) +
                         " · " + f.describe(s)
-            } ?: f.describe(s)
+            }
         }
         v.spark.submitCentred(state.motion, v.axes, MOTION_SPAN)
         renderRow(v, v.gyroscope, g.gyroscope, state)
         renderRow(v, v.linear, g.linearAcceleration, state)
 
         val rotation = g.rotation?.let { r[it.key] }?.values?.let(f::orientation)
-        v.orientation.value.text = rotation?.let { u.angle((it[0] + 360) % 360) } ?: getString(R.string.unknown)
-        v.orientation.sub.text = rotation?.let { getString(R.string.orientation_sub, u.angle(it[1]), u.angle(it[2])) } ?: ""
+        if (rotation == null) {
+            v.orientation.value.settle(getString(R.string.unknown))
+            v.orientation.sub.settle("")
+        } else {
+            v.orientation.value.roll(rotation[0].toDouble(), STREAM_MS, 360.0) { u.angle(SensorText.azimuth(it)) }
+            v.orientation.sub.roll(doubleArrayOf(rotation[1].toDouble(), rotation[2].toDouble()), STREAM_MS, 360.0) {
+                getString(R.string.orientation_sub, u.angle(SensorText.signed(it[0])), u.angle(SensorText.signed(it[1])))
+            }
+        }
 
-        val lux = g.light?.let { r[it.key] }?.values?.get(0)
-        v.light.value.text = lux?.let(u::lux) ?: getString(R.string.unknown)
+        rollReading(v.light.value, g.light?.let { r[it.key] }?.values?.get(0)?.toDouble()) { u.lux(it) }
         v.light.sub.text = g.light?.vendor ?: ""
-
-        val field = g.magneticField?.let { r[it.key] }?.values
-        v.magnetic.value.text = field?.let { u.microtesla(SensorText.length(it)) } ?: getString(R.string.unknown)
+        rollReading(v.magnetic.value, g.magneticField?.let { r[it.key] }?.values?.let(SensorText::length)) {
+            u.microtesla(it)
+        }
         v.magnetic.sub.setText(R.string.magnetic_sub)
-
-        val steps = g.stepCounter?.let { r[it.key] }?.values?.get(0)
-        v.steps.value.text = steps?.let { it.toLong().toString() } ?: getString(R.string.unknown)
+        rollReading(v.steps.value, g.stepCounter?.let { r[it.key] }?.values?.get(0)?.toDouble()) {
+            it.toLong().toString()
+        }
         v.steps.sub.setText(if (stepsAllowed()) R.string.steps_sub else R.string.steps_need_permission)
 
         renderOthers(v, g.others, state)
     }
 
+    /* A reading that runs from one to the next, or a dash until there is one. */
+    private fun rollReading(view: TextView, value: Double?, show: (Double) -> CharSequence) {
+        if (value == null) view.settle(getString(R.string.unknown)) else view.roll(value, STREAM_MS, show = show)
+    }
+
     private fun renderRow(v: Views, row: Row, s: SensorInfo?, state: SensorsState) {
-        row.value.text = s?.let { v.format.reading(it, state.readings[it.key], state.steps[it.key]) }
-                ?: getString(R.string.unknown)
-        row.about.text = s?.let(v.format::describe) ?: ""
+        if (s == null) {
+            row.value.settle(getString(R.string.unknown))
+            row.about.text = ""
+            return
+        }
+        val numbers = v.format.numbers(s, state.readings[s.key], state.steps[s.key])
+        if (numbers == null) row.value.settle(v.format.none(s))
+        else row.value.roll(numbers, STREAM_MS, v.format.wrap(s)) { v.format.show(s, it) }
+        if (row !== v.accelerometer) row.about.text = v.format.describe(s)
     }
 
     private fun renderOthers(v: Views, others: List<SensorInfo>, state: SensorsState) {
-        v.othersTitle.text = getString(R.string.others, others.size)
-        v.othersAction.setText(if (state.othersShown) R.string.hide else R.string.show)
-        v.others.visibility = if (state.othersShown) View.VISIBLE else View.GONE
-        if (!state.othersShown) return
+        v.othersTitle.set(getString(R.string.others, others.size))
         if (v.otherRows.isEmpty()) {
             for (s in others) {
                 val item = LayoutInflater.from(v.others.context).inflate(R.layout.item_sensor, v.others, false)
                 v.others.addView(item)
-                v.otherRows[s.key] = Row(item).apply {
-                    name.text = s.name
-                    about.text = v.format.describe(s)
-                }
+                v.otherRows[s.key] = Row(item).apply { name.text = s.name }
             }
         }
-        for (s in others) {
-            v.otherRows[s.key]?.value?.text = v.format.reading(s, state.readings[s.key], state.steps[s.key])
-        }
+        for (s in others) v.otherRows[s.key]?.let { renderRow(v, it, s, state) }
     }
 
     private fun renderCalibration(v: Views, state: SensorsState) {
@@ -204,12 +215,11 @@ class SensorsFragment : Fragment(R.layout.fragment_sensors) {
             Accuracy.UNKNOWN -> null
         })
 
-        val accel = state.groups.valueOrNull?.accelerometer?.let { state.readings[it.key] }
-        v.calNow.text = accel?.let {
-            val a = SensorText.length(it.values)
-            getString(R.string.cal_now, v.units.ms2(a),
-                    v.units.percentFine(((a / SensorManager.GRAVITY_EARTH) - 1) * 100.0))
-        } ?: getString(R.string.loading)
+        val a = state.groups.valueOrNull?.accelerometer?.let { state.readings[it.key] }?.values?.let(SensorText::length)
+        if (a == null) v.calNow.settle(getString(R.string.loading))
+        else v.calNow.roll(a, STREAM_MS) {
+            getString(R.string.cal_now, v.units.ms2(it), v.units.percentFine((it / SensorManager.GRAVITY_EARTH - 1) * 100))
+        }
 
         val made = text(c.current) {
             if (!it.present) getString(R.string.cal_none)

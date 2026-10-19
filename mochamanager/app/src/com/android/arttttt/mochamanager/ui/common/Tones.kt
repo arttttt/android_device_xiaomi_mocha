@@ -46,6 +46,11 @@ private fun View.levelContainer(level: Level?) = themeColor(when (level) {
 /* A chip: the state's soft container behind its colour. */
 fun TextView.chip(text: CharSequence, level: Level?) {
     this.text = text
+    tone(level)
+}
+
+/* A chip's colours alone, for one whose text runs. */
+fun TextView.tone(level: Level?) {
     visibility = View.VISIBLE
     backgroundTintList = ColorStateList.valueOf(levelContainer(level))
     setTextColor(if (level == null) themeColor(R.attr.colorOnSurfaceVariant) else levelColor(level))

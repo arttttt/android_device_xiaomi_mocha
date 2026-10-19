@@ -28,12 +28,12 @@
     <string name="fmt_watts">%.2f Вт</string>
     <string name="unit_watts">Вт</string>
     <string name="fmt_volts">%.3f В</string>
-    <string name="fmt_milliamps">%d мА</string>
-    <string name="fmt_mah">%d мА·ч</string>
+    <string name="fmt_milliamps">%.0f мА</string>
+    <string name="fmt_mah">%.0f мА·ч</string>
     <string name="fmt_wh">%.3f Вт·ч</string>
-    <string name="fmt_mhz">%d МГц</string>
-    <string name="fmt_mb">%d МБ</string>
-    <string name="fmt_gb">%d ГБ</string>
+    <string name="fmt_mhz">%.0f МГц</string>
+    <string name="fmt_mb">%.0f МБ</string>
+    <string name="fmt_gb">%.0f ГБ</string>
     <string name="fmt_hz">%.2f Гц</string>
     <string name="unit_hz">Гц</string>
     <string name="unit_ms2">м/с²</string>
@@ -143,8 +143,6 @@
     <string name="steps_need_permission">нужно разрешение «Физическая активность»</string>
     <string name="magnetic_sub">откалибровано хабом</string>
     <string name="others">Некалиброванные и вычисляемые Android (%d)</string>
-    <string name="show">Показать</string>
-    <string name="hide">Скрыть</string>
     <string name="sensor_bias">смещение</string>
     <string name="sensor_one_shot">срабатывает раз, не слушаем</string>
     <string name="sensor_continuous">непрерывный</string>

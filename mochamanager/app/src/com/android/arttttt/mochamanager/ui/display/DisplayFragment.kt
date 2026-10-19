@@ -28,7 +28,7 @@ import com.android.arttttt.mochamanager.ui.common.Units
 import com.android.arttttt.mochamanager.ui.common.collectWhileShown
 import com.android.arttttt.mochamanager.ui.common.header
 import com.android.arttttt.mochamanager.ui.common.screenViewModel
-import com.android.arttttt.mochamanager.ui.common.text
+import com.android.arttttt.mochamanager.ui.common.roll
 import com.android.arttttt.mochamanager.ui.common.themeColor
 import com.google.android.material.card.MaterialCardView
 
@@ -66,7 +66,7 @@ class DisplayFragment : Fragment(R.layout.fragment_display) {
 
     private fun render(state: DisplayState) {
         val v = views ?: return
-        v.rate.text = text(state.refreshRate) { v.units.number("%.2f", it.toDouble()) }
+        roll(v.rate, state.refreshRate, { it.toDouble() }) { v.units.number("%.2f", it) }
         val chosen = state.mode.valueOrNull
         /* The chosen one outlined in the accent and on its container. */
         for ((mode, m) in v.modes) {

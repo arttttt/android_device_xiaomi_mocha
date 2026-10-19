@@ -32,8 +32,6 @@ data class SensorsState(
     val steps: Map<Int, Int> = emptyMap(),
     /* The accelerometer's X, Y and Z over the last seconds. */
     val motion: List<History> = emptyList(),
-    /* Whether the folded-away sensors are shown, and so listened to. */
-    val othersShown: Boolean = false,
     val calibration: CalibrationState = CalibrationState(),
 )
 
@@ -53,7 +51,6 @@ sealed class SensorsAction {
     /* Called off while under way, or put away once it has ended. */
     object CloseCalibration : SensorsAction()
     object ResetCalibration : SensorsAction()
-    object ToggleOthers : SensorsAction()
     /* The step sensors' permission was granted; listen to them too. */
     object PermissionGranted : SensorsAction()
 }

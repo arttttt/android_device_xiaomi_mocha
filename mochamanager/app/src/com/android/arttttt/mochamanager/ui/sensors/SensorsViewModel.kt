@@ -54,8 +54,8 @@ import kotlinx.coroutines.launch
 
 /*
  * The sensors the system lists and what they read, and the accelerometer's
- * calibration. Only the sensors on show are listened to: the folded-away
- * ones once they are unfolded. The readings come at hundreds a second; they
+ * calibration, every one of them listened to while the screen is shown.
+ * The readings come at hundreds a second; they
  * are gathered off the main thread and handed on a few times a second, which
  * is as often as anyone reads them.
  */
@@ -67,11 +67,10 @@ class SensorsViewModel(
     val effects = Effects<SensorsEffect>()
 
     private val groups = MutableStateFlow<Loadable<SensorGroups>>(Loadable.Loading)
-    private val othersShown = MutableStateFlow(false)
     /* Bumped to listen again: the permission for the step sensors came. */
     private val listening = MutableStateFlow(0)
     private val current = MutableStateFlow<Loadable<AccelCalibration>>(Loadable.Loading)
-    /* Kept here, not in the flow, so folding and leaving keep the seconds. */
+    /* Kept here, not in the flow, so leaving keeps the seconds. */
     private val motion = MutableStateFlow(List(3) { History.empty(MOTION_SAMPLES) })
     /* Whether the user has asked for a calibration; it runs only while the
      * screen is shown -- it listens to the accelerometer at the game rate --
@@ -90,11 +89,10 @@ class SensorsViewModel(
         val steps: Map<Int, Int> = emptyMap(),
     )
 
-    private val gathered: Flow<Gathered> = combine(groups, othersShown, listening) { g, others, _ ->
-        g.map { if (others) it.featured + it.others else it.featured }.valueOrNull to g.valueOrNull
-    }
-            .flatMapLatest { (listened, g) ->
-                if (listened == null || g == null) return@flatMapLatest flowOf(Gathered())
+    private val gathered: Flow<Gathered> = combine(groups, listening) { g, _ -> g.valueOrNull }
+            .flatMapLatest { g ->
+                if (g == null) return@flatMapLatest flowOf(Gathered())
+                val listened = g.featured + g.others
                 val detectors = listened.filter { it.type == Sensor.TYPE_STEP_DETECTOR }.map { it.key }.toSet()
                 sensors.updates(listened)
                         .scan(Gathered()) { before, update ->
@@ -121,12 +119,12 @@ class SensorsViewModel(
             outcome,
     ) { live, ended -> live ?: ended }.sample(PROGRESS_MS)
 
-    private val shown = combine(gathered, motion, othersShown) { g, m, o -> Triple(g, m, o) }
+    private val shown = combine(gathered, motion) { g, m -> g to m }
 
-    val state: StateFlow<SensorsState> = combine(groups, shown, current, progress) { g, (gathered, m, others), c, p ->
+    val state: StateFlow<SensorsState> = combine(groups, shown, current, progress) { g, (gathered, m), c, p ->
         val accelerometer = g.valueOrNull?.accelerometer
         val accuracy = accelerometer?.let { gathered.readings[it.key]?.accuracy } ?: Accuracy.UNKNOWN
-        SensorsState(g, gathered.readings, gathered.steps, m, others, CalibrationState(
+        SensorsState(g, gathered.readings, gathered.steps, m, CalibrationState(
                 available = sensors.uncalibratedResolution != null,
                 current = c,
                 accuracy = accuracy,
@@ -148,7 +146,6 @@ class SensorsViewModel(
                 if (!calibrations.reset()) effects.send(SensorsEffect.ChangeFailed)
                 loadCalibration()
             }
-            SensorsAction.ToggleOthers -> othersShown.value = !othersShown.value
             SensorsAction.PermissionGranted -> listening.value++
         }
     }

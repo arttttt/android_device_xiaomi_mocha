@@ -37,6 +37,8 @@ import com.android.arttttt.mochamanager.ui.common.collectWhileShown
 import com.android.arttttt.mochamanager.ui.common.fill
 import com.android.arttttt.mochamanager.ui.common.header
 import com.android.arttttt.mochamanager.ui.common.levelColor
+import com.android.arttttt.mochamanager.ui.common.roll
+import com.android.arttttt.mochamanager.ui.common.settle
 import com.android.arttttt.mochamanager.ui.common.screenViewModel
 import com.android.arttttt.mochamanager.ui.common.subtitle
 import com.google.android.material.progressindicator.LinearProgressIndicator
@@ -53,7 +55,9 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
         val units = Units(root.context)
         val cpuTitle = CardTitle(root.findViewById(R.id.cpu_title)).apply { set(R.string.section_cpu) }
         val cores: ViewGroup = root.findViewById(R.id.cores)
-        val spark: SparklineView = root.findViewById(R.id.cpu_spark)
+        val spark: SparklineView = root.findViewById<SparklineView>(R.id.cpu_spark).apply {
+            periodMs = PerformanceViewModel.PERIOD_MS
+        }
         val range: TextView = root.findViewById(R.id.cpu_range)
         val gpu = Tile(root, R.id.tile_gpu, R.string.section_gpu)
         val emc = Tile(root, R.id.tile_emc, R.string.section_emc)
@@ -93,25 +97,33 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
         val u = v.units
         v.root.subtitle(getString(R.string.performance_subtitle, s.cluster))
         renderCores(v, s)
-        v.spark.submit(state.cpu, floor = 0f)
+        /* On the cores' own range, so the scale never moves. */
+        val ceiling = s.cores.maxOfOrNull { it.maxKhz }?.takeIf { it > 0 }?.toFloat()
+        v.spark.submit(state.cpu, floor = 0f, ceiling = ceiling)
 
-        v.gpu.value.text = u.mhzOfHz(s.gpu.curHz)
-        v.gpu.sub.text = getString(R.string.gpu_sub, u.mhzOfHz(s.gpu.maxHz), u.percent(s.gpu.loadPermille / 10.0)) +
-                if (s.gpu.railgated) " · " + getString(R.string.gpu_rail_off) else ""
+        v.gpu.value.roll(s.gpu.curHz.toDouble()) { u.mhzOfHz(it) }
+        val gated = if (s.gpu.railgated) " · " + getString(R.string.gpu_rail_off) else ""
+        v.gpu.sub.roll(doubleArrayOf(s.gpu.maxHz.toDouble(), s.gpu.loadPermille / 10.0)) {
+            getString(R.string.gpu_sub, u.mhzOfHz(it[0]), u.percent(it[1])) + gated
+        }
         v.gpu.bar.fill(s.gpu.loadPermille / 1000.0)
-        v.emc.value.text = u.mhzOfHz(s.emcHz)
+        v.emc.value.roll(s.emcHz.toDouble()) { u.mhzOfHz(it) }
         v.emc.sub.setText(R.string.emc_sub)
 
         renderZones(v, s)
 
         val m = s.memory
-        v.free.text = u.mb(m.availableKb) + " / " + u.mb(m.totalKb)
+        v.free.roll(doubleArrayOf(m.availableKb.toDouble(), m.totalKb.toDouble())) { u.mb(it[0]) + " / " + u.mb(it[1]) }
         v.memoryBar.fill(m.usedFraction)
-        v.zram.text = u.mb(m.swapUsedKb) + " / " + u.mb(m.swapTotalKb) +
-                (m.zramRatio?.let { " · " + getString(R.string.zram_ratio, u.ratio(it)) } ?: "")
+        val ratio = m.zramRatio?.let { " · " + getString(R.string.zram_ratio, u.ratio(it)) } ?: ""
+        v.zram.roll(doubleArrayOf(m.swapUsedKb.toDouble(), m.swapTotalKb.toDouble())) {
+            u.mb(it[0]) + " / " + u.mb(it[1]) + ratio
+        }
         v.zramBar.fill(m.swapFraction)
-        v.nvmap.text = u.mb(m.nvmapUsedKb)
-        v.psi.text = String.format(Locale.getDefault(), "%.2f / %.2f", m.psiSome, m.psiFull)
+        v.nvmap.roll(m.nvmapUsedKb.toDouble()) { u.mb(it) }
+        v.psi.roll(doubleArrayOf(m.psiSome.toDouble(), m.psiFull.toDouble())) {
+            String.format(Locale.getDefault(), "%.2f / %.2f", it[0], it[1])
+        }
     }
 
     private fun renderCores(v: Views, s: Snapshot) {
@@ -130,13 +142,14 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
             val core = v.coreViews[i]
             core.name.text = getString(R.string.core, c.id)
             core.bar.fill(c.load.toDouble())
-            core.value.text = if (c.online) u.mhz(c.curKhz) else getString(R.string.core_offline)
+            if (c.online) core.value.roll(c.curKhz.toDouble()) { u.mhz(it) }
+            else core.value.settle(getString(R.string.core_offline))
         }
         val online = s.cores.filter { it.online }
         online.firstOrNull()?.let { v.cpuTitle.aside.chip(it.governor, null) }
         if (online.isNotEmpty()) {
-            v.range.text = getString(R.string.cpu_range, u.mhz(online.minOf { it.minKhz }),
-                    u.mhz(online.maxOf { it.maxKhz }))
+            v.range.text = getString(R.string.cpu_range, u.mhz(online.minOf { it.minKhz }.toDouble()),
+                    u.mhz(online.maxOf { it.maxKhz }.toDouble()))
         }
     }
 
@@ -160,7 +173,7 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
         for ((i, t) in s.thermals.withIndex()) {
             val zone = v.zoneViews[i]
             val level = thermalLevel(t.milliCelsius)
-            zone.value.text = v.units.degreesShort(t.milliCelsius)
+            zone.value.roll(t.milliCelsius.toDouble()) { v.units.degreesShort(it) }
             zone.value.setTextColor(zone.value.levelColor(level))
             zone.name.text = t.name
         }
