@@ -222,11 +222,26 @@ bool IioDevice::SetBatch(bool batch, int timeoutMs) {
     /* The hub's driver spells it so. */
     if (ok && batch != batching_) {
         ok = WriteValue(Path("batch_mode"), batch ? "continuos" : "disabled");
-        if (ok) batching_ = batch;
+        if (ok) {
+            batching_ = batch;
+            ResendRate();
+        }
     }
 
     if (running) SetEnabled(true);
     return ok;
+}
+
+/*
+ * The hub goes back to a rate of its own when the batch mode changes, while
+ * the driver still holds the old one and skips a write of the same value:
+ * another rate is written first, so that the one wanted does go out.
+ */
+void IioDevice::ResendRate() {
+    if (rates_.size() < 2 || rate_ <= 0) return;
+    int other = rate_ == rates_.front() ? rates_.back() : rates_.front();
+    if (WriteValue(Path("sampling_frequency"), std::to_string(other)))
+        WriteValue(Path("sampling_frequency"), std::to_string(rate_));
 }
 
 bool IioDevice::FlushHub() {

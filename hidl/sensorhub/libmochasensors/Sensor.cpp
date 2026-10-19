@@ -120,9 +120,6 @@ int IioSensor::Activate(bool enabled) {
 }
 
 int IioSensor::Batch(int64_t periodNs, int64_t latencyNs) {
-    int err = SetRate(periodNs);
-    if (err) return err;
-
     /*
      * Below 300 ms the driver takes no timeout, and a latency that short
      * saves little anyway: such a sensor reports sample by sample. The
@@ -131,7 +128,10 @@ int IioSensor::Batch(int64_t periodNs, int64_t latencyNs) {
     constexpr int64_t kShortestBatchNs = 300000000;
     bool batch = device_.batchable() && latencyNs >= kShortestBatchNs;
     int timeoutMs = static_cast<int>(std::min<int64_t>(latencyNs / 1000000, 600000));
-    return device_.SetBatch(batch, timeoutMs) ? 0 : -EIO;
+    if (!device_.SetBatch(batch, timeoutMs)) return -EIO;
+
+    /* After the mode: a change of it resets the hub's rate. */
+    return SetRate(periodNs);
 }
 
 int IioSensor::SetRate(int64_t ns) {
