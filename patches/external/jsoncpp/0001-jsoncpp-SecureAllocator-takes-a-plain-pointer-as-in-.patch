@@ -1,0 +1,43 @@
+From cea899515d24a02451f8649b4a0299146e4b8bfb Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Wed, 21 Oct 2026 00:32:22 +0300
+Subject: [PATCH] jsoncpp: SecureAllocator takes a plain pointer, as in 1.9.5
+
+C++20 deprecates volatile-qualified parameters, and deallocate() took
+one: the header no longer builds with -std=c++20 -Werror, which is how
+the camera HAL builds. jsoncpp 1.9.5 dropped the qualifier and zeroes
+the block with memset_s instead -- the same change backported here,
+hunk for hunk, from AOSP's android13-release, where external/jsoncpp
+is 1.9.5.
+
+The allocator is only instantiated with JSONCPP_USING_SECURE_MEMORY,
+which Android leaves off, so bionic having no memset_s does not matter;
+that is why 1.9.5 builds on Android 13 as it is.
+
+Drop this patch when moving to Android 13: its jsoncpp has it.
+---
+ include/json/allocator.h | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/include/json/allocator.h b/include/json/allocator.h
+index 0f5c224..95ef8a5 100644
+--- a/include/json/allocator.h
++++ b/include/json/allocator.h
+@@ -35,11 +35,10 @@ public:
+    * Release memory which was allocated for N items at pointer P.
+    *
+    * The memory block is filled with zeroes before being released.
+-   * The pointer argument is tagged as "volatile" to prevent the
+-   * compiler optimizing out this critical step.
+    */
+-  void deallocate(volatile pointer p, size_type n) {
+-    std::memset(p, 0, n * sizeof(T));
++  void deallocate(pointer p, size_type n) {
++    // memset_s is used because memset may be optimized away by the compiler
++    memset_s(p, n * sizeof(T), 0, n * sizeof(T));
+     // free using "global operator delete"
+     ::operator delete(p);
+   }
+-- 
+2.56.0
+
