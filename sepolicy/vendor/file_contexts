@@ -47,6 +47,7 @@
 /dev/camera(/video[0-9]*)?   		u:object_r:video_device:s0
 /dev/camera/v4l-subdev0      		u:object_r:camera_device:s0
 /dev/v4l-subdev[0-9]+			u:object_r:camera_device:s0
+/dev/media[0-9]+			u:object_r:camera_device:s0
 # Pmqos device
 /dev/constraint.*			u:object_r:pmqos_device:s0
 /dev/emc_freq_min			u:object_r:pmqos_device:s0
