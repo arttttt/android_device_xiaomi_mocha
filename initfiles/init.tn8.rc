@@ -21,6 +21,8 @@ on post-fs-data
     chmod 0644 /sys/kernel/cluster/active
     # The sensor hub's calibration, as our own sensors HAL keeps it.
     mkdir /data/vendor/sensors 0770 system system
+    # What the camera HAL keeps between its runs.
+    mkdir /data/vendor/camera 0770 cameraserver cameraserver
 
 on init
     # Which cores each kind of work may run on.

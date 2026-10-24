@@ -16,3 +16,8 @@
 # node is /dev/vndbinder. The platform grants a camera HAL hwbinder and
 # nothing else, because a camera HAL is not expected to want the other one.
 vndbinder_use(hal_camera_default)
+
+# It keeps its ISP's compiled pipelines in /data/vendor/camera, replacing the
+# file whole (a temporary file renamed over it) so a reader never sees half.
+allow hal_camera_default camera_vendor_data_file:dir rw_dir_perms;
+allow hal_camera_default camera_vendor_data_file:file create_file_perms;

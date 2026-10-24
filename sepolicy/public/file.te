@@ -124,6 +124,10 @@ type hwc_data_file, file_type, data_file_type, core_data_file_type;
 # accelerometer's calibration the settings write
 type sensors_vendor_data_file, file_type, data_file_type;
 
+# /data/vendor/camera: what the camera HAL keeps between its runs -- its
+# ISP's compiled pipelines, so a camera's first open does not compile them
+type camera_vendor_data_file, file_type, data_file_type;
+
 # /sys/kernel/debugfs/clock
 type debugfs_clock, fs_type, debugfs_type, mlstrustedobject;
 

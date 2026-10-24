@@ -162,6 +162,8 @@
 /data/misc/hwc(/.*)?			u:object_r:hwc_data_file:s0
 # The sensor hub's calibration, as our own sensors HAL keeps it
 /data/vendor/sensors(/.*)?		u:object_r:sensors_vendor_data_file:s0
+# What the camera HAL keeps between its runs
+/data/vendor/camera(/.*)?		u:object_r:camera_vendor_data_file:s0
 # Coredump
 /data/core(/.*)?			u:object_r:coredump_data_file:s0
 
