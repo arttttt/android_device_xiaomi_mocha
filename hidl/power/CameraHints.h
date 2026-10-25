@@ -91,7 +91,6 @@ class CameraHints {
 
     QosFloor mCpu{"/dev/cpu_freq_min"};
     QosFloor mGpu{"/dev/gpu_freq_min"};
-    QosFloor mEmc{"/dev/emc_freq_min"};
 
     QosFloor mBoostCpu{"/dev/cpu_freq_min"};
     QosFloor mBoostGpu{"/dev/gpu_freq_min"};

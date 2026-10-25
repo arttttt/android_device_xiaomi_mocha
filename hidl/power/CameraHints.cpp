@@ -29,18 +29,22 @@ namespace {
 struct Floors {
     uint32_t cpuKhz;
     uint32_t gpuKhz;
-    uint32_t emcKhz;
 };
 
 /* Provisional, until the camera's measurement of its pipeline's headroom
  * says what each load needs: the preview's statistics and demosaic miss
  * their time at the clocks the governor leaves them, and these are steps
- * of this board's tables that clear it with room. Memory is lifted only for
- * the heaviest load, where the ISP, the GPU and the encoder all draw on it. */
+ * of this board's tables that clear it with room. Always a pair: the
+ * statistics and 3A run on the processor, demosaic on the GPU, and a floor
+ * under one alone leaves the frame waiting on the other.
+ *
+ * Memory is not asked for. The kernel raises the EMC clock by itself from
+ * the processor's and the GPU's clocks and the bandwidth they claim, so a
+ * floor under both brings memory up with them. */
 constexpr std::array<Floors, CameraHints::LEVELS> STREAMING = {{
-        {696000, 252000, 0},        /* up to 720p at 30 */
-        {1044000, 396000, 0},       /* 1080p at 30 */
-        {1530000, 540000, 600000},  /* above that */
+        {696000, 252000},   /* up to 720p at 30 */
+        {1044000, 396000},  /* 1080p at 30 */
+        {1530000, 540000},  /* above that */
 }};
 
 /* What a launch or a shot asks for when it does not say how long. */
@@ -148,14 +152,12 @@ void CameraHints::applyStreamLocked() {
     if (level < 0 || mSuppressed) {
         mCpu.set(0);
         mGpu.set(0);
-        mEmc.set(0);
         return;
     }
 
     const Floors& want = STREAMING[level];
     mCpu.set(underCeiling(want.cpuKhz, cpuCeilingKhz()));
     mGpu.set(underCeiling(want.gpuKhz, gpuCeilingKhz()));
-    mEmc.set(want.emcKhz);
 }
 
 void CameraHints::dropBoostLocked() {

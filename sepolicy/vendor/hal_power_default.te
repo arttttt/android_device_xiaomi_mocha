@@ -45,8 +45,8 @@ get_prop(hal_power_default, perf_profile_prop)
 # power save until it ends and puts the user's choice back after.
 set_prop(hal_power_default, power_low_power_prop)
 
-# The lowest clocks the camera's hints ask for: the processor's, the GPU's and
-# the memory's, each a PM QoS request held through a descriptor of its own.
+# The lowest clocks the camera's hints ask for: the processor's and the GPU's,
+# each a PM QoS request held through a descriptor of its own.
 # The composer holds its own requests on the same nodes; the kernel honours
 # the highest, so neither withdraws the other's.
 allow hal_power_default pmqos_device:chr_file rw_file_perms;
