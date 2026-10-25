@@ -32,10 +32,12 @@ PRODUCT_PACKAGES += \
 # The legacy wrapper: it loads camera.tegra through libhardware and exposes it
 # over HIDL, which is the only way cameraserver reaches a camera HAL on O.
 # The device impls it needs (camera.device@1.0/3.2/3.3-impl) come in as its
-# shared_libs, so they need no entry of their own.
+# shared_libs, so they need no entry of their own. The service is the camera's
+# own build of the stock one, on /dev/binder rather than vndbinder, so the
+# camera HAL inside it reaches the power HAL's IPower.
 PRODUCT_PACKAGES += \
     android.hardware.camera.provider@2.4-impl \
-    android.hardware.camera.provider@2.4-service
+    android.hardware.camera.provider@2.4-service.mocha
 
 # DRM HAL
 PRODUCT_PACKAGES += \
