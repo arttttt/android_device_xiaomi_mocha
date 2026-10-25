@@ -1,0 +1,4 @@
+service vendor.power-mocha /vendor/bin/hw/android.hardware.power-service.mocha
+    class hal
+    user system
+    group system

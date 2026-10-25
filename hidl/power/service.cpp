@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The LineageOS Project
+ * Copyright (C) 2026 Artem Bambalov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,52 +14,32 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.power@1.3-service.mocha"
+#define LOG_TAG "android.hardware.power-service.mocha"
 
-#include <android/log.h>
-#include <hidl/HidlTransportSupport.h>
-#include <hardware/power.h>
+#include <android-base/logging.h>
+#include <android/binder_manager.h>
+#include <android/binder_process.h>
+
 #include "Power.h"
 
-using android::sp;
-using android::status_t;
-using android::OK;
-
-// libhwbinder:
-using android::hardware::configureRpcThreadpool;
-using android::hardware::joinRpcThreadpool;
-
-// Generated HIDL files
-using android::hardware::power::V1_3::implementation::Power;
+using aidl::android::hardware::power::impl::mocha::Power;
 
 int main() {
-    status_t status;
-    android::sp<Power> service = nullptr;
+    /* One binder thread, the one joined below. Every hint is a few writes
+     * to sysfs or PM QoS, and none waits on another. */
+    ABinderProcess_setThreadPoolMaxThreadCount(0);
+    std::shared_ptr<Power> service = ndk::SharedRefBase::make<Power>();
 
-    ALOGI("Power HAL Service 1.3 for Mocha is starting.");
-
-    service = new Power();
-    if (service == nullptr) {
-        ALOGE("Can not create an instance of Power HAL Iface, exiting.");
-
-        goto shutdown;
+    const std::string instance = std::string(Power::descriptor) + "/default";
+    binder_status_t status = AServiceManager_addService(service->asBinder().get(), instance.c_str());
+    if (status != STATUS_OK) {
+        LOG(ERROR) << "cannot register as a service: " << status;
+        return 1;
     }
 
-    configureRpcThreadpool(1, true /*callerWillJoin*/);
+    LOG(INFO) << "power HAL ready";
+    ABinderProcess_joinThreadPool();
 
-    status = service->registerAsSystemService();
-    if (status != OK) {
-        ALOGE("Could not register service for Power HAL Iface (%d).", status);
-        goto shutdown;
-    }
-
-    ALOGI("Power Service is ready");
-    joinRpcThreadpool();
-    //Should not pass this line
-
-shutdown:
-    // In normal operation, we don't expect the thread pool to exit
-
-    ALOGE("Power Service is shutting down");
+    /* joinThreadPool does not return. */
     return 1;
 }

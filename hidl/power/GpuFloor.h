@@ -18,11 +18,7 @@
 
 #include <mutex>
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+namespace aidl::android::hardware::power::impl::mocha {
 
 /*
  * The lowest rate the GPU is allowed to fall to.
@@ -53,10 +49,6 @@ class GpuFloor {
     bool mHeld = false;
 };
 
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha
 
 #endif  // MOCHA_POWER_GPU_FLOOR_H

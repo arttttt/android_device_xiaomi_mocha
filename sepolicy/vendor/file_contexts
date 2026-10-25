@@ -293,6 +293,7 @@
 # says it is working hard. There is a type for knobs of exactly this kind and
 # the node was landing in the generic sysfs label instead.
 /sys/kernel/tegra_gpu/gpu_floor_rate	u:object_r:sysfs_gpu_power_knobs:s0
+/sys/kernel/tegra_gpu/gpu_cap_rate	u:object_r:sysfs_gpu_power_knobs:s0
 
 # The capacitive keys under the panel are a second backlight, driven the same
 # way as the screen's and by the same service.
@@ -304,7 +305,7 @@
 /(vendor|system/vendor)/bin/hw/android\.hardware\.gatekeeper@1\.0-service\.software  u:object_r:hal_gatekeeper_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.light@2\.0-service\.mocha         u:object_r:hal_light_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.thermal@1\.0-service-nvidia    u:object_r:hal_thermal_default_exec:s0
-/(vendor|system/vendor)/bin/hw/android\.hardware\.power@1\.3-service\.mocha         u:object_r:hal_power_default_exec:s0
+/(vendor|system/vendor)/bin/hw/android\.hardware\.power-service\.mocha             u:object_r:hal_power_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.power\.stats-service\.mocha      u:object_r:hal_power_stats_default_exec:s0
 /(vendor|system/vendor)/bin/hw/vendor\.arttttt\.mochamanager-service              u:object_r:hal_mochamanager_default_exec:s0
 /(vendor|system/vendor)/bin/hw/android\.hardware\.usb\.gadget@1\.2-service\.mocha   u:object_r:hal_usb_gadget_default_exec:s0

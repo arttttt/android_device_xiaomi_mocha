@@ -15,27 +15,15 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.power@1.3-service.mocha"
-
-#include <SysfsNode.h>
-#include <hardware/power.h>
-#include <log/log.h>
+#define LOG_TAG "android.hardware.power-service.mocha"
 
 #include "Power.h"
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+#include <SysfsNode.h>
 
-using ::android::hardware::power::V1_0::Feature;
-using ::android::hardware::power::V1_0::PowerHint;
-using ::android::hardware::power::V1_0::PowerStatePlatformSleepState;
-using ::android::hardware::power::V1_0::Status;
-using ::android::hardware::hidl_vec;
-using ::android::hardware::Return;
-using ::android::hardware::Void;
+#include <log/log.h>
+
+namespace aidl::android::hardware::power::impl::mocha {
 
 static const std::string TAP_TO_WAKE_NODE = "/proc/touchpanel/double_tap_enable";
 static const std::string IO_IS_BUSY_NODE =
@@ -45,7 +33,110 @@ Power::Power() {
     ALOGI("power_init\n");
 }
 
-Return<void> Power::setInteractive(bool interactive)  {
+ndk::ScopedAStatus Power::setMode(Mode type, bool enabled) {
+    switch (type) {
+        case Mode::DOUBLE_TAP_TO_WAKE:
+            ::mocha::sysfs::write(TAP_TO_WAKE_NODE, enabled ? 1 : 0);
+            break;
+
+        case Mode::LOW_POWER:
+            handleLowPower(enabled);
+            break;
+
+        case Mode::EXPENSIVE_RENDERING:
+            handleExpensiveRendering(enabled);
+            break;
+
+        case Mode::INTERACTIVE:
+            setInteractive(enabled);
+            break;
+
+        case Mode::LAUNCH:
+            /* An application being opened. It begins and ends; the pulse
+             * answers the beginning, and the governor drops the clock again
+             * by itself. */
+            if (enabled) hurry();
+            break;
+
+        case Mode::CAMERA_STREAMING_LOW:
+            streamCamera(CameraHints::LOW, enabled);
+            break;
+        case Mode::CAMERA_STREAMING_MID:
+            streamCamera(CameraHints::MID, enabled);
+            break;
+        case Mode::CAMERA_STREAMING_HIGH:
+            streamCamera(CameraHints::HIGH, enabled);
+            break;
+
+        default:
+            /* Not answered here; isModeSupported says so. */
+            break;
+    }
+    return ndk::ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Power::isModeSupported(Mode type, bool* _aidl_return) {
+    switch (type) {
+        case Mode::DOUBLE_TAP_TO_WAKE:
+        case Mode::LOW_POWER:
+        case Mode::EXPENSIVE_RENDERING:
+        case Mode::INTERACTIVE:
+        case Mode::LAUNCH:
+        case Mode::CAMERA_STREAMING_LOW:
+        case Mode::CAMERA_STREAMING_MID:
+        case Mode::CAMERA_STREAMING_HIGH:
+            *_aidl_return = true;
+            break;
+        default:
+            *_aidl_return = false;
+            break;
+    }
+    return ndk::ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Power::setBoost(Boost type, int32_t durationMs) {
+    switch (type) {
+        case Boost::INTERACTION:
+            /* A finger on the glass. How long a touch is worth is the
+             * performance profile's boostpulse_duration, not the caller's. */
+            hurry();
+            break;
+
+        case Boost::CAMERA_LAUNCH:
+        case Boost::CAMERA_SHOT: {
+            std::lock_guard<std::mutex> lock(mPolicyLock);
+            mCamera.setSuppressed(sparingLocked());
+            mCamera.boost(durationMs);
+            break;
+        }
+
+        default:
+            break;
+    }
+    return ndk::ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Power::isBoostSupported(Boost type, bool* _aidl_return) {
+    *_aidl_return = type == Boost::INTERACTION || type == Boost::CAMERA_LAUNCH ||
+                    type == Boost::CAMERA_SHOT;
+    return ndk::ScopedAStatus::ok();
+}
+
+/* Hint sessions want a governor that takes per-thread work durations; the
+ * interactive governor takes none, so there is nothing to give them to. The
+ * framework hears "unsupported" and does not ask again. */
+ndk::ScopedAStatus Power::createHintSession(int32_t, int32_t, const std::vector<int32_t>&, int64_t,
+                                            std::shared_ptr<IPowerHintSession>* _aidl_return) {
+    *_aidl_return = nullptr;
+    return ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+}
+
+ndk::ScopedAStatus Power::getHintSessionPreferredRate(int64_t* outNanoseconds) {
+    *outNanoseconds = -1;
+    return ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+}
+
+void Power::setInteractive(bool interactive) {
     /* Whether anything is being shown to anyone.
      *
      * With the screen off, time spent waiting on storage should no longer be
@@ -59,46 +150,37 @@ Return<void> Power::setInteractive(bool interactive)  {
      * profile, which the user chooses; picking a second one here would be
      * inventing a number and then quietly overruling them with it.
      */
-    mocha::sysfs::write(IO_IS_BUSY_NODE, interactive ? 1 : 0);
+    ::mocha::sysfs::write(IO_IS_BUSY_NODE, interactive ? 1 : 0);
 
     /* Nothing is being composed for anyone with the screen off, so any floor
      * held for composition is held for no one. SurfaceFlinger does say so
      * itself, but it says it in its own time, and there is no reason to spend
      * the difference. */
     if (!interactive) mGpuFloor.release();
-
-    return Void();
 }
 
-Return<void> Power::powerHint(PowerHint hint, int32_t data) {
-    handleHint(hint, data);
-    return Void();
+/*
+ * Someone is waiting on this: a finger on the glass, or an application being
+ * opened. The same answer serves both -- pulse the clock up and let the
+ * governor drop it again.
+ *
+ * Not while the battery saver is on. Being asked to hurry and being told to
+ * save power are contradictory instructions, and the one the user chose wins.
+ */
+void Power::hurry() {
+    if (!mProfiles.isPowerSave()) mBoost.pulse();
 }
 
-void Power::handleHint(PowerHint hint, int32_t data) {
-    switch (hint) {
-        case PowerHint::INTERACTION:
-        case PowerHint::LAUNCH:
-            /* Someone is waiting on this: a finger on the glass, or an
-             * application being opened. The same answer serves both -- pulse
-             * the clock up and let the governor drop it again.
-             *
-             * Not while the battery saver is on. Being asked to hurry and
-             * being told to save power are contradictory instructions, and
-             * the one the user chose wins. */
-            if (!mProfiles.isPowerSave()) mBoost.pulse();
-            break;
+/* The profile can be changed from the tile with no hint to say so, so whether
+ * the camera may be helped is asked again with every one of its hints. */
+void Power::streamCamera(CameraHints::Level level, bool on) {
+    std::lock_guard<std::mutex> lock(mPolicyLock);
+    mCamera.setSuppressed(sparingLocked());
+    mCamera.stream(level, on);
+}
 
-        case PowerHint::LOW_POWER:
-            handleLowPower(data != 0);
-            break;
-
-        default:
-            /* VSYNC arrives constantly and says only that something is
-             * watching for blanks; the rest do not apply to this board.
-             * Deliberately nothing. */
-            break;
-    }
+bool Power::sparingLocked() const {
+    return mLowPower || mProfiles.chosen() == Profiles::POWER_SAVE;
 }
 
 /*
@@ -112,7 +194,12 @@ void Power::handleHint(PowerHint hint, int32_t data) {
 void Power::handleLowPower(bool on) {
     std::lock_guard<std::mutex> lock(mPolicyLock);
 
+    mLowPower = on;
     mProfiles.setLowPower(on);
+
+    /* The camera's floors go with the saver and come back after it, if
+     * the camera is still streaming. */
+    mCamera.setSuppressed(sparingLocked());
     if (!on) return;
 
     /* And let go of anything already being spent. A floor raised a moment
@@ -125,6 +212,9 @@ void Power::handleLowPower(bool on) {
 /*
  * SurfaceFlinger saying the composition has fallen to the GPU and will stay
  * there -- a rotation, a screenshot, a layer the composer would not take.
+ * It is rare on this board, where every layer of an ordinary scene is
+ * composed by the hardware, which is exactly why the GPU is at its floor when
+ * it does happen.
  */
 void Power::handleExpensiveRendering(bool expensive) {
     std::lock_guard<std::mutex> lock(mPolicyLock);
@@ -142,104 +232,4 @@ void Power::handleExpensiveRendering(bool expensive) {
     mGpuFloor.hold();
 }
 
-Return<void> Power::setFeature(Feature feature, bool activate)  {
-    if (feature == Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE) {
-        ALOGI("POWER_FEATURE_DOUBLE_TAP_TO_WAKE activate = %d\n", activate);
-        mocha::sysfs::write(TAP_TO_WAKE_NODE, activate ? 1 : 0);
-    }
-    return Void();
-}
-
-Return<void> Power::getPlatformLowPowerStats(getPlatformLowPowerStats_cb _hidl_cb) {
-    hidl_vec<PowerStatePlatformSleepState> states;
-    states.resize(0);
-    _hidl_cb(states, Status::SUCCESS);
-    return Void();
-}
-
-/* Methods from ::android::hardware::power::V1_1::IPower follow.
- *
- * The same hints as 1.0, asked for without waiting. That is the whole of 1.1,
- * and the whole of why this service is not still 1.0: the framework sends
- * INTERACTION on every touch, and at 1.0 it sends it synchronously -- a
- * system_server thread waiting on a binder round trip, and inside it on a
- * write to sysfs, for every finger that lands on the glass.
- */
-Return<void> Power::powerHintAsync(PowerHint hint, int32_t data) {
-    return powerHint(hint, data);
-}
-
-/* What each subsystem spent asleep, which is asked for by the battery stats
- * service and by nothing else.
- *
- * Answered empty, as the platform states above are. Both want counters the
- * firmware keeps -- how long a modem or a sensor hub or a WLAN block stayed
- * in its own low power state, and how often it got there -- and this board
- * has nothing that keeps them: no modem at all, and nothing else here exposes
- * a residency counter to the kernel, let alone to us.
- *
- * Answering empty with SUCCESS rather than failing is the distinction the
- * interface draws: the question was understood and there is nothing to
- * report, as against the service being broken. The caller then shows no
- * subsystem breakdown, which is the truth. At 1.0 it could not ask at all and
- * logged that this device does not support it.
- */
-Return<void> Power::getSubsystemLowPowerStats(getSubsystemLowPowerStats_cb _hidl_cb) {
-    hidl_vec<V1_1::PowerStateSubsystem> subsystems;
-
-    subsystems.resize(0);
-    _hidl_cb(subsystems, Status::SUCCESS);
-
-    return Void();
-}
-
-/* Methods from ::android::hardware::power::V1_2::IPower follow.
- *
- * 1.2 widened the enumeration by five: two for audio, three for the camera.
- * Nothing in the platform sends any of them -- not frameworks/base, not av,
- * not native -- and the vendor stacks on this board do not either, so they
- * arrive here never. Passed through unchanged; the switch they land in
- * ignores what it does not know.
- */
-Return<void> Power::powerHintAsync_1_2(V1_2::PowerHint hint, int32_t data) {
-    return powerHint(static_cast<PowerHint>(hint), data);
-}
-
-/* Methods from ::android::hardware::power::V1_3::IPower follow.
- *
- * 1.3 added one value, and unlike 1.2's five it has a sender: SurfaceFlinger,
- * when the composition has fallen to the GPU and will stay there for a while
- * -- a rotation, a screenshot, a layer the composer would not take. It is
- * rare on this board, where every layer of an ordinary scene is composed by
- * the hardware, which is exactly why the GPU is at its floor when it does
- * happen.
- */
-Return<void> Power::powerHintAsync_1_3(V1_3::PowerHint hint, int32_t data) {
-    if (hint == V1_3::PowerHint::EXPENSIVE_RENDERING) {
-        handleExpensiveRendering(data != 0);
-        return Void();
-    }
-
-    return powerHint(static_cast<PowerHint>(hint), data);
-}
-
-status_t Power::registerAsSystemService() {
-    status_t ret = 0;
-
-    ret = IPower::registerAsService();
-    if (ret != 0) {
-        ALOGE("Failed to register IPower (%d)", ret);
-        goto fail;
-    } else {
-        ALOGI("Successfully registered IPower");
-    }
-
-fail:
-    return ret;
-}
-
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha

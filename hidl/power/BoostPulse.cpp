@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.power@1.3-service.mocha"
+#define LOG_TAG "android.hardware.power-service.mocha"
 
 #include "BoostPulse.h"
 
@@ -26,11 +26,7 @@
 
 #include <log/log.h>
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+namespace aidl::android::hardware::power::impl::mocha {
 
 static const char BOOSTPULSE_NODE[] =
         "/sys/devices/system/cpu/cpufreq/interactive/boostpulse";
@@ -66,8 +62,4 @@ void BoostPulse::pulse() {
     }
 }
 
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha

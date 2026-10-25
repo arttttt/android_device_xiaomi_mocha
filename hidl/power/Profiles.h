@@ -16,11 +16,7 @@
 #ifndef MOCHA_POWER_PROFILES_H
 #define MOCHA_POWER_PROFILES_H
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+namespace aidl::android::hardware::power::impl::mocha {
 
 /*
  * How hard this device should be trying.
@@ -46,14 +42,16 @@ class Profiles {
 
     bool isPowerSave() const { return current() == POWER_SAVE; }
 
+    /* What the user chose, apart from the battery saver. sys.perf.profile
+     * follows the saver going off only once init has acted on it, so a
+     * question asked at that moment of current() can still hear power save;
+     * this is the input init will settle on. */
+    int chosen() const;
+
     /* The battery saver arriving and leaving. */
     void setLowPower(bool on) const;
 };
 
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha
 
 #endif  // MOCHA_POWER_PROFILES_H

@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.power@1.3-service.mocha"
+#define LOG_TAG "android.hardware.power-service.mocha"
 
 #include "GpuFloor.h"
 
 #include <SysfsNode.h>
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+namespace aidl::android::hardware::power::impl::mocha {
 
 static const std::string NODE = "/sys/kernel/tegra_gpu/gpu_floor_rate";
 
@@ -45,13 +41,13 @@ static const std::string IDLE = "72000000";
 static const std::string RENDERING = "252000000";
 
 GpuFloor::GpuFloor() {
-    mocha::sysfs::write(NODE, IDLE);
+    ::mocha::sysfs::write(NODE, IDLE);
 }
 
 void GpuFloor::hold() {
     std::lock_guard<std::mutex> lock(mLock);
 
-    mocha::sysfs::write(NODE, RENDERING);
+    ::mocha::sysfs::write(NODE, RENDERING);
     mHeld = true;
 }
 
@@ -66,12 +62,8 @@ void GpuFloor::release() {
 void GpuFloor::releaseLocked() {
     if (!mHeld) return;
 
-    mocha::sysfs::write(NODE, IDLE);
+    ::mocha::sysfs::write(NODE, IDLE);
     mHeld = false;
 }
 
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha

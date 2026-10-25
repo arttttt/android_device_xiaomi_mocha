@@ -20,11 +20,7 @@
 
 #include <mutex>
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+namespace aidl::android::hardware::power::impl::mocha {
 
 /*
  * The interactive governor's boostpulse: one write says "someone is waiting",
@@ -44,7 +40,7 @@ class BoostPulse {
 
   private:
     std::mutex mLock;
-    base::unique_fd mFd;
+    ::android::base::unique_fd mFd;
 
     /* Whether the absence of the node has already been reported. Without
      * this it would be reported on every touch, which costs more than what
@@ -54,10 +50,6 @@ class BoostPulse {
     bool mComplained = false;
 };
 
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha
 
 #endif  // MOCHA_POWER_BOOST_PULSE_H

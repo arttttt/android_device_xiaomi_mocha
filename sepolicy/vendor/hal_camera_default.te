@@ -21,3 +21,8 @@ vndbinder_use(hal_camera_default)
 # file whole (a temporary file renamed over it) so a reader never sees half.
 allow hal_camera_default camera_vendor_data_file:dir rw_dir_perms;
 allow hal_camera_default camera_vendor_data_file:file create_file_perms;
+
+# Its hints to the power HAL -- opening, a shot, streaming at a load -- over
+# the AIDL IPower, which is registered with servicemanager on /dev/binder.
+hal_client_domain(hal_camera_default, hal_power)
+binder_use(hal_camera_default)

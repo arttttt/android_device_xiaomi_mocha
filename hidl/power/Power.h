@@ -14,75 +14,61 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef MOCHA_POWER_POWER_H
+#define MOCHA_POWER_POWER_H
 
-#ifndef ANDROID_HARDWARE_POWER_V1_3_POWER_H
-#define ANDROID_HARDWARE_POWER_V1_3_POWER_H
-
-#include <android/hardware/power/1.3/IPower.h>
+#include <aidl/android/hardware/power/BnPower.h>
 
 #include <mutex>
 
 #include "BoostPulse.h"
+#include "CameraHints.h"
 #include "GpuFloor.h"
 #include "Profiles.h"
-#include <hidl/MQDescriptor.h>
-#include <hidl/Status.h>
-#include <hardware/power.h>
+#include "ProviderWatch.h"
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+namespace aidl::android::hardware::power::impl::mocha {
 
-using ::android::hardware::power::V1_0::Feature;
-using ::android::hardware::power::V1_0::PowerHint;
-using ::android::hardware::power::V1_3::IPower;
-using ::android::hardware::Return;
-using ::android::hardware::Void;
-
-struct Power : public IPower {
-    // Methods from ::android::hardware::power::V1_0::IPower follow.
-    // They are inherited through 1.3 -> 1.2 -> 1.1 -> 1.0 and still ours to answer.
+class Power : public BnPower {
+  public:
     Power();
-    status_t registerAsSystemService();
 
-    Return<void> setInteractive(bool interactive) override;
-    Return<void> powerHint(PowerHint hint, int32_t data) override;
-    Return<void> setFeature(Feature feature, bool activate) override;
-    Return<void> getPlatformLowPowerStats(getPlatformLowPowerStats_cb _hidl_cb) override;
-
-    /* The asynchronous forms, added one per minor version. Each carries its
-     * own enumeration, widened by the values that version introduced, so each
-     * needs its own entry point even though most of them end up in the same
-     * place. */
-    Return<void> powerHintAsync(PowerHint hint, int32_t data) override;
-    Return<void> getSubsystemLowPowerStats(getSubsystemLowPowerStats_cb _hidl_cb) override;
-    Return<void> powerHintAsync_1_2(V1_2::PowerHint hint, int32_t data) override;
-    Return<void> powerHintAsync_1_3(V1_3::PowerHint hint, int32_t data) override;
+    ndk::ScopedAStatus setMode(Mode type, bool enabled) override;
+    ndk::ScopedAStatus isModeSupported(Mode type, bool* _aidl_return) override;
+    ndk::ScopedAStatus setBoost(Boost type, int32_t durationMs) override;
+    ndk::ScopedAStatus isBoostSupported(Boost type, bool* _aidl_return) override;
+    ndk::ScopedAStatus createHintSession(int32_t tgid, int32_t uid,
+                                         const std::vector<int32_t>& threadIds,
+                                         int64_t durationNanos,
+                                         std::shared_ptr<IPowerHintSession>* _aidl_return) override;
+    ndk::ScopedAStatus getHintSessionPreferredRate(int64_t* outNanoseconds) override;
 
   private:
-    /* What a hint means on this board. The three below are what it is
-     * expressed with. */
-    void handleHint(PowerHint hint, int32_t data);
+    /* What a hint means on this board. */
+    void setInteractive(bool interactive);
     void handleExpensiveRendering(bool expensive);
     void handleLowPower(bool on);
+    void hurry();
+    void streamCamera(CameraHints::Level level, bool on);
+
+    /* Whether the user has asked this device to spend less: the battery
+     * saver, or the power save profile chosen outright. */
+    bool sparingLocked() const;
 
     BoostPulse mBoost;
     GpuFloor mGpuFloor;
     Profiles mProfiles;
+    CameraHints mCamera;
+    ProviderWatch mProvider{[this] { mCamera.reset(); }};
 
     /* Holds a whole decision together. The pieces each look after their own
      * state, but a decision made of two of them -- the battery saver coming
-     * on and the GPU floor going down with it -- has to be one thing or the
-     * other, never half. */
+     * on and the floors going down with it -- has to be one thing or the
+     * other, not half of each when two hints cross. */
     std::mutex mPolicyLock;
+    bool mLowPower = false;
 };
 
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha
 
-#endif  // ANDROID_HARDWARE_POWER_V1_3_POWER_H
+#endif  // MOCHA_POWER_POWER_H

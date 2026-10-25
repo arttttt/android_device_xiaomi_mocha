@@ -141,7 +141,7 @@ PRODUCT_PACKAGES += \
 
 # Power
 PRODUCT_PACKAGES += \
-    android.hardware.power@1.3-service.mocha
+    android.hardware.power-service.mocha
 
 # Power stats
 # The battery's energy, from the INA231 on its line, and where the time goes:

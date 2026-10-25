@@ -14,31 +14,28 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "android.hardware.power@1.3-service.mocha"
+#define LOG_TAG "android.hardware.power-service.mocha"
 
 #include "Profiles.h"
 
 #include <cutils/properties.h>
 
-namespace android {
-namespace hardware {
-namespace power {
-namespace V1_3 {
-namespace implementation {
+namespace aidl::android::hardware::power::impl::mocha {
 
 static const char PROFILE[] = "sys.perf.profile";
+static const char CHOSEN[] = "persist.vendor.mocha.perf.profile";
 static const char LOW_POWER[] = "vendor.power.low_power";
 
 int Profiles::current() const {
     return property_get_int32(PROFILE, BALANCED);
 }
 
+int Profiles::chosen() const {
+    return property_get_int32(CHOSEN, BALANCED);
+}
+
 void Profiles::setLowPower(bool on) const {
     property_set(LOW_POWER, on ? "1" : "0");
 }
 
-}  // namespace implementation
-}  // namespace V1_3
-}  // namespace power
-}  // namespace hardware
-}  // namespace android
+}  // namespace aidl::android::hardware::power::impl::mocha
