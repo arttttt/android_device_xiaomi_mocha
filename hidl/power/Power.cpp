@@ -106,7 +106,10 @@ ndk::ScopedAStatus Power::setBoost(Boost type, int32_t durationMs) {
         case Boost::CAMERA_SHOT: {
             std::lock_guard<std::mutex> lock(mPolicyLock);
             mCamera.setSuppressed(sparingLocked());
-            mCamera.boost(durationMs);
+            if (type == Boost::CAMERA_LAUNCH)
+                mCamera.launch();
+            else
+                mCamera.shot(durationMs);
             break;
         }
 

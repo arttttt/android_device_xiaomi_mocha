@@ -31,7 +31,8 @@ namespace aidl::android::hardware::power::impl::mocha {
  * What the camera HAL's hints are worth on this board.
  *
  * The camera says three things. That it is opening or about to take a picture
- * (CAMERA_LAUNCH, CAMERA_SHOT): a burst, for as long as it names. That it is
+ * (CAMERA_LAUNCH, CAMERA_SHOT): a burst, half a second for an opening, as
+ * long as the shot names for a shot. That it is
  * streaming at some load (CAMERA_STREAMING_LOW, _MID, _HIGH): held until it
  * says it has stopped. In preview the interactive governor sees a load that
  * comes in short bursts per frame and keeps the clocks low, and the frame
@@ -66,7 +67,8 @@ class CameraHints {
     CameraHints& operator=(const CameraHints&) = delete;
 
     void stream(Level level, bool on);
-    void boost(int32_t durationMs);
+    void launch();
+    void shot(int32_t durationMs);
 
     /* The battery saver, or the power save profile, coming on and off. */
     void setSuppressed(bool suppressed);
@@ -75,6 +77,7 @@ class CameraHints {
     void reset();
 
   private:
+    void burst(int32_t durationMs);
     void applyStreamLocked();
     void dropBoostLocked();
     void timerLoop();

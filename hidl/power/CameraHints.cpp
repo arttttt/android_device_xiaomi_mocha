@@ -31,24 +31,33 @@ struct Floors {
     uint32_t gpuKhz;
 };
 
-/* Provisional, until the camera's measurement of its pipeline's headroom
- * says what each load needs: the preview's statistics and demosaic miss
- * their time at the clocks the governor leaves them, and these are steps
- * of this board's tables that clear it with room. Always a pair: the
- * statistics and 3A run on the processor, demosaic on the GPU, and a floor
- * under one alone leaves the frame waiting on the other.
+/* Measured on the camera's 1080p preview: the GPU's demosaic took 20 to
+ * 25 ms a frame at the clocks the governor left it, these bring it to 16,
+ * 15 and 12. Always a pair: the statistics and 3A run on the processor,
+ * demosaic on the GPU, and a floor under one alone leaves the frame waiting
+ * on the other. Above about 1 GHz the processor's floor is cut by the
+ * thermal ceiling once the board warms, whatever is asked.
  *
  * Memory is not asked for. The kernel raises the EMC clock by itself from
  * the processor's and the GPU's clocks and the bandwidth they claim, so a
  * floor under both brings memory up with them. */
 constexpr std::array<Floors, CameraHints::LEVELS> STREAMING = {{
-        {696000, 252000},   /* up to 720p at 30 */
-        {1044000, 396000},  /* 1080p at 30 */
-        {1530000, 540000},  /* above that */
+        {828000, 396000},   /* up to 720p at 30 */
+        {828000, 468000},   /* 1080p at 30, preview and recording */
+        {1044000, 540000},  /* above that */
 }};
 
-/* What a launch or a shot asks for when it does not say how long. */
-constexpr int32_t DEFAULT_BOOST_MS = 1000;
+/* An opening camera or a shot. No higher than the heaviest stream: the GPU
+ * above 540 MHz heats the board more than the shot gains from it. */
+constexpr Floors BURST = {1044000, 540000};
+
+/* How long an opening is worth; the camera's own figure is not asked. */
+constexpr int32_t LAUNCH_MS = 500;
+
+/* A shot names how long it takes, about 300 ms at 1080p; one that does not
+ * gets that, and one that names more than a second gets a second. */
+constexpr int32_t SHOT_DEFAULT_MS = 300;
+constexpr int32_t SHOT_MAX_MS = 1000;
 
 constexpr char CPU_CEILING[] = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
 constexpr char GPU_CEILING[] = "/sys/kernel/tegra_gpu/gpu_cap_rate";
@@ -97,18 +106,21 @@ void CameraHints::stream(Level level, bool on) {
     applyStreamLocked();
 }
 
-void CameraHints::boost(int32_t durationMs) {
-    if (durationMs <= 0) durationMs = DEFAULT_BOOST_MS;
+void CameraHints::launch() {
+    burst(LAUNCH_MS);
+}
 
+void CameraHints::shot(int32_t durationMs) {
+    if (durationMs <= 0) durationMs = SHOT_DEFAULT_MS;
+    burst(std::min(durationMs, SHOT_MAX_MS));
+}
+
+void CameraHints::burst(int32_t durationMs) {
     std::lock_guard<std::mutex> lock(mLock);
     if (mSuppressed) return;
 
-    /* Up to the ceiling: an opening camera or a shot is the user waiting
-     * on the device, as much as a touch is. */
-    const uint32_t cpu = cpuCeilingKhz();
-    const uint32_t gpu = gpuCeilingKhz();
-    mBoostCpu.set(cpu != 0 ? cpu : STREAMING[HIGH].cpuKhz);
-    mBoostGpu.set(gpu != 0 ? gpu : STREAMING[HIGH].gpuKhz);
+    mBoostCpu.set(underCeiling(BURST.cpuKhz, cpuCeilingKhz()));
+    mBoostGpu.set(underCeiling(BURST.gpuKhz, gpuCeilingKhz()));
 
     /* Bursts that overlap run to the later end, never cut the earlier. */
     const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(durationMs);
