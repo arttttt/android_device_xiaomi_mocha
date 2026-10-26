@@ -33,4 +33,6 @@ service ss_status /vendor/bin/run_ss_status.sh
 
 on post-fs-data
     mkdir /data/tlk 0700 system keystore
-    mkdir /data/ss 0700 system keystore
+    # Open to the group: run_ss_status.sh runs as root in keystore, and root
+    # outside the owner and the group would need dac_read_search to get in.
+    mkdir /data/ss 0770 system keystore
