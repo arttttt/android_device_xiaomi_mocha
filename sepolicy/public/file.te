@@ -170,3 +170,6 @@ type debugfs_nvmap, fs_type, debugfs_type, mlstrustedobject;
 
 # /sys/devices/platform/bcm_ldisc/install
 type sysfs_bcm_ldisc, fs_type, sysfs_type;
+
+# /sys/devices/platform/host1x/vic03.0/acm/powergate_delay
+type sysfs_vic_powergate, fs_type, sysfs_type;

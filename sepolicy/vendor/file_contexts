@@ -317,3 +317,7 @@
 # longer has a mechanism for.
 /(vendor|system/vendor)/bin/hw/vendor\.lineage\.livedisplay@2\.0-service\.mocha     u:object_r:hal_lineage_livedisplay_default_exec:s0
 /(vendor|system/vendor)/bin/hw/vendor\.lineage\.touch@1\.0-service\.mocha           u:object_r:hal_lineage_touch_default_exec:s0
+
+# The video image compositor's powergate delay, which the composer's governor
+# starts its tuning from.
+/sys/devices/platform/host1x/vic03\.0/acm/powergate_delay	u:object_r:sysfs_vic_powergate:s0
