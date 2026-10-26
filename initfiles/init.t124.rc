@@ -96,6 +96,8 @@ on init
 service conn_wifi /system/vendor/bin/conn_init ${ro.serialno}
     class main
     user root
-    group root
+    # /data/vendor/wifi is wifi's (init.comms.rc). Root alone would need
+    # dac_read_search to write there, which no vendor domain may have.
+    group root wifi
     seclabel u:r:conn_wifi:s0
     oneshot
