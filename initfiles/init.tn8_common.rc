@@ -7,9 +7,6 @@
 #is strictly prohibited.
 
 on fs
-    setprop ro.crypto.tmpfs_options size=128m,mode=0771,uid=1000,gid=1000
-    setprop ro.crypto.umount_sd false
-    setprop ro.crypto.fuse_sdcard true
     # /vendor/etc, not /, because the ramdisk root is gone by now: first stage
     # init mounts /system and switch_root replaces the root this path used to
     # refer to. The ramdisk copy still exists and is still needed -- it is what
