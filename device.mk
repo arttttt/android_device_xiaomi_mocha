@@ -173,9 +173,10 @@ PRODUCT_PACKAGES += \
 # The file below is that configuration with /system/${LIB} added to the sphal
 # search paths. It is only a source: init bind-mounts it over the copy inside
 # the APEX, because the loader looks nowhere else. See configs/ld.config.txt
-# for the reasoning and initfiles/init.tegra.rc for the mount.
+# for the reasoning and configs/swcodec.rc for the mount.
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/configs/ld.config.txt:$(TARGET_COPY_OUT_SYSTEM)/etc/swcodec/ld.config.txt
+    $(LOCAL_PATH)/configs/ld.config.txt:$(TARGET_COPY_OUT_SYSTEM)/etc/swcodec/ld.config.txt \
+    $(LOCAL_PATH)/configs/swcodec.rc:$(TARGET_COPY_OUT_SYSTEM)/etc/init/swcodec.rc
 
 # Graphics shim
 PRODUCT_PACKAGES += libs \

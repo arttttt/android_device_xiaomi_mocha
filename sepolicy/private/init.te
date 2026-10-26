@@ -64,7 +64,7 @@ r_dir_file(init, proc_dt_firmware_android)
 # The platform's init.rc sets the alignment fault handling on 32-bit ARM.
 allow init proc_cpu_alignment:file w_file_perms;
 
-# init.tegra.rc binds the board's linker configuration over the one inside
-# the swcodec APEX; see the note there. The platform lets init mount on
+# swcodec.rc binds the board's linker configuration over the one inside the
+# swcodec APEX; see the note there. The platform lets init mount on
 # directories only, and this mount point is a file.
 allow init system_file:file mounton;
