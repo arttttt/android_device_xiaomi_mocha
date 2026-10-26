@@ -56,3 +56,11 @@ allow init proc_wmem_max_writable:file rw_file_perms;
 # init chowns the backlight's brightness to system (init.rc, init.tegra.rc)
 # and the eMMC's I/O scheduler (LineageOS's lineage-iosched.rc).
 allow init { sysfs_nvi2c sysfs_pwm_backlight sysfs_mmc_host }:file setattr;
+
+# The platform's init.rc sets the alignment fault handling on 32-bit ARM.
+allow init proc_cpu_alignment:file w_file_perms;
+
+# init.tegra.rc binds the board's linker configuration over the one inside
+# the swcodec APEX; see the note there. The platform lets init mount on
+# directories only, and this mount point is a file.
+allow init system_file:file mounton;

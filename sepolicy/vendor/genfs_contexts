@@ -24,3 +24,16 @@ genfscon debugfs /nvmap/handles_by_pid		u:object_r:debugfs_nvmap:s0
 # The power.stats HAL's GPU residency. The rest of /sys/power is the
 # platform's, and plain sysfs.
 genfscon sysfs /power/tegra_rail_stats		u:object_r:sysfs_rail_stats:s0
+
+# The platform labels /proc/cpu/alignment from T on; S leaves it plain proc,
+# and its own init.rc writes it.
+genfscon proc /cpu/alignment			u:object_r:proc_cpu_alignment:s0
+
+# init.tn8.rc sets how much of the lower zone is kept from the higher one.
+genfscon proc /sys/vm/lowmem_reserve_ratio	u:object_r:proc_lowmem_reserve_ratio:s0
+
+# fs_mgr looks for the fstab in the device tree, and on a kernel this old the
+# tree is under /proc rather than /sys/firmware. Labelled as the platform
+# labels the same node on newer kernels, so ueventd and init read it as they
+# would there.
+genfscon proc /device-tree/firmware/android	u:object_r:sysfs_dt_firmware_android:s0

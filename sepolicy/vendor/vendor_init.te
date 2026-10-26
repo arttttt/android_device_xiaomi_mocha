@@ -48,3 +48,6 @@ allow vendor_init sensors_vendor_data_file:dir { create search getattr setattr }
 # init.tn8.rc makes /data/vendor/camera, where the camera HAL keeps what it
 # keeps between its runs.
 allow vendor_init camera_vendor_data_file:dir { create search getattr setattr };
+
+# init.tn8.rc writes /proc/sys/vm/lowmem_reserve_ratio.
+allow vendor_init proc_lowmem_reserve_ratio:file w_file_perms;

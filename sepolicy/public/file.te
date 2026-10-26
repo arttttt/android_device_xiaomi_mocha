@@ -171,5 +171,12 @@ type debugfs_nvmap, fs_type, debugfs_type, mlstrustedobject;
 # /sys/devices/platform/bcm_ldisc/install
 type sysfs_bcm_ldisc, fs_type, sysfs_type;
 
+# /proc/cpu/alignment, which the platform's init.rc sets on 32-bit ARM. S has
+# no type for it; later platforms do, under this name.
+type proc_cpu_alignment, fs_type, proc_type;
+
+# /proc/sys/vm/lowmem_reserve_ratio
+type proc_lowmem_reserve_ratio, fs_type, proc_type;
+
 # /sys/devices/platform/host1x/vic03.0/acm/powergate_delay
 type sysfs_vic_powergate, fs_type, sysfs_type;
