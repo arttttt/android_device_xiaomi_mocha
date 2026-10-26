@@ -16,9 +16,10 @@
 # nominal voltage. power.mocha.rc acts on it; the system side will set it.
 system_restricted_prop(undervoltage_prop)
 
-# persist.tegra.compression and persist.tegra.decompression: render
-# compression off (system_prop.mk), which gralloc.nvgpu reads wherever it is
-# loaded -- the allocator, and the mapper in every process that touches a
-# buffer, system or vendor. Set from the system build.prop, read by both
+# The switches NVIDIA's user-space drivers read wherever they are loaded --
+# the allocator, the composer, and the mapper in every process that touches
+# a buffer, system or vendor: persist.tegra.* (render compression is set off
+# in system_prop.mk; the rest are left unset), persist.sys.tegra.* and
+# persist.mocha.gralloc.*. Set from the system build.prop, read by both
 # sides: public.
-system_public_prop(gralloc_compression_prop)
+system_public_prop(tegra_driver_prop)

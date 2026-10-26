@@ -27,3 +27,6 @@ allow_use_phs(mediacodec)
 # decoder, and the codec service talks to it through a node of its own. It was
 # reaching the service as a generic device.
 allow mediacodec avpchannel_device:chr_file rw_file_perms;
+
+# The display's refresh rate, which the decoders pace by.
+get_prop(mediacodec, vrr_prop)

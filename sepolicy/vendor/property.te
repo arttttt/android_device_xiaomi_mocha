@@ -20,8 +20,14 @@ vendor_internal_prop(mediacodec_prop)
 vendor_internal_prop(thermal_prop)
 vendor_internal_prop(phs_prop)
 
-# for sys.vrr.min-refr-per-ns
+# for sys.vrr.min-refr-per-ns, and the refresh rate ussrd and the codecs
+# read back: sys.sf.vrr.active, sys.tegra.refresh and tegra.refresh
 vendor_internal_prop(vrr_prop)
+
+# The camera HAL's switches, persist.camera.*, and the sizes the camera
+# provider gives its request and result queues, ro.camera.{req,res}.fmq.size.
+# All are left unset; without a type they read as default_prop.
+vendor_internal_prop(camera_hal_prop)
 
 # For sys.perf.profile
 vendor_internal_prop(perf_profile_prop)
@@ -54,3 +60,8 @@ vendor_internal_prop(usb_rndis_prop)
 # leave rfkill alone. Nothing sets it; it reads unset, and without a type of
 # its own the read fell to default_prop, which brcm_uim may not read.
 vendor_internal_prop(rfkill_uim_prop)
+
+# init.svc.ussr_setup: ussrd waits for ussr_setup to have run, and asks init's
+# own record of it. The platform keeps init.svc.* from vendor domains, and the
+# name is fixed in the binary.
+vendor_internal_prop(ussr_setup_status_prop)

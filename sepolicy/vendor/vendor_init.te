@@ -51,3 +51,15 @@ allow vendor_init camera_vendor_data_file:dir { create search getattr setattr };
 
 # init.tn8.rc writes /proc/sys/vm/lowmem_reserve_ratio.
 allow vendor_init proc_lowmem_reserve_ratio:file w_file_perms;
+
+# init.tlk.rc makes the trusted OS's /data/tlk and /data/ss, and
+# init.ussrd.rc PHS's /data/misc/phs.
+allow vendor_init { tee_data_file phsd_data }:dir { create search getattr setattr };
+
+# power.mocha.rc sets the image compositor's load target, which lives in
+# debugfs.
+allow vendor_init debugfs_vic_scaling:file w_file_perms;
+
+# init.tegra.rc binds the swcodec linker configuration once apexd says the
+# APEXes are mounted, so its trigger reads apexd.status.
+get_prop(vendor_init, apexd_prop)

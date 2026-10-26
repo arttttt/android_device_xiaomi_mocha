@@ -83,3 +83,9 @@ allow ussrd self:capability sys_nice;
 # netlink access
 allow ussrd self:capability net_admin;
 allow ussrd self:netlink_socket { create_socket_perms_no_ioctl listen accept };
+
+# PHS's tuning, unset; ussrd reads it at start.
+get_prop(ussrd, phs_prop)
+
+# Whether ussr_setup has run; see property.te.
+get_prop(ussrd, ussr_setup_status_prop)

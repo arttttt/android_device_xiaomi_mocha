@@ -261,6 +261,7 @@
 
 # emc load stats
 /sys/kernel/debug/tegra_actmon/emc/avg_activity	u:object_r:debugfs_emc_load:s0
+/sys/kernel/debug/vic03\.0_scaling/load_target	u:object_r:debugfs_vic_scaling:s0
 
 # UART debug port for reading current buffer count
 /sys/kernel/debug/(.*)\.serial/tty_buffer_count	u:object_r:debugfs_serial_ttybuffercount:s0

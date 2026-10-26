@@ -85,3 +85,8 @@ allow system_server sysfs_gpu_power_knobs:file rw_file_perms;
 # limitations under the License.
 
 allow system_server sysfs_smartdimmer:file rw_file_perms;
+
+# On a board that is not full treble, Build.isBuildConsistent() compares the
+# boot image's fingerprint with the system's (ActivityTaskManagerService at
+# boot), and the platform grants that read only to the shell.
+get_prop(system_server, build_bootimage_prop)

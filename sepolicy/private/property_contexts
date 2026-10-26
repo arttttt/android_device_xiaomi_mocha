@@ -1,6 +1,10 @@
-# Render compression, off; see public/property.te.
-persist.tegra.compression       u:object_r:gralloc_compression_prop:s0 exact int
-persist.tegra.decompression     u:object_r:gralloc_compression_prop:s0 exact string
+# NVIDIA's driver switches; see public/property.te. Render compression is
+# the one set, off.
+persist.tegra.compression       u:object_r:tegra_driver_prop:s0 exact int
+persist.tegra.decompression     u:object_r:tegra_driver_prop:s0 exact string
+persist.tegra.                  u:object_r:tegra_driver_prop:s0
+persist.sys.tegra.              u:object_r:tegra_driver_prop:s0
+persist.mocha.gralloc.          u:object_r:tegra_driver_prop:s0
 
 # The undervolt switch; see public/property.te.
 sys.perf.undervoltage           u:object_r:undervoltage_prop:s0 exact bool

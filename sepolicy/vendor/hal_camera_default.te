@@ -26,3 +26,6 @@ allow hal_camera_default camera_vendor_data_file:file create_file_perms;
 # the AIDL IPower, which is registered with servicemanager on /dev/binder.
 hal_client_domain(hal_camera_default, hal_power)
 binder_use(hal_camera_default)
+
+# Its own switches and the provider's queue sizes; see property.te.
+get_prop(hal_camera_default, camera_hal_prop)

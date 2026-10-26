@@ -46,3 +46,25 @@ ro.vendor.usb.rndis.dev_addr     u:object_r:usb_rndis_prop:s0 exact string
 
 # Read by brcm-uim-sysfs; see vendor/property.te.
 ro.rfkilldisabled.uim            u:object_r:rfkill_uim_prop:s0 exact bool
+
+# The refresh rate as ussrd and the codecs read it; see property.te.
+sys.sf.vrr.active                u:object_r:vrr_prop:s0
+sys.tegra.refresh                u:object_r:vrr_prop:s0
+tegra.refresh                    u:object_r:vrr_prop:s0
+
+# PHS's tuning, which ussrd reads and nothing sets.
+persist.sys.phs.                 u:object_r:phs_prop:s0
+persist.sys.NV_POWER_MODE        u:object_r:phs_prop:s0
+
+# The camera HAL's switches; see property.te.
+persist.camera.                  u:object_r:camera_hal_prop:s0
+ro.camera.req.fmq.size           u:object_r:camera_hal_prop:s0 exact int
+ro.camera.res.fmq.size           u:object_r:camera_hal_prop:s0 exact int
+
+# The platform's audio policy asks whether Qualcomm's voice activation is
+# there. Unset, it read as vendor_default_prop, which audioserver may not
+# read; the platform's own audio settings are audio_config_prop.
+ro.vendor.qti.va_aosp.support    u:object_r:audio_config_prop:s0 exact bool
+
+# ussr_setup's state as init records it; see property.te.
+init.svc.ussr_setup              u:object_r:ussr_setup_status_prop:s0 exact string
