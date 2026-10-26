@@ -16,9 +16,6 @@ allow dumpstate self:capability sys_admin;
 
 allow dumpstate gatekeeper_service:service_manager find;
 
-# Allow dumpstate read permissions to edid modedb
-r_dir_file(dumpstate, hwc_data_file);
-
 # Allow dumpstate to read and write to sysfs_mmc_host
 r_dir_file(dumpstate, sysfs_mmc_host);
 allow dumpstate sysfs_mmc_host:file w_file_perms;

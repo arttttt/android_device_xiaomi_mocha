@@ -116,9 +116,6 @@ type sysfs_tegra_gpu, fs_type, sysfs_type;
 # Tegra emc info
 type sysfs_tegra_emc, fs_type, sysfs_type;
 
-# /data/misc/hwc(/.*)
-type hwc_data_file, file_type, data_file_type, core_data_file_type;
-
 # /data/vendor/sensors: the sensor hub's calibration as our own HAL keeps it
 # -- the gyroscope's and magnetometer's state the hub learns, and the
 # accelerometer's calibration the settings write

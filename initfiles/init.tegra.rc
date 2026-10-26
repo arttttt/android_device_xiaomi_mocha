@@ -37,15 +37,8 @@ on init
     start watchdogd
 
 on post-fs-data
-    mkdir /data/misc/dhcp 0770 dhcp dhcp
-    mkdir /data/misc/hwc 0771 system graphics
-    chown dhcp dhcp /data/misc/dhcp
-
     # Set indication (checked by vold) that we have finished this action
     setprop vold.post_fs_data_done 1
-
-    # create directory for mediaserver EGL blob cache
-    mkdir /data/misc/mediaserver 0770 media media
 
 on boot
 

@@ -159,7 +159,6 @@
 # mediaserver EGL blob cache
 /data/misc/mediaserver(/.*)?		u:object_r:media_data_file:s0
 # HWComposer data
-/data/misc/hwc(/.*)?			u:object_r:hwc_data_file:s0
 # The sensor hub's calibration, as our own sensors HAL keeps it
 /data/vendor/sensors(/.*)?		u:object_r:sensors_vendor_data_file:s0
 # What the camera HAL keeps between its runs
