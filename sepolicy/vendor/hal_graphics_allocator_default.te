@@ -28,3 +28,18 @@
 # So the denials are the fallback working as designed, and the file exists
 # so that the next person counting them does not write the rule and find out
 # the hard way.
+
+# gralloc.nvgpu keeps each buffer's shared metadata in a memfd of its own,
+# made by the allocator (nvgralloc-shared) and so labelled with its tmpfs
+# type, and every process that maps the buffer maps that file too: whoever
+# draws, the composer and surfaceflinger. AOSP's own platform keeps the
+# metadata in the dma-buf and grants nothing like this; device/linaro's
+# dragonboard, whose gralloc does the same as this one, grants it to the
+# same clients. map is checked from 4.13 on, not by this kernel.
+allow {
+  appdomain
+  bootanim
+  hal_graphics_composer_server
+  surfaceflinger
+  system_server
+} hal_graphics_allocator_default_tmpfs:file { getattr read write map };
