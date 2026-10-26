@@ -33,7 +33,11 @@ r_dir_file({
 # the probe -- and then uses the path unresolved, which is already the real
 # one. Nothing is lost; only the probe is kept out of the log. audit_access
 # silences access() alone: an actual open or read is still reported.
-dontaudit domain zygote_exec:file audit_access;
+#
+# While permissive the probe passes, and the linker goes on to realpath(),
+# whose lstat() is a getattr on the same file. Nothing reads the file there
+# either, so that is kept out of the log too.
+dontaudit domain zygote_exec:file { audit_access getattr };
 
 # Allow domains to search and create core files
 #userdebug_or_eng(`
