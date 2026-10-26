@@ -21,3 +21,10 @@ r_dir_file({
   mediacodec
   ussrd
 }, sysfs_tegra_info)
+
+# nvmap gives each process that opens it a file under handles_by_pid, made by
+# the driver while it runs in that process, so the lookup the creation does is
+# made as that process. The platform lets every domain search debugfs for the
+# same reason (public/domain.te); the directory carries a label of its own here
+# only so that the memtrack HAL alone can read the files.
+allow domain debugfs_nvmap:dir search;
