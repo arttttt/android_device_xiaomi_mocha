@@ -57,6 +57,10 @@ allow init proc_wmem_max_writable:file rw_file_perms;
 # and the eMMC's I/O scheduler (LineageOS's lineage-iosched.rc).
 allow init { sysfs_nvi2c sysfs_pwm_backlight sysfs_mmc_host }:file setattr;
 
+# fs_mgr reads the device tree's fstab node, which the platform lets init
+# read under its sysfs label on newer kernels.
+r_dir_file(init, proc_dt_firmware_android)
+
 # The platform's init.rc sets the alignment fault handling on 32-bit ARM.
 allow init proc_cpu_alignment:file w_file_perms;
 

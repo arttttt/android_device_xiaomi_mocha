@@ -175,6 +175,9 @@ type sysfs_bcm_ldisc, fs_type, sysfs_type;
 # no type for it; later platforms do, under this name.
 type proc_cpu_alignment, fs_type, proc_type;
 
+# /proc/device-tree/firmware/android
+type proc_dt_firmware_android, fs_type, proc_type;
+
 # /proc/sys/vm/lowmem_reserve_ratio
 type proc_lowmem_reserve_ratio, fs_type, proc_type;
 

@@ -25,3 +25,7 @@ allow ueventd sysfs_nvi2c:file rw_file_perms;
 allow ueventd tegradc_device:file rw_file_perms;
 allow ueventd sysfs_mmc_host:file rw_file_perms;
 r_dir_file(ueventd, sysfs_mmc_host)
+
+# fs_mgr looks for the boot devices in the device tree's fstab node, which
+# the platform lets ueventd read under its sysfs label on newer kernels.
+r_dir_file(ueventd, proc_dt_firmware_android)
