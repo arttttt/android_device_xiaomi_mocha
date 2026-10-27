@@ -32,6 +32,8 @@
     <string name="fmt_mah">%.0f мА·ч</string>
     <string name="fmt_wh">%.3f Вт·ч</string>
     <string name="fmt_mhz">%.0f МГц</string>
+    <string name="fmt_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="fmt_minutes">%d мин</string>
     <string name="fmt_mb">%.0f МБ</string>
     <string name="fmt_gb">%.0f ГБ</string>
     <string name="fmt_hz">%.2f Гц</string>
@@ -50,6 +52,7 @@
     <string name="tile_gpu">Графика</string>
     <string name="tile_temperature">Температура</string>
     <string name="tile_memory">Память</string>
+    <string name="tile_cpu_lp">LP-ядро · %1$s</string>
     <string name="tile_gpu_sub">загрузка %1$s · %2$s</string>
     <string name="tile_temperature_sub">%1$s · самая горячая зона</string>
     <string name="tile_memory_sub">свободно из %1$s · zram %2$s</string>
@@ -100,7 +103,21 @@
     <string name="section_cpu">Процессор</string>
     <string name="core">Ядро %d</string>
     <string name="core_offline">выкл.</string>
-    <string name="cpu_range">%1$s–%2$s · самое занятое ядро, последняя минута</string>
+    <string name="core_lp">LP-ядро</string>
+    <string name="cluster_g">Кластер G</string>
+    <string name="cluster_lp">LP-ядро</string>
+    <string name="cluster_g_on">4 × A15 · работает</string>
+    <string name="cluster_g_off">4 × A15 · обесточен</string>
+    <string name="cluster_lp_on">1 × A15 · работает</string>
+    <string name="cluster_lp_off">1 × A15 · обесточено</string>
+    <string name="cluster_time">Время в кластерах</string>
+    <string name="cluster_time_value">G %1$s · LP %2$s</string>
+    <plurals name="cluster_switches">
+        <item quantity="one">%d переключение</item>
+        <item quantity="few">%d переключения</item>
+        <item quantity="many">%d переключений</item>
+        <item quantity="other">%d переключения</item>
+    </plurals>
     <string name="section_gpu">Графика</string>
     <string name="gpu_sub">из %1$s · загрузка %2$s</string>
     <string name="gpu_rail_off">питание выкл.</string>

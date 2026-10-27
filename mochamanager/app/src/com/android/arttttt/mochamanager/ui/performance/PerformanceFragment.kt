@@ -58,7 +58,14 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
         val spark: SparklineView = root.findViewById<SparklineView>(R.id.cpu_spark).apply {
             periodMs = PerformanceViewModel.PERIOD_MS
         }
-        val range: TextView = root.findViewById(R.id.cpu_range)
+        val clusterG: View = root.findViewById(R.id.cluster_g)
+        val clusterGState: TextView = root.findViewById(R.id.cluster_g_state)
+        val clusterLp: View = root.findViewById(R.id.cluster_lp)
+        val clusterLpState: TextView = root.findViewById(R.id.cluster_lp_state)
+        val clusterTime: View = root.findViewById(R.id.cluster_time)
+        val clusterTimeValue: TextView = root.findViewById(R.id.cluster_time_value)
+        val clusterTimeBar: LinearProgressIndicator = root.findViewById(R.id.cluster_time_bar)
+        val clusterSwitches: TextView = root.findViewById(R.id.cluster_switches)
         val gpu = Tile(root, R.id.tile_gpu, R.string.section_gpu)
         val emc = Tile(root, R.id.tile_emc, R.string.section_emc)
         val temps: GridLayout = root.findViewById(R.id.temps)
@@ -97,6 +104,7 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
         val u = v.units
         v.root.subtitle(getString(R.string.performance_subtitle, s.cluster))
         renderCores(v, s)
+        renderClusters(v, s)
         /* On the cores' own range, so the scale seldom moves: only to take in
          * a minute-old clock above a ceiling since lowered. */
         val ceiling = s.cores.maxOfOrNull { it.maxKhz }?.takeIf { it > 0 }?.toFloat()
@@ -129,29 +137,43 @@ class PerformanceFragment : Fragment(R.layout.fragment_performance) {
 
     private fun renderCores(v: Views, s: Snapshot) {
         val u = v.units
-        if (v.coreViews.size != s.cores.size) {
+        /* On LP the G cores are not off but gone, cluster and all: the one
+         * core there is runs as core 0. */
+        val cores = if (s.onLp) s.cores.take(1) else s.cores
+        if (v.coreViews.size != cores.size) {
             v.cores.removeAllViews()
             v.coreViews.clear()
-            for (c in s.cores) {
+            for (c in cores) {
                 val row = layoutInflater.inflate(R.layout.item_core, v.cores, false)
                 v.cores.addView(row)
                 v.coreViews.add(Core(row.findViewById(R.id.core_name), row.findViewById(R.id.core_bar),
                         row.findViewById(R.id.core_value)))
             }
         }
-        for ((i, c) in s.cores.withIndex()) {
+        for ((i, c) in cores.withIndex()) {
             val core = v.coreViews[i]
-            core.name.text = getString(R.string.core, c.id)
+            core.name.text = if (s.onLp) getString(R.string.core_lp) else getString(R.string.core, c.id)
             core.bar.fill(c.load.toDouble())
             if (c.online) core.value.roll(c.curKhz.toDouble()) { u.mhz(it) }
             else core.value.settle(getString(R.string.core_offline))
         }
-        val online = s.cores.filter { it.online }
-        online.firstOrNull()?.let { v.cpuTitle.aside.chip(it.governor, null) }
-        if (online.isNotEmpty()) {
-            v.range.text = getString(R.string.cpu_range, u.mhz(online.minOf { it.minKhz }.toDouble()),
-                    u.mhz(online.maxOf { it.maxKhz }.toDouble()))
-        }
+        s.cores.firstOrNull { it.online }?.let { v.cpuTitle.aside.chip(it.governor, null) }
+    }
+
+    /* Which cluster runs, and how long each has, when the kernel counts it. */
+    private fun renderClusters(v: Views, s: Snapshot) {
+        v.clusterG.setBackgroundResource(if (s.onLp) R.drawable.bg_plate else R.drawable.bg_plate_on)
+        v.clusterLp.setBackgroundResource(if (s.onLp) R.drawable.bg_plate_on else R.drawable.bg_plate)
+        v.clusterGState.setText(if (s.onLp) R.string.cluster_g_off else R.string.cluster_g_on)
+        v.clusterLpState.setText(if (s.onLp) R.string.cluster_lp_on else R.string.cluster_lp_off)
+
+        val t = s.clusterTime
+        v.clusterTime.visibility = if (t == null) View.GONE else View.VISIBLE
+        if (t == null) return
+        v.clusterTimeValue.text = getString(R.string.cluster_time_value,
+                v.units.duration(t.gMs), v.units.duration(t.lpMs))
+        v.clusterTimeBar.fill(1.0 - t.lpShare)
+        v.clusterSwitches.text = resources.getQuantityString(R.plurals.cluster_switches, t.switches, t.switches)
     }
 
     /* A tile per zone, three to a row, coloured by how hot it runs. */

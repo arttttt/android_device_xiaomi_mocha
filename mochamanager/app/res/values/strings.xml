@@ -38,6 +38,8 @@
     <string name="fmt_mah">%.0f mAh</string>
     <string name="fmt_wh">%.3f Wh</string>
     <string name="fmt_mhz">%.0f MHz</string>
+    <string name="fmt_hours_minutes">%1$d h %2$d min</string>
+    <string name="fmt_minutes">%d min</string>
     <string name="fmt_celsius">%.1f °C</string>
     <string name="fmt_degrees_short">%.1f°</string>
     <string name="fmt_percent">%.0f %%</string>
@@ -63,6 +65,7 @@
     <string name="tile_gpu">Graphics</string>
     <string name="tile_temperature">Temperature</string>
     <string name="tile_memory">Memory</string>
+    <string name="tile_cpu_lp">LP core · %1$s</string>
     <string name="tile_gpu_sub">load %1$s · %2$s</string>
     <string name="tile_temperature_sub">%1$s · the hottest zone</string>
     <string name="tile_memory_sub">free of %1$s · zram %2$s</string>
@@ -115,7 +118,19 @@
     <string name="section_cpu">Processor</string>
     <string name="core">Core %d</string>
     <string name="core_offline">offline</string>
-    <string name="cpu_range">%1$s–%2$s · the busiest core, last minute</string>
+    <string name="core_lp">LP core</string>
+    <string name="cluster_g">G cluster</string>
+    <string name="cluster_lp">LP core</string>
+    <string name="cluster_g_on">4 × A15 · running</string>
+    <string name="cluster_g_off">4 × A15 · powered off</string>
+    <string name="cluster_lp_on">1 × A15 · running</string>
+    <string name="cluster_lp_off">1 × A15 · powered off</string>
+    <string name="cluster_time">Time on the clusters</string>
+    <string name="cluster_time_value">G %1$s · LP %2$s</string>
+    <plurals name="cluster_switches">
+        <item quantity="one">%d switch</item>
+        <item quantity="other">%d switches</item>
+    </plurals>
     <string name="section_gpu">Graphics</string>
     <string name="gpu_sub">of %1$s · load %2$s</string>
     <string name="gpu_rail_off">power gated</string>

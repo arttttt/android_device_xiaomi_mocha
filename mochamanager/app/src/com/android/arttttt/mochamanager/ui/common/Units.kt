@@ -50,4 +50,11 @@ class Units(private val context: Context) {
     fun microtesla(value: Double) = s(R.string.fmt_microtesla, value)
     fun ms2(value: Double) = s(R.string.fmt_ms2, value)
     fun angle(value: Double) = s(R.string.fmt_angle, value)
+
+    /* A span to the minute: "3 h 12 min", "41 min". */
+    fun duration(ms: Long): String {
+        val minutes = ms / 60_000
+        return if (minutes >= 60) s(R.string.fmt_hours_minutes, minutes / 60, minutes % 60)
+        else s(R.string.fmt_minutes, minutes)
+    }
 }

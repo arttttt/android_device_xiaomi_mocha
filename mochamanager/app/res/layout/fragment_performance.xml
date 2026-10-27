@@ -53,12 +53,102 @@
                     android:layout_height="44dp"
                     android:layout_marginTop="12dp" />
 
-                <TextView
-                    android:id="@+id/cpu_range"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textAppearance="@style/TextAppearance.MochaManager.Sub" />
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/cluster_g"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_plate"
+                        android:orientation="vertical"
+                        android:padding="10dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/cluster_g"
+                            android:textAppearance="@style/TextAppearance.MochaManager.Value" />
+
+                        <TextView
+                            android:id="@+id/cluster_g_state"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="@style/TextAppearance.MochaManager.Sub" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/cluster_lp"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_plate"
+                        android:orientation="vertical"
+                        android:padding="10dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/cluster_lp"
+                            android:textAppearance="@style/TextAppearance.MochaManager.Value" />
+
+                        <TextView
+                            android:id="@+id/cluster_lp_state"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="@style/TextAppearance.MochaManager.Sub" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Only while the kernel counts it. -->
+                <LinearLayout
+                    android:id="@+id/cluster_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/cluster_time"
+                            android:textAppearance="@style/TextAppearance.MochaManager.Sub" />
+
+                        <TextView
+                            android:id="@+id/cluster_time_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="@style/TextAppearance.MochaManager.Value" />
+                    </LinearLayout>
+
+                    <!-- The G cluster's part fills, the LP core's is the track. -->
+                    <com.google.android.material.progressindicator.LinearProgressIndicator
+                        android:id="@+id/cluster_time_bar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:max="1000"
+                        app:trackColor="@color/good" />
+
+                    <TextView
+                        android:id="@+id/cluster_switches"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textAppearance="@style/TextAppearance.MochaManager.Sub" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

@@ -133,8 +133,11 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     private fun renderSnapshot(v: Views, s: Snapshot) {
         val u = v.units
         v.cpu.value.roll(s.busiestKhz.toDouble()) { u.mhz(it) }
-        v.cpu.bars.submit(FloatArray(s.cores.size) { s.cores[it].load })
-        v.cpu.sub.text = s.cores.firstOrNull { it.online }?.governor ?: ""
+        /* On LP the one core there is, as the performance screen shows it. */
+        val cores = if (s.onLp) s.cores.take(1) else s.cores
+        v.cpu.bars.submit(FloatArray(cores.size) { cores[it].load })
+        val governor = s.cores.firstOrNull { it.online }?.governor ?: ""
+        v.cpu.sub.text = if (s.onLp) getString(R.string.tile_cpu_lp, governor) else governor
 
         v.gpu.value.roll(s.gpu.curHz.toDouble()) { u.mhzOfHz(it) }
         v.gpu.bar.fill(s.gpu.loadPermille / 1000.0)
