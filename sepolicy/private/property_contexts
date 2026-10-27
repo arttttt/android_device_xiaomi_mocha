@@ -7,6 +7,7 @@ persist.sys.tegra.              u:object_r:tegra_driver_prop:s0
 persist.mocha.gralloc.          u:object_r:tegra_driver_prop:s0
 nvrm.memmgr.vbose               u:object_r:tegra_driver_prop:s0 exact string
 nvlog.                          u:object_r:tegra_driver_prop:s0
+nvblit.                         u:object_r:tegra_driver_prop:s0
 
 # The undervolt switch; see public/property.te.
 sys.perf.undervoltage           u:object_r:undervoltage_prop:s0 exact bool

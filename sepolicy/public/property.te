@@ -20,8 +20,9 @@ system_restricted_prop(undervoltage_prop)
 # the allocator, the composer, and the mapper in every process that touches
 # a buffer, system or vendor: persist.tegra.* (render compression is set off
 # in system_prop.mk; the rest are left unset), persist.sys.tegra.*,
-# persist.mocha.gralloc.*, and the logging switches of libnvrm and the
-# multimedia libraries, nvrm.memmgr.vbose and nvlog.*. Set from the system build.prop, read by both
+# persist.mocha.gralloc.*, the logging switches of libnvrm and the
+# multimedia libraries, nvrm.memmgr.vbose and nvlog.*, and the blitter's,
+# nvblit.*. Set from the system build.prop, read by both
 # sides: public.
 system_public_prop(tegra_driver_prop)
 
