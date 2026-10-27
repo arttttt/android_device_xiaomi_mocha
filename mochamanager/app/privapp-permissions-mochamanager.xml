@@ -20,5 +20,8 @@
         <permission name="android.permission.READ_PRIVILEGED_PHONE_STATE" />
         <!-- min_refresh_rate and peak_refresh_rate, which are not public. -->
         <permission name="android.permission.WRITE_SECURE_SETTINGS" />
+        <!-- Every process's log lines, and the drop box's records of crashes. -->
+        <permission name="android.permission.PACKAGE_USAGE_STATS" />
+        <permission name="android.permission.READ_LOGS" />
     </privapp-permissions>
 </permissions>

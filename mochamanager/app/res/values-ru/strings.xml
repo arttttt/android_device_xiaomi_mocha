@@ -21,6 +21,7 @@
     <string name="tab_sensors">Датчики</string>
     <string name="title_performance">Производительность</string>
     <string name="tab_display">Экран</string>
+    <string name="tab_logs">Логи</string>
 
     <string name="service_unavailable">Служба планшета не отвечает.</string>
     <string name="change_failed">Не удалось изменить.</string>
@@ -206,4 +207,28 @@
     <string name="refresh_30">Всегда 30 Гц</string>
     <string name="refresh_30_sub">Для чтения: экономно, но анимации заметно дёргаются.</string>
     <string name="refresh_failed">Не удалось изменить настройку.</string>
+    <!-- Logs -->
+    <string name="logs_subtitle">сборка %1$s · ядро %2$s</string>
+    <string name="log_search">Поиск</string>
+    <string name="log_live">● идёт поток</string>
+    <string name="log_paused">пауза</string>
+    <string name="log_pause">Пауза</string>
+    <string name="log_resume">Продолжить</string>
+    <string name="log_export">Выгрузить ZIP</string>
+    <string name="archive_title">Архив логов</string>
+    <string name="archive_system">logcat — все буферы</string>
+    <string name="archive_kernel">dmesg</string>
+    <string name="archive_last">Прошлая загрузка (pstore)</string>
+    <string name="archive_last_sub">если она закончилась сбоем</string>
+    <string name="archive_crashes">Сбои и ANR</string>
+    <string name="archive_crashes_sub">последние 5 каждого вида</string>
+    <string name="archive_device">Сведения о планшете</string>
+    <string name="archive_device_sub">сборка, ядро, процессор, питание</string>
+    <string name="archive_redact">Скрыть серийный номер и MAC-адреса</string>
+    <string name="archive_redact_sub">Аккаунты и имена сетей могут остаться в логах — проверьте перед отправкой.</string>
+    <string name="archive_collecting">Собираю архив…</string>
+    <string name="archive_downloads">В Загрузки</string>
+    <string name="archive_share">Поделиться</string>
+    <string name="archive_saved">Архив сохранён в Загрузки</string>
+    <string name="archive_failed">Не удалось собрать архив</string>
 </resources>

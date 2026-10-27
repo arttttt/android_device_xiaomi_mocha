@@ -21,6 +21,9 @@
     android:versionName="1.0">
 
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- PACKAGE_USAGE_STATS with READ_LOGS opens the drop box. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <uses-permission android:name="android.permission.READ_LOGS" />
     <uses-permission android:name="android.permission.READ_PRIVILEGED_PHONE_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
@@ -40,6 +43,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The log archives, handed to whatever they are shared with. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.android.arttttt.mochamanager.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 </manifest>

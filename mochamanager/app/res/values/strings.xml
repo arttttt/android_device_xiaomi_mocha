@@ -23,6 +23,7 @@
     <string name="tab_sensors">Sensors</string>
     <string name="title_performance">Performance</string>
     <string name="tab_display">Display</string>
+    <string name="tab_logs">Logs</string>
 
     <string name="loading">…</string>
     <string name="unknown">—</string>
@@ -225,4 +226,28 @@
     <string name="refresh_30">Always 30 Hz</string>
     <string name="refresh_30_sub">For reading: frugal, though animation visibly stutters.</string>
     <string name="refresh_failed">The setting could not be changed.</string>
+    <!-- Logs -->
+    <string name="logs_subtitle">build %1$s · kernel %2$s</string>
+    <string name="log_search">Search</string>
+    <string name="log_live">● live</string>
+    <string name="log_paused">paused</string>
+    <string name="log_pause">Pause</string>
+    <string name="log_resume">Resume</string>
+    <string name="log_export">Export ZIP</string>
+    <string name="archive_title">Log archive</string>
+    <string name="archive_system">logcat, every buffer</string>
+    <string name="archive_kernel">dmesg</string>
+    <string name="archive_last">The previous boot (pstore)</string>
+    <string name="archive_last_sub">if it ended in a crash</string>
+    <string name="archive_crashes">Crashes and ANRs</string>
+    <string name="archive_crashes_sub">the last 5 of each kind</string>
+    <string name="archive_device">About the tablet</string>
+    <string name="archive_device_sub">build, kernel, processor, power</string>
+    <string name="archive_redact">Hide the serial number and MAC addresses</string>
+    <string name="archive_redact_sub">Accounts and network names may stay in the logs: look before sending.</string>
+    <string name="archive_collecting">Collecting the archive…</string>
+    <string name="archive_downloads">To Downloads</string>
+    <string name="archive_share">Share</string>
+    <string name="archive_saved">The archive is in Downloads</string>
+    <string name="archive_failed">The archive could not be made</string>
 </resources>

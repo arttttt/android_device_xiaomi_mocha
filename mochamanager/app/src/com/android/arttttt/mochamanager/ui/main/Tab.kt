@@ -19,6 +19,7 @@ package com.android.arttttt.mochamanager.ui.main
 import androidx.fragment.app.Fragment
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.ui.display.DisplayFragment
+import com.android.arttttt.mochamanager.ui.logs.LogsFragment
 import com.android.arttttt.mochamanager.ui.overview.OverviewFragment
 import com.android.arttttt.mochamanager.ui.performance.PerformanceFragment
 import com.android.arttttt.mochamanager.ui.power.PowerFragment
@@ -30,7 +31,8 @@ enum class Tab(val itemId: Int, val create: () -> Fragment) {
     POWER(R.id.tab_power, ::PowerFragment),
     PERFORMANCE(R.id.tab_performance, ::PerformanceFragment),
     SENSORS(R.id.tab_sensors, ::SensorsFragment),
-    DISPLAY(R.id.tab_display, ::DisplayFragment);
+    DISPLAY(R.id.tab_display, ::DisplayFragment),
+    LOGS(R.id.tab_logs, ::LogsFragment);
 
     val tag: String
         get() = "tab:$name"

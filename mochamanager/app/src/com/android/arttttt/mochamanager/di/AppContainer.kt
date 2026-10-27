@@ -18,7 +18,9 @@ package com.android.arttttt.mochamanager.di
 
 import android.content.Context
 import com.android.arttttt.mochamanager.data.AndroidSensorRepository
+import com.android.arttttt.mochamanager.data.ArchiveStore
 import com.android.arttttt.mochamanager.data.DisplaySettingsRepository
+import com.android.arttttt.mochamanager.data.LogcatRepository
 import com.android.arttttt.mochamanager.data.ServiceCalibrationRepository
 import com.android.arttttt.mochamanager.data.ServiceDeviceRepository
 import com.android.arttttt.mochamanager.data.ServiceMonitorRepository
@@ -26,13 +28,16 @@ import com.android.arttttt.mochamanager.data.ServicePowerRepository
 import com.android.arttttt.mochamanager.data.ServiceProfileRepository
 import com.android.arttttt.mochamanager.data.ServiceSource
 import com.android.arttttt.mochamanager.data.SystemSource
+import com.android.arttttt.mochamanager.domain.repository.ArchiveRepository
 import com.android.arttttt.mochamanager.domain.repository.CalibrationRepository
 import com.android.arttttt.mochamanager.domain.repository.DeviceRepository
 import com.android.arttttt.mochamanager.domain.repository.DisplayRepository
+import com.android.arttttt.mochamanager.domain.repository.LogRepository
 import com.android.arttttt.mochamanager.domain.repository.MonitorRepository
 import com.android.arttttt.mochamanager.domain.repository.PowerRepository
 import com.android.arttttt.mochamanager.domain.repository.ProfileRepository
 import com.android.arttttt.mochamanager.domain.repository.SensorRepository
+import com.android.arttttt.mochamanager.domain.usecase.LogArchive
 import kotlinx.coroutines.Dispatchers
 
 /*
@@ -52,4 +57,7 @@ class AppContainer(context: Context) {
     val display: DisplayRepository by lazy { DisplaySettingsRepository(app, system, Dispatchers.IO) }
     val sensors: SensorRepository by lazy { AndroidSensorRepository(app, Dispatchers.Default) }
     val calibration: CalibrationRepository by lazy { ServiceCalibrationRepository(service) }
+    val logs: LogRepository by lazy { LogcatRepository(app, Dispatchers.IO) }
+    val archives: ArchiveRepository by lazy { ArchiveStore(app, Dispatchers.IO) }
+    val logArchive: LogArchive by lazy { LogArchive(logs, device, power, monitor) }
 }
