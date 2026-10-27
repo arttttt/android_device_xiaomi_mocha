@@ -17,11 +17,9 @@ allow brcm_uim sysfs_bcm_ldisc:file rw_file_perms;
 allow brcm_uim sysfs_bluetooth_writable:dir search;
 allow brcm_uim sysfs_bluetooth_writable:file rw_file_perms;
 
-get_prop(brcm_uim, bluetooth_prop)
-get_prop(brcm_uim, exported_bluetooth_prop)
 get_prop(brcm_uim, rfkill_uim_prop)
 
-# It reads the address from persist.service.bdroid.bdaddr, a bluetooth_prop,
-# which on S only the Bluetooth HAL among vendor domains may read. Standing
-# in for that HAL until the address comes by ro.bt.bdaddr_path, a file.
-hal_server_domain(brcm_uim, hal_bluetooth)
+# The address, from the file ro.bt.bdaddr_path names, which conn_init writes.
+get_prop(brcm_uim, exported_bluetooth_prop)
+allow brcm_uim bluetooth_vendor_data_file:dir search;
+allow brcm_uim bluetooth_vendor_data_file:file r_file_perms;

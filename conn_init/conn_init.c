@@ -32,8 +32,9 @@
 #define MAC_PARTITION     "/dev/block/platform/700b0600.sdhci/by-name/BKB"
 #define MAC_PARTITION_OLD "/dev/block/platform/sdhci-tegra.3/by-name/BKB"
 
-#define BT_MAC_PROP1 "persist.service.bdroid.bdaddr"
-#define BT_MAC_PROP2 "ro.boot.btmacaddr"
+/* Named to the Bluetooth HAL and to brcm-uim-sysfs by ro.bt.bdaddr_path,
+ * which init.comms.rc sets; the directory is made there too. */
+#define BT_ADDR_DST "/data/vendor/bluetooth/bdaddr"
 
 #define RNDIS_HOST_PROP "ro.vendor.usb.rndis.host_addr"
 #define RNDIS_DEV_PROP  "ro.vendor.usb.rndis.dev_addr"
@@ -299,6 +300,33 @@ static int write_str_file(const char *path, const char *value)
  * device tree points into /data rather than at /vendor/etc, where nothing
  * could ever have created it.
  */
+/*
+ * The Bluetooth address goes out as a file, the one ro.bt.bdaddr_path names.
+ *
+ * hardware/interfaces/bluetooth/1.0/default/bluetooth_address.cc looks in
+ * three places in order: that file, then ro.boot.btmacaddr, then
+ * persist.service.bdroid.bdaddr; brcm-uim-sysfs looks at the file and then at
+ * the last property. Both read exactly the seventeen characters of
+ * "xx:xx:xx:xx:xx:xx". The properties are what this used to set, but on S
+ * they are bluetooth_prop, which no vendor domain but the Bluetooth HAL may
+ * set or read, so this service and uim had to pose as that HAL to use them.
+ * The file needs nothing of the sort.
+ *
+ * It once had to be the properties: the address used to be written into
+ * /vendor/etc, which is read-only, and the HAL found nothing and aborted with
+ * "Open: No Bluetooth Address!". /data/vendor is writable.
+ */
+static void set_bt_addr(const char *addr)
+{
+    if (write_str_file(BT_ADDR_DST, addr) != 0)
+        return;
+
+    if (chmod(BT_ADDR_DST, 0644) != 0)
+        ALOGE("%s: can't chmod %s, error: %d", TAG, BT_ADDR_DST, errno);
+
+    ALOGI("%s: bt address is in %s", TAG, BT_ADDR_DST);
+}
+
 static void set_wifi_addr(const char *addr)
 {
     if (mkdir(NVRAM_DIR, 0771) != 0 && errno != EEXIST) {
@@ -412,35 +440,7 @@ int main(int argc, char **argv)
     addr_to_str(bt, bt_str);
     addr_to_str(wifi, wifi_str);
 
-    /*
-     * The addresses are handed over as properties, not as files.
-     *
-     * This used to remount /system read-write, write both addresses into
-     * /vendor/etc, and set the properties only if that had worked. On this
-     * release it never works: /system carries /vendor and is mounted
-     * read-only, and remounting it is not something a service does any more.
-     * The remount failed, the function returned before setting anything, and
-     * the Bluetooth HAL then found no address at all and killed itself --
-     *
-     *     Abort message: 'Open: No Bluetooth Address!'
-     *
-     * once every few seconds, until init gave up and rebooted the board.
-     *
-     * The file was never needed for this. hardware/interfaces/bluetooth/1.0/
-     * default/bluetooth_address.cc looks in three places in order: the file
-     * named by ro.bt.bdaddr_path, then ro.boot.btmacaddr, then
-     * persist.service.bdroid.bdaddr. The last two carry the address as a
-     * string and want nothing from the filesystem, and they were being set
-     * inside the same branch as the file write for no reason.
-     *
-     * So the address goes out as properties and the writable-media question
-     * does not arise. ro.bt.bdaddr_path is deliberately left unset: with no
-     * file to point it at, leaving it empty makes the HAL fall through to the
-     * properties rather than fail on an unreadable path.
-     */
-    property_set(BT_MAC_PROP2, bt_str);
-    property_set(BT_MAC_PROP1, bt_str);
-
+    set_bt_addr(bt_str);
     set_wifi_addr(wifi_str);
 
     ALOGI("%s: wifi %s, bt %s", TAG, wifi_str, bt_str);

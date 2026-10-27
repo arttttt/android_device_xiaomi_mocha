@@ -122,6 +122,10 @@ type sysfs_tegra_emc, fs_type, sysfs_type;
 # accelerometer's calibration the settings write
 type sensors_vendor_data_file, file_type, data_file_type;
 
+# /data/vendor/bluetooth: the Bluetooth address conn_init writes for the HAL
+# and brcm-uim-sysfs
+type bluetooth_vendor_data_file, file_type, data_file_type;
+
 # /data/vendor/camera: what the camera HAL keeps between its runs -- its
 # ISP's compiled pipelines, so a camera's first open does not compile them
 type camera_vendor_data_file, file_type, data_file_type;

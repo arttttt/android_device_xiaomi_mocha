@@ -59,3 +59,7 @@ allow vendor_init { tee_data_file phsd_data }:dir { create search getattr setatt
 # power.mocha.rc sets the image compositor's load target, which lives in
 # debugfs.
 allow vendor_init debugfs_vic_scaling:file w_file_perms;
+
+# init.comms.rc makes /data/vendor/bluetooth, where conn_init leaves the
+# Bluetooth address.
+allow vendor_init bluetooth_vendor_data_file:dir { create search getattr setattr };

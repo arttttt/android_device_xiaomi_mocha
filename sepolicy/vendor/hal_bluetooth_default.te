@@ -15,3 +15,7 @@
 # The chip is reached through a driver node of its own rather than through a
 # serial line, so the platform's rules for hci_attach do not cover it.
 allow hal_bluetooth_default brcm_bt_device:chr_file rw_file_perms;
+
+# The address, from the file ro.bt.bdaddr_path names, which conn_init writes.
+allow hal_bluetooth_default bluetooth_vendor_data_file:dir search;
+allow hal_bluetooth_default bluetooth_vendor_data_file:file r_file_perms;

@@ -26,19 +26,15 @@ allow conn_wifi bkb_block_device:blk_file r_file_perms;
 # a service's arguments, and init.t124.rc hands it to conn_init on the
 # command line.
 
-# Either way the result is written out for the Wi-Fi HAL to read back, and
-# the Bluetooth half is published as a property.
+# Either way the result is written out: the Wi-Fi half for the Wi-Fi HAL and
+# the driver, the Bluetooth half for the Bluetooth HAL and brcm-uim-sysfs,
+# which find it through ro.bt.bdaddr_path.
 allow conn_wifi vendor_data_file:file { create_file_perms setattr };
-set_prop(conn_wifi, bluetooth_prop)
+allow conn_wifi bluetooth_vendor_data_file:dir rw_dir_perms;
+allow conn_wifi bluetooth_vendor_data_file:file { create_file_perms setattr };
 
 # The USB tethering addresses, for the gadget HAL.
 set_prop(conn_wifi, usb_rndis_prop)
-
-# On S only the Bluetooth HAL among vendor domains may set or read
-# bluetooth_prop (system/sepolicy/private/property.te). This is not that HAL
-# and stands in its place only until the address goes out as a file named
-# by ro.bt.bdaddr_path instead.
-hal_server_domain(conn_wifi, hal_bluetooth)
 
 # Where the firmware and the calibration are loaded from.
 allow conn_wifi sysfs_wifi:file rw_file_perms;

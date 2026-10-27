@@ -29,6 +29,11 @@ on post-fs-data
     mkdir /data/vendor/wifi/wpa 0770 wifi wifi
     mkdir /data/vendor/wifi/wpa/sockets 0770 wifi wifi
 
+    # The Bluetooth address, written by conn_init (root) and read by the HAL
+    # and brcm-uim-sysfs, which look at the file this names first.
+    mkdir /data/vendor/bluetooth 0755 root bluetooth
+    setprop ro.bt.bdaddr_path /data/vendor/bluetooth/bdaddr
+
 # The supplicant is a HIDL service on P, so it takes neither an interface nor a
 # config file on the command line: the framework hands it interfaces over
 # ISupplicant, and the config is seeded by the HIDL layer itself, which copies
