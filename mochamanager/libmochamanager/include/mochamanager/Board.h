@@ -48,6 +48,7 @@ struct BatteryInfo {
     bool usbOnline = false;
     bool acOnline = false;
     bool chargingDisabled = false;
+    bool inputOpen = false;
 };
 
 struct PowerSample {
@@ -122,7 +123,9 @@ enum Profile {
  */
 class Board {
   public:
-    /* Finds what moves between boots -- the INA's IIO device -- once. */
+    /* Finds what moves between boots -- the INA's IIO device -- once, and
+     * closes the charger's input if a service before this one left it
+     * open: running on the battery is never kept. */
     void Init();
 
     DeviceInfo ReadDeviceInfo() const;
@@ -134,6 +137,8 @@ class Board {
     /* The switches as properties; init turns them into the charger's and
      * the governors' settings. */
     bool SetChargingDisabled(bool disabled);
+    /* Opens or closes the charger's input (HIZ). */
+    bool SetInputOpen(bool open);
     int PerformanceProfile() const;
     int ActivePerformanceProfile() const;
     /* false for a profile that is not one. */

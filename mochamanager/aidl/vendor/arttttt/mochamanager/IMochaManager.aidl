@@ -33,6 +33,13 @@ interface IMochaManager {
     const int PROFILE_PERFORMANCE = 2;
     const int PROFILE_EFFICIENCY = 3;
 
+    const int POWER_MODE_CHARGE = 0;
+    /* The battery holds its charge while the tablet runs on the supply. */
+    const int POWER_MODE_HOLD = 1;
+    /* The charger's input is open: the tablet runs on its battery with the
+     * cable in. Not kept across a reboot, nor across the service's restart. */
+    const int POWER_MODE_BATTERY = 2;
+
     DeviceInfo getDeviceInfo();
     BatteryInfo getBattery();
     /* A fresh conversion each call: poll it while the reading is on screen,
@@ -42,6 +49,10 @@ interface IMochaManager {
 
     /* persist.vendor.mocha.charger.disabled; init hands it to the charger. */
     void setChargingDisabled(boolean disabled);
+    /* Charge and hold set the switch above and close the charger's input;
+     * battery opens the input and leaves the switch as it is.
+     * EX_ILLEGAL_ARGUMENT for an unknown mode. */
+    void setPowerMode(int mode);
 
     /* The user's choice, persist.vendor.mocha.perf.profile, balanced until
      * there is one. */

@@ -78,6 +78,7 @@ ndk::ScopedAStatus MochaManager::getBattery(BatteryInfo* _aidl_return) {
     _aidl_return->usbOnline = b.usbOnline;
     _aidl_return->acOnline = b.acOnline;
     _aidl_return->chargingDisabled = b.chargingDisabled;
+    _aidl_return->inputOpen = b.inputOpen;
     return ndk::ScopedAStatus::ok();
 }
 
@@ -132,6 +133,22 @@ ndk::ScopedAStatus MochaManager::readSnapshot(Snapshot* _aidl_return) {
 ndk::ScopedAStatus MochaManager::setChargingDisabled(bool in_disabled) {
     return board_.SetChargingDisabled(in_disabled) ? ndk::ScopedAStatus::ok()
                                                    : Failed("cannot set the charger property");
+}
+
+ndk::ScopedAStatus MochaManager::setPowerMode(int32_t in_mode) {
+    switch (in_mode) {
+        case POWER_MODE_CHARGE:
+        case POWER_MODE_HOLD:
+            if (!board_.SetInputOpen(false)) return Failed("cannot close the charger's input");
+            return board_.SetChargingDisabled(in_mode == POWER_MODE_HOLD)
+                           ? ndk::ScopedAStatus::ok()
+                           : Failed("cannot set the charger property");
+        case POWER_MODE_BATTERY:
+            return board_.SetInputOpen(true) ? ndk::ScopedAStatus::ok()
+                                             : Failed("cannot open the charger's input");
+        default:
+            return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+    }
 }
 
 ndk::ScopedAStatus MochaManager::getPerformanceProfile(int32_t* _aidl_return) {

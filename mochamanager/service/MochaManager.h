@@ -37,6 +37,7 @@ class MochaManager : public BnMochaManager {
     ndk::ScopedAStatus readPower(PowerSample* _aidl_return) override;
     ndk::ScopedAStatus readSnapshot(Snapshot* _aidl_return) override;
     ndk::ScopedAStatus setChargingDisabled(bool in_disabled) override;
+    ndk::ScopedAStatus setPowerMode(int32_t in_mode) override;
     ndk::ScopedAStatus getPerformanceProfile(int32_t* _aidl_return) override;
     ndk::ScopedAStatus getActivePerformanceProfile(int32_t* _aidl_return) override;
     ndk::ScopedAStatus setPerformanceProfile(int32_t in_profile) override;

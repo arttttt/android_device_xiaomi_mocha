@@ -34,4 +34,7 @@ parcelable BatteryInfo {
     boolean acOnline;
     /* The user's switch, persist.vendor.mocha.charger.disabled. */
     boolean chargingDisabled;
+    /* The charger's input is open (HIZ): the tablet runs on its battery
+     * whatever is plugged in. */
+    boolean inputOpen;
 }

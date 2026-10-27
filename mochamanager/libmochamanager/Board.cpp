@@ -46,6 +46,10 @@ using android::base::StringPrintf;
 constexpr const char* kBattery = "/sys/class/power_supply/battery/";
 constexpr const char* kUsbOnline = "/sys/class/power_supply/usb/online";
 constexpr const char* kAcOnline = "/sys/class/power_supply/ac/online";
+/* "Disconnected" while the input is open, "Connected" otherwise; written
+ * "D" and "C". The driver keeps it open through plugging the cable in and
+ * out, until it is told otherwise or the tablet restarts. */
+constexpr const char* kChargerInput = "/sys/devices/platform/7000c400.i2c/i2c-1/1-006b/input_cable_state";
 constexpr const char* kIioDevices = "/sys/bus/iio/devices";
 constexpr const char* kCpus = "/sys/devices/system/cpu";
 constexpr const char* kCluster = "/sys/kernel/cluster/active";
@@ -170,6 +174,9 @@ void Board::Init() {
         }
     }
     if (ina_.empty()) LOG(WARNING) << "no INA on the battery line";
+
+    if (ReadLine(kChargerInput) == "Disconnected" && SetInputOpen(false))
+        LOG(INFO) << "closed the charger's input a previous service left open";
 }
 
 DeviceInfo Board::ReadDeviceInfo() const {
@@ -201,6 +208,7 @@ BatteryInfo Board::ReadBattery() const {
     i.usbOnline = ReadInt(kUsbOnline) != 0;
     i.acOnline = ReadInt(kAcOnline) != 0;
     i.chargingDisabled = android::base::GetBoolProperty(kChargerProp, false);
+    i.inputOpen = ReadLine(kChargerInput) == "Disconnected";
     return i;
 }
 
@@ -274,6 +282,12 @@ Snapshot Board::ReadSnapshot() const {
 
 bool Board::SetChargingDisabled(bool disabled) {
     return android::base::SetProperty(kChargerProp, disabled ? "1" : "0");
+}
+
+bool Board::SetInputOpen(bool open) {
+    if (android::base::WriteStringToFile(open ? "D" : "C", kChargerInput)) return true;
+    PLOG(ERROR) << "cannot write " << kChargerInput;
+    return false;
 }
 
 int Board::PerformanceProfile() const {

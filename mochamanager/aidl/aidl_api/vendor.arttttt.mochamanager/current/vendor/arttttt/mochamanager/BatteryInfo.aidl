@@ -46,4 +46,5 @@ parcelable BatteryInfo {
   boolean usbOnline;
   boolean acOnline;
   boolean chargingDisabled;
+  boolean inputOpen;
 }

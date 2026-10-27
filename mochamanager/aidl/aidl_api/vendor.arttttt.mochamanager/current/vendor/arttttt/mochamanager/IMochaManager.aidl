@@ -37,11 +37,15 @@ interface IMochaManager {
   const int PROFILE_BALANCED = 1;
   const int PROFILE_PERFORMANCE = 2;
   const int PROFILE_EFFICIENCY = 3;
+  const int POWER_MODE_CHARGE = 0;
+  const int POWER_MODE_HOLD = 1;
+  const int POWER_MODE_BATTERY = 2;
   vendor.arttttt.mochamanager.DeviceInfo getDeviceInfo();
   vendor.arttttt.mochamanager.BatteryInfo getBattery();
   vendor.arttttt.mochamanager.PowerSample readPower();
   vendor.arttttt.mochamanager.Snapshot readSnapshot();
   void setChargingDisabled(boolean disabled);
+  void setPowerMode(int mode);
   int getPerformanceProfile();
   int getActivePerformanceProfile();
   void setPerformanceProfile(int profile);
