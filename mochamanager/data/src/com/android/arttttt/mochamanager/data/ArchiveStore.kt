@@ -19,6 +19,7 @@ package com.android.arttttt.mochamanager.data
 import android.content.ContentValues
 import android.content.Context
 import android.provider.MediaStore
+import com.android.arttttt.mochamanager.domain.repository.ArchiveRepository
 import com.android.arttttt.mochamanager.domain.usecase.ArchiveFile
 import java.io.File
 import java.io.IOException
@@ -32,12 +33,11 @@ import kotlinx.coroutines.withContext
  * them out from (the app's FileProvider serves that directory), and copied
  * to Downloads on request. Only the last one is kept in the cache.
  */
-class ArchiveStore(private val context: Context, private val io: CoroutineDispatcher) {
+class ArchiveStore(private val context: Context, private val io: CoroutineDispatcher) : ArchiveRepository {
     val directory: File
         get() = File(context.cacheDir, DIRECTORY)
 
-    /* null if it could not be written. */
-    suspend fun write(name: String, files: List<ArchiveFile>): File? = withContext(io) {
+    override suspend fun write(name: String, files: List<ArchiveFile>): File? = withContext(io) {
         try {
             val dir = directory.apply { mkdirs() }
             dir.listFiles()?.forEach { it.delete() }
@@ -55,8 +55,7 @@ class ArchiveStore(private val context: Context, private val io: CoroutineDispat
         }
     }
 
-    /* A copy in Downloads; whether it was made. */
-    suspend fun toDownloads(zip: File): Boolean = withContext(io) {
+    override suspend fun toDownloads(zip: File): Boolean = withContext(io) {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, zip.name)

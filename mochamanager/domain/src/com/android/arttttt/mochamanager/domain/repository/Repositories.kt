@@ -31,6 +31,8 @@ import com.android.arttttt.mochamanager.domain.model.RefreshMode
 import com.android.arttttt.mochamanager.domain.model.SensorInfo
 import com.android.arttttt.mochamanager.domain.model.SensorUpdate
 import com.android.arttttt.mochamanager.domain.model.Snapshot
+import com.android.arttttt.mochamanager.domain.usecase.ArchiveFile
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 
 /*
@@ -97,4 +99,11 @@ interface LogRepository {
     suspend fun crashes(kinds: Set<CrashKind>, limit: Int): List<CrashRecord>
     /* The properties a report on the tablet names. */
     suspend fun properties(): Map<String, String>
+}
+
+interface ArchiveRepository {
+    /* The files as a ZIP of the given name; null if it could not be made. */
+    suspend fun write(name: String, files: List<ArchiveFile>): File?
+    /* A copy of it in Downloads; whether it was made. */
+    suspend fun toDownloads(zip: File): Boolean
 }
