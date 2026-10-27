@@ -29,3 +29,11 @@ binder_use(hal_camera_default)
 
 # Its own switches and the provider's queue sizes; see property.te.
 get_prop(hal_camera_default, camera_hal_prop)
+
+# The ISP runs on the GPU through Vulkan, which drives the GPU through the
+# nvhost nodes, as the composer's engines do.
+allow hal_camera_default gpu_device:chr_file rw_file_perms;
+
+# The libraries it links ask configstore for the surface flinger's settings,
+# as they do in the composer.
+hal_client_domain(hal_camera_default, hal_configstore)
