@@ -29,8 +29,11 @@ genfscon sysfs /power/tegra_rail_stats		u:object_r:sysfs_rail_stats:s0
 # and its own init.rc writes it.
 genfscon proc /cpu/alignment			u:object_r:proc_cpu_alignment:s0
 
-# init.tn8.rc sets how much of the lower zone is kept from the higher one.
-genfscon proc /sys/vm/lowmem_reserve_ratio	u:object_r:proc_lowmem_reserve_ratio:s0
+# init.tn8.rc sets how much of the lower zone is kept from the higher one,
+# init.t124.rc how swap and the dentry cache are weighed.
+genfscon proc /sys/vm/lowmem_reserve_ratio	u:object_r:proc_vm_board:s0
+genfscon proc /sys/vm/swappiness		u:object_r:proc_vm_board:s0
+genfscon proc /sys/vm/vfs_cache_pressure	u:object_r:proc_vm_board:s0
 
 # fs_mgr looks for the fstab in the device tree, and on a kernel this old the
 # tree is under /proc rather than /sys/firmware, where the platform labels the

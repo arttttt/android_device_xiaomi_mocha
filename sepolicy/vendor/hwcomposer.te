@@ -67,9 +67,9 @@ allow hal_graphics_composer_server sysfs_pwm_backlight:file rw_file_perms;
 # else, because a composer is not expected to want the other one.
 vndbinder_use(hal_graphics_composer_server)
 
-# The governor starts its tuning from the engine's powergate delay, which it
-# reads from sysfs.
-allow hal_graphics_composer_default sysfs_vic_powergate:file r_file_perms;
+# The governor starts its tuning from the engine's powergate delay and
+# watches its clock, both read from sysfs.
+allow hal_graphics_composer_default sysfs_vic:file r_file_perms;
 
 # The libraries the composer links ask configstore for the surface flinger's
 # settings and read /proc/meminfo, as they do in surfaceflinger.

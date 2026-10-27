@@ -319,5 +319,6 @@
 /(vendor|system/vendor)/bin/hw/vendor\.lineage\.touch@1\.0-service\.mocha           u:object_r:hal_lineage_touch_default_exec:s0
 
 # The video image compositor's powergate delay, which the composer's governor
-# starts its tuning from.
-/sys/devices/platform/host1x/vic03\.0/acm/powergate_delay	u:object_r:sysfs_vic_powergate:s0
+# starts its tuning from, and its clock, which the governor watches.
+/sys/devices/platform/host1x/vic03\.0/acm/powergate_delay	u:object_r:sysfs_vic:s0
+/sys/devices/platform/host1x/vic03\.0/devfreq/vic03\.0/cur_freq	u:object_r:sysfs_vic:s0

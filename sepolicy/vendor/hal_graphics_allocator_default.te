@@ -43,3 +43,8 @@ allow {
   surfaceflinger
   system_server
 } hal_graphics_allocator_default_tmpfs:file { getattr read write map };
+
+# An app runs with categories of its own and the file has none, so an app
+# may not write it whatever the rule above says: the MLS constraint on write
+# wants the levels equal. The file is shared across every app by design.
+typeattribute hal_graphics_allocator_default_tmpfs mlstrustedobject;

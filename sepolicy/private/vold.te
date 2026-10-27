@@ -58,3 +58,7 @@ r_dir_file(vold, sysfs_mmc_host)
 
 # Allow vold to access its tmpfs
 allow vold tmpfs:file create_file_perms;
+
+# fs_mgr reads the device tree's fstab node in vold as well; see
+# vendor/genfs_contexts.
+r_dir_file(vold, proc_dt_firmware_android)

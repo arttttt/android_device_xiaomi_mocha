@@ -178,8 +178,11 @@ type debugfs_vic_scaling, fs_type, debugfs_type, mlstrustedobject;
 # /proc/device-tree/firmware/android
 type proc_dt_firmware_android, fs_type, proc_type;
 
-# /proc/sys/vm/lowmem_reserve_ratio
-type proc_lowmem_reserve_ratio, fs_type, proc_type;
+# The VM tunables the board's rc files set: /proc/sys/vm/lowmem_reserve_ratio,
+# swappiness and vfs_cache_pressure
+type proc_vm_board, fs_type, proc_type;
 
-# /sys/devices/platform/host1x/vic03.0/acm/powergate_delay
-type sysfs_vic_powergate, fs_type, sysfs_type;
+# The image compositor's powergate delay and clock:
+# /sys/devices/platform/host1x/vic03.0/acm/powergate_delay and
+# /sys/devices/platform/host1x/vic03.0/devfreq/vic03.0/cur_freq
+type sysfs_vic, fs_type, sysfs_type;
