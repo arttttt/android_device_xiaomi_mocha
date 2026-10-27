@@ -62,3 +62,8 @@ allow vold tmpfs:file create_file_perms;
 # fs_mgr reads the device tree's fstab node in vold as well; see
 # vendor/genfs_contexts.
 r_dir_file(vold, proc_dt_firmware_android)
+
+# vold asks for IBootControl to learn whether a checkpoint is pending. This
+# board has no A/B and no boot control HAL, so the lookup finds nothing; the
+# platform makes vold its client on full treble boards only.
+hal_client_domain(vold, hal_bootctl)
