@@ -163,7 +163,11 @@ service watchdogd /system/bin/watchdogd 10 110
 on property:persist.vendor.mocha.charger.disabled=*
     write /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/force_bypass ${persist.vendor.mocha.charger.disabled}
 
-# Lineage's health HAL runs as system and drives disabled_by_user.
+# Lineage's health HAL runs as system and drives disabled_by_user; the
+# mochamanager service, also system, opens and closes the charger's input
+# for MiPad Manager's "on battery".
 on boot
     chown system system /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user
     chmod 0664 /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/disabled_by_user
+    chown system system /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/input_cable_state
+    chmod 0664 /sys/devices/platform/7000c400.i2c/i2c-1/1-006b/input_cable_state

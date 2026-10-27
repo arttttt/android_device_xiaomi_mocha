@@ -196,6 +196,8 @@
 # the quick settings switch, through vendor init, the second.
 /sys/devices/platform/7000c400\.i2c/i2c-1/1-006b/disabled_by_user	u:object_r:sysfs_charger_control:s0
 /sys/devices/platform/7000c400\.i2c/i2c-1/1-006b/force_bypass		u:object_r:sysfs_charger_control:s0
+# Its input switch, MiPad Manager's "on battery".
+/sys/devices/platform/7000c400\.i2c/i2c-1/1-006b/input_cable_state	u:object_r:sysfs_charger_input:s0
 
 # The speed the USB device controller negotiated, which the gadget HAL reports.
 /sys/devices/platform/tegra-udc\.0/udc/tegra-udc\.0/current_speed	u:object_r:sysfs_udc:s0

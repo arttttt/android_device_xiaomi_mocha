@@ -30,6 +30,8 @@ get_prop(vendor_init, mocha_charger_prop)
 # over to the health HAL's user at boot.
 allow vendor_init sysfs_nvi2c:dir search;
 allow vendor_init sysfs_charger_control:file { w_file_perms setattr };
+# The input switch is handed to the mochamanager service's user the same way.
+allow vendor_init sysfs_charger_input:file setattr;
 set_prop(vendor_init, power_low_power_prop)
 # And the profile in force is theirs to set: power.mocha.rc is its writer.
 set_prop(vendor_init, perf_profile_prop)
