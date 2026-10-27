@@ -19,6 +19,7 @@ package com.android.arttttt.mochamanager.ui.power
 import com.android.arttttt.mochamanager.domain.model.Battery
 import com.android.arttttt.mochamanager.domain.model.Loadable
 import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.repository.PowerRepository
 import com.android.arttttt.mochamanager.domain.repository.ProfileRepository
 import com.android.arttttt.mochamanager.domain.usecase.poll
@@ -26,9 +27,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.combine
 
-/* Charging and the profile as both switches show them. */
+/* The power mode and the profile as the controls show them. */
 data class Switches(
-    val charging: Boolean? = null,
+    val mode: PowerMode? = null,
     val profile: PerformanceProfile? = null,
     /* While it is on, the profile is held at power save. */
     val batterySaver: Boolean = false,
@@ -36,7 +37,7 @@ data class Switches(
 
 /* What the user does to them, on either screen. */
 sealed class SwitchAction {
-    data class SetCharging(val enabled: Boolean) : SwitchAction()
+    data class SetMode(val mode: PowerMode) : SwitchAction()
     data class SetProfile(val profile: PerformanceProfile) : SwitchAction()
 }
 
@@ -60,13 +61,13 @@ class PowerSwitches(
             poll(PERIOD_MS, refresh) { profiles.profile() },
             profiles.batterySaver,
     ) { battery, profile, saver ->
-        battery to Switches(battery.valueOrNull?.let { !it.chargingDisabled }, profile.valueOrNull, saver)
+        battery to Switches(battery.valueOrNull?.powerMode, profile.valueOrNull, saver)
     }
 
     /* Whether it took. */
     suspend fun apply(action: SwitchAction): Boolean {
         val done = when (action) {
-            is SwitchAction.SetCharging -> power.setChargingDisabled(!action.enabled)
+            is SwitchAction.SetMode -> power.setPowerMode(action.mode)
             is SwitchAction.SetProfile -> profiles.setProfile(action.profile)
         }
         refresh.emit(Unit)

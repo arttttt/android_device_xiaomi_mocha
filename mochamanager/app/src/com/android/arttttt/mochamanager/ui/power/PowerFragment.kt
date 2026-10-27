@@ -25,6 +25,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.Battery
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.model.Supply
 import com.android.arttttt.mochamanager.domain.usecase.wearLevel
 import com.android.arttttt.mochamanager.ui.common.Units
@@ -72,9 +73,11 @@ class PowerFragment : Fragment(R.layout.fragment_power) {
         view.cardTitle(R.id.battery_title, R.string.section_battery)
         view.cardTitle(R.id.controls_title, R.string.section_controls)
         views = Views(view, Units(requireContext())).apply {
-            controls = PowerControls(view.findViewById(R.id.controls),
-                    model::onAction)
+            controls = PowerControls(view.findViewById(R.id.controls), model::onAction) {
+                BatterySheet.ask(this@PowerFragment)
+            }
         }
+        BatterySheet.onYes(this) { model.onAction(SwitchAction.SetMode(PowerMode.BATTERY)) }
         collectWhileShown(model.state, ::render)
         collectWhileShown(model.effects.flow) {
             Toast.makeText(requireContext(), R.string.change_failed, Toast.LENGTH_SHORT).show()
@@ -104,7 +107,10 @@ class PowerFragment : Fragment(R.layout.fragment_power) {
         v.controls.render(state.switches)
 
         val b = state.battery.valueOrNull
-        v.liveNote.visibility = if (b != null && b.supply != Supply.NONE) View.VISIBLE else View.GONE
+        /* On the battery with the cable in, the INA sees all the tablet draws
+         * again, as with no cable. */
+        val supplied = b != null && b.supply != Supply.NONE && b.powerMode != PowerMode.BATTERY
+        v.liveNote.visibility = if (supplied) View.VISIBLE else View.GONE
         roll(v.capacity, state.battery, { it.capacityPct.toDouble() }) { u.percent(it) }
         rollAll(v.charge, state.battery, { doubleArrayOf(it.chargeNowUah.toDouble(), it.chargeFullUah.toDouble()) }) {
             getString(R.string.charge_held, u.mah(it[0]), u.mah(it[1]))

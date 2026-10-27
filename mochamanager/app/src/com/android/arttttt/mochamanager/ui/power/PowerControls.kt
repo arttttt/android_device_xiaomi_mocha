@@ -20,21 +20,30 @@ import android.view.View
 import android.widget.TextView
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.google.android.material.button.MaterialButtonToggleGroup
-import com.google.android.material.switchmaterial.SwitchMaterial
 
 /*
- * The power_controls views: the charging switch and the profile segments,
- * set from Switches and reporting what the user changes.
+ * The power_controls views: the power mode and the profile segments, set
+ * from Switches and reporting what the user changes. Running on the battery
+ * is asked about first: askBattery shows the question, and the mode is set
+ * once it is answered yes.
  */
 class PowerControls(
     root: View,
     onAction: (SwitchAction) -> Unit,
+    askBattery: () -> Unit,
 ) {
-    private val charging: SwitchMaterial = root.findViewById(R.id.charging)
-    private val chargingSub: TextView = root.findViewById(R.id.charging_sub)
+    private val modes: MaterialButtonToggleGroup = root.findViewById(R.id.modes)
+    private val modeSub: TextView = root.findViewById(R.id.mode_sub)
+    private val warning: View = root.findViewById(R.id.mode_warning)
     private val profiles: MaterialButtonToggleGroup = root.findViewById(R.id.profiles)
     private val note: View = root.findViewById(R.id.profile_note)
+    private val notice = BatteryNotice(root.context)
+    private val modeButtons = mapOf(
+            PowerMode.CHARGE to R.id.mode_charge,
+            PowerMode.HOLD to R.id.mode_hold,
+            PowerMode.BATTERY to R.id.mode_battery)
     private val buttons = mapOf(
             PerformanceProfile.POWER_SAVE to R.id.profile_power_save,
             PerformanceProfile.EFFICIENCY to R.id.profile_efficiency,
@@ -44,13 +53,20 @@ class PowerControls(
     /* Set while the views are brought in line with the state, so their
      * listeners do not take it for the user. */
     private var rendering = false
+    private var last: Switches? = null
 
     init {
-        root.findViewById<View>(R.id.charging_row).setOnClickListener {
-            if (charging.isEnabled) charging.toggle()
-        }
-        charging.setOnCheckedChangeListener { _, checked ->
-            if (!rendering) onAction(SwitchAction.SetCharging(checked))
+        modes.addOnButtonCheckedListener { _, id, checked ->
+            val mode = modeButtons.entries.firstOrNull { it.value == id }?.key
+            if (rendering || !checked || mode == null) return@addOnButtonCheckedListener
+            if (mode == PowerMode.BATTERY) {
+                /* Not until it is answered: the segment goes back to the mode
+                 * in force meanwhile. */
+                modes.post { last?.let(::render) }
+                askBattery()
+            } else {
+                onAction(SwitchAction.SetMode(mode))
+            }
         }
         profiles.addOnButtonCheckedListener { _, id, checked ->
             val profile = buttons.entries.firstOrNull { it.value == id }?.key
@@ -60,9 +76,18 @@ class PowerControls(
 
     fun render(s: Switches) {
         rendering = true
-        s.charging?.let { charging.isChecked = it }
-        charging.isEnabled = s.charging != null
-        chargingSub.setText(if (s.charging == false) R.string.charging_off else R.string.charging_on)
+        last = s
+        s.mode?.let { modes.check(modeButtons.getValue(it)) }
+        modes.isEnabled = s.mode != null
+        for (id in modeButtons.values) modes.findViewById<View>(id).isEnabled = s.mode != null
+        modeSub.setText(when (s.mode) {
+            PowerMode.HOLD -> R.string.mode_hold_sub
+            PowerMode.BATTERY -> R.string.mode_battery_sub
+            else -> R.string.mode_charge_sub
+        })
+        warning.visibility = if (s.mode == PowerMode.BATTERY) View.VISIBLE else View.GONE
+        s.mode?.let { notice.show(it == PowerMode.BATTERY) }
+
         s.profile?.let { profiles.check(buttons.getValue(it)) }
         val choosable = s.profile != null && !s.batterySaver
         profiles.isEnabled = choosable

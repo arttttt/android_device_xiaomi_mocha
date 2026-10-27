@@ -16,6 +16,8 @@
 
 package com.android.arttttt.mochamanager.ui.main
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -46,6 +48,8 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
+        if (savedInstanceState == null) openFrom(intent)
+
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 model.state.collect { tab ->
@@ -54,6 +58,16 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openFrom(intent)
+    }
+
+    /* The tab a notification asks for, if it names one. */
+    private fun openFrom(intent: Intent) {
+        Tab.named(intent.getStringExtra(EXTRA_TAB))?.let(model::select)
     }
 
     private fun show(tab: Tab) {
@@ -72,5 +86,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
         transaction.commit()
+    }
+
+    companion object {
+        private const val EXTRA_TAB = "tab"
+
+        /* The app on the given tab, from outside it. */
+        fun open(context: Context, tab: Tab): Intent = Intent(context, MainActivity::class.java)
+                .putExtra(EXTRA_TAB, tab.name)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 }

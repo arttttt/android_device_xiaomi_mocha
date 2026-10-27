@@ -19,12 +19,15 @@ package com.android.arttttt.mochamanager.ui.power
 import android.content.Context
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.Battery
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.model.Supply
 import com.android.arttttt.mochamanager.domain.usecase.Level
 
 /* The battery's words, which the kernel gives in English, in the user's. */
 object BatteryText {
     fun status(context: Context, b: Battery): String {
+        /* The gauge has it discharging, which is right but not why. */
+        if (b.powerMode == PowerMode.BATTERY) return context.getString(R.string.status_on_battery)
         val status = when (b.status) {
             "Charging" -> context.getString(R.string.status_charging)
             "Discharging" -> context.getString(R.string.status_discharging)
@@ -36,8 +39,11 @@ object BatteryText {
     }
 
     /* Green while it charges or is full: the state one wants to see. */
-    fun statusLevel(b: Battery): Level? =
-            if (b.status == "Charging" || b.status == "Full") Level.GOOD else null
+    fun statusLevel(b: Battery): Level? = when {
+        b.powerMode == PowerMode.BATTERY -> Level.WARN
+        b.status == "Charging" || b.status == "Full" -> Level.GOOD
+        else -> null
+    }
 
     fun supply(context: Context, b: Battery): String = context.getString(when (b.supply) {
         Supply.AC -> R.string.supply_ac

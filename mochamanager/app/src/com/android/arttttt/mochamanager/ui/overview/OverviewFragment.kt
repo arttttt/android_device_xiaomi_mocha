@@ -26,6 +26,7 @@ import androidx.fragment.app.activityViewModels
 import com.android.arttttt.mochamanager.R
 import com.android.arttttt.mochamanager.domain.model.Battery
 import com.android.arttttt.mochamanager.domain.model.DeviceInfo
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.model.Snapshot
 import com.android.arttttt.mochamanager.domain.usecase.chargeLevel
 import com.android.arttttt.mochamanager.domain.usecase.thermalLevel
@@ -46,8 +47,10 @@ import com.android.arttttt.mochamanager.ui.common.screenViewModel
 import com.android.arttttt.mochamanager.ui.common.subtitle
 import com.android.arttttt.mochamanager.ui.main.MainViewModel
 import com.android.arttttt.mochamanager.ui.main.Tab
+import com.android.arttttt.mochamanager.ui.power.BatterySheet
 import com.android.arttttt.mochamanager.ui.power.BatteryText
 import com.android.arttttt.mochamanager.ui.power.PowerControls
+import com.android.arttttt.mochamanager.ui.power.SwitchAction
 import com.google.android.material.progressindicator.CircularProgressIndicator
 
 class OverviewFragment : Fragment(R.layout.fragment_overview) {
@@ -89,8 +92,11 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     override fun onViewCreated(view: View, saved: Bundle?) {
         view.header(R.string.tab_overview)
         views = Views(view) { main.select(it) }.apply {
-            controls = PowerControls(view.findViewById(R.id.controls), model::onAction)
+            controls = PowerControls(view.findViewById(R.id.controls), model::onAction) {
+                BatterySheet.ask(this@OverviewFragment)
+            }
         }
+        BatterySheet.onYes(this) { model.onAction(SwitchAction.SetMode(PowerMode.BATTERY)) }
         collectWhileShown(model.state, ::render)
         collectWhileShown(model.effects.flow) {
             Toast.makeText(requireContext(), R.string.change_failed, Toast.LENGTH_SHORT).show()
