@@ -81,10 +81,12 @@ class LogArchive(
     companion object {
         const val CRASHES_EACH = 5
 
-        /* A time as a file name has it: 20261027-011402, in UTC. */
-        fun stamp(ms: Long): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT)
-                .apply { timeZone = TimeZone.getTimeZone("UTC") }
-                .format(Date(ms))
+        /* A time as a file name has it: 20261027-011402, by the tablet's
+         * clock unless told otherwise. */
+        fun stamp(ms: Long, zone: TimeZone = TimeZone.getDefault()): String =
+                SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT)
+                        .apply { timeZone = zone }
+                        .format(Date(ms))
 
         /* The tablet as it was when the logs were taken, for whoever reads
          * them without it in hand. */

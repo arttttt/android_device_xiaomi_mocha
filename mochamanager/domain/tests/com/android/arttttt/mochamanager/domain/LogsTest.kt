@@ -30,6 +30,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.TimeZone
 
 class LogsTest {
     @Test
@@ -76,7 +77,8 @@ class LogsTest {
     }
 
     @Test
-    fun stampsAreUtc() {
-        assertEquals("19700101-000001", LogArchive.stamp(1000))
+    fun stampsInTheZoneAsked() {
+        assertEquals("19700101-000001", LogArchive.stamp(1000, TimeZone.getTimeZone("UTC")))
+        assertEquals("19700101-030001", LogArchive.stamp(1000, TimeZone.getTimeZone("GMT+3")))
     }
 }

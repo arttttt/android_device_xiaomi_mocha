@@ -19,6 +19,7 @@ package com.android.arttttt.mochamanager.data
 import android.content.ContentValues
 import android.content.Context
 import android.provider.MediaStore
+import android.util.Log
 import com.android.arttttt.mochamanager.domain.repository.ArchiveRepository
 import com.android.arttttt.mochamanager.domain.usecase.ArchiveFile
 import java.io.File
@@ -51,6 +52,7 @@ class ArchiveStore(private val context: Context, private val io: CoroutineDispat
             }
             zip
         } catch (e: IOException) {
+            Log.w(TAG, "cannot write $name", e)
             null
         }
     }
@@ -61,16 +63,25 @@ class ArchiveStore(private val context: Context, private val io: CoroutineDispat
             put(MediaStore.MediaColumns.DISPLAY_NAME, zip.name)
             put(MediaStore.MediaColumns.MIME_TYPE, MIME)
         }
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return@withContext false
+        /* The media provider refuses with an exception as often as with a
+         * null, and either is only a failed copy. */
+        val uri = try {
+            resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "cannot add ${zip.name} to Downloads", e)
+            null
+        } ?: return@withContext false
         try {
             resolver.openOutputStream(uri)?.use { out -> zip.inputStream().use { it.copyTo(out) } } != null
-        } catch (e: IOException) {
+        } catch (e: Exception) {
+            Log.w(TAG, "cannot write ${zip.name} to Downloads", e)
             resolver.delete(uri, null, null)
             false
         }
     }
 
     companion object {
+        private const val TAG = "MochaManagerArchive"
         const val DIRECTORY = "logs"
         const val MIME = "application/zip"
     }

@@ -18,7 +18,6 @@ package com.android.arttttt.mochamanager.data
 
 import android.content.Context
 import android.os.DropBoxManager
-import android.os.SELinux
 import android.os.SystemProperties
 import com.android.arttttt.mochamanager.domain.model.CrashKind
 import com.android.arttttt.mochamanager.domain.model.CrashRecord
@@ -39,7 +38,10 @@ import kotlinx.coroutines.withContext
  * The logs through logcat, which the app may run for every process's lines:
  * READ_LOGS puts it in the log group. The kernel's log is logd's kernel
  * buffer -- logd takes the kernel's messages from boot on (ro.logd.kernel) --
- * with each line's time since boot, as dmesg has it. The records of crashes
+ * with the time of day the system log has, not the time since boot: for that
+ * logcat runs dmesg to match the two clocks up (liblog's logprint.cpp,
+ * convertMonotonic), and reading the kernel's log directly is no app's
+ * right. The records of crashes
  * are the drop box's, where the system files tombstones, ANRs, crashed apps
  * and the kernel log pstore kept of a bad end.
  */
@@ -80,8 +82,7 @@ class LogcatRepository(private val context: Context, private val io: CoroutineDi
     }
 
     override suspend fun properties(): Map<String, String> = withContext(io) {
-        PROPERTIES.associateWith { SystemProperties.get(it) }.filterValues { it.isNotEmpty() } +
-                ("selinux" to if (SELinux.isSELinuxEnforced()) "enforcing" else "permissive")
+        PROPERTIES.associateWith { SystemProperties.get(it) }.filterValues { it.isNotEmpty() }
     }
 
     private fun records(dropBox: DropBoxManager, kind: CrashKind, tag: String): List<CrashRecord> {
@@ -98,7 +99,7 @@ class LogcatRepository(private val context: Context, private val io: CoroutineDi
     }
 
     private fun command(kind: LogKind, buffers: Set<LogBuffer>): List<String> = when (kind) {
-        LogKind.KERNEL -> listOf("logcat", "-b", "kernel", "-v", "monotonic")
+        LogKind.KERNEL -> listOf("logcat", "-b", "kernel", "-v", "threadtime")
         LogKind.SYSTEM -> listOf("logcat", "-b", buffers.joinToString(",") { it.id }, "-v", "threadtime")
     }
 
@@ -116,6 +117,6 @@ class LogcatRepository(private val context: Context, private val io: CoroutineDi
 
         val PROPERTIES = listOf(
                 "ro.build.fingerprint", "ro.build.type", "ro.build.date", "ro.lineage.version",
-                "ro.boot.hardware", "ro.bootloader", "ro.logd.kernel")
+                "ro.boot.hardware", "ro.bootloader", "ro.logd.kernel", "ro.boot.selinux")
     }
 }
