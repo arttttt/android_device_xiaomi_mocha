@@ -28,3 +28,8 @@ r_dir_file({
 # same reason (public/domain.te); the directory carries a label of its own here
 # only so that the memtrack HAL alone can read the files.
 allow domain debugfs_nvmap:dir search;
+
+# libnvcpl's lookup of a service this board never runs; see
+# private/domain.te.
+dontaudit hal_camera_default default_android_service:service_manager find;
+dontaudit hal_graphics_composer_default default_android_vndservice:service_manager find;
