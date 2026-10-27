@@ -60,6 +60,13 @@ data class Memory(
         } else null
 }
 
+/* How long each cluster has run, as the kernel counts it. */
+data class ClusterTime(val gMs: Long, val lpMs: Long, val switches: Int) {
+    /* The LP core's part of the time, 0..1. */
+    val lpShare: Double
+        get() = if (gMs + lpMs > 0) lpMs.toDouble() / (gMs + lpMs) else 0.0
+}
+
 /* Where the tablet's effort goes right now. */
 data class Snapshot(
     val cluster: String,
@@ -68,7 +75,13 @@ data class Snapshot(
     val emcHz: Long,
     val thermals: List<ThermalZone>,
     val memory: Memory,
+    /* null while the kernel keeps no count. */
+    val clusterTime: ClusterTime?,
 ) {
+    /* On the LP cluster only the one LP core runs, in the place of core 0. */
+    val onLp: Boolean
+        get() = cluster == "LP"
+
     /* The core running fastest: what the cluster as a whole is doing. */
     val busiestKhz: Int
         get() = cores.filter { it.online }.maxOfOrNull { it.curKhz } ?: 0

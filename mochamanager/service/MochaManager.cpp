@@ -95,6 +95,10 @@ ndk::ScopedAStatus MochaManager::readPower(PowerSample* _aidl_return) {
 ndk::ScopedAStatus MochaManager::readSnapshot(Snapshot* _aidl_return) {
     const auto s = board_.ReadSnapshot();
     _aidl_return->cluster = s.cluster;
+    _aidl_return->clusterTime = {.present = s.clusterTime.present,
+                                 .gMs = s.clusterTime.gMs,
+                                 .lpMs = s.clusterTime.lpMs,
+                                 .switches = s.clusterTime.switches};
     for (const auto& c : s.cores) {
         _aidl_return->cores.push_back({.id = c.id,
                                        .online = c.online,

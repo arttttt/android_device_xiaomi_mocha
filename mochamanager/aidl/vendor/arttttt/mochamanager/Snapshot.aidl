@@ -16,6 +16,7 @@
 
 package vendor.arttttt.mochamanager;
 
+import vendor.arttttt.mochamanager.ClusterTime;
 import vendor.arttttt.mochamanager.CpuCore;
 import vendor.arttttt.mochamanager.GpuStatus;
 import vendor.arttttt.mochamanager.MemoryStatus;
@@ -31,4 +32,5 @@ parcelable Snapshot {
     long emcHz;
     ThermalZone[] thermals;
     MemoryStatus memory;
+    ClusterTime clusterTime;
 }

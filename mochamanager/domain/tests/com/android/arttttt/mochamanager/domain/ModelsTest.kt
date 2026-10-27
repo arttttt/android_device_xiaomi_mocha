@@ -16,6 +16,7 @@
 
 package com.android.arttttt.mochamanager.domain
 
+import com.android.arttttt.mochamanager.domain.model.ClusterTime
 import com.android.arttttt.mochamanager.domain.model.CpuCore
 import com.android.arttttt.mochamanager.domain.model.DeviceInfo
 import com.android.arttttt.mochamanager.domain.model.Gpu
@@ -30,6 +31,7 @@ import com.android.arttttt.mochamanager.domain.usecase.chargeLevel
 import com.android.arttttt.mochamanager.domain.usecase.thermalLevel
 import com.android.arttttt.mochamanager.domain.usecase.wearLevel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -91,11 +93,18 @@ class ModelsTest {
                         CpuCore(1, true, 828_000, 51_000, 2_116_500, "interactive"),
                         CpuCore(2, false, 0, 0, 0, "")),
                 Gpu(72_000_000, 852_000_000, 40, false), 528_000_000,
-                listOf(ThermalZone("CPU", 41_000), ThermalZone("Tdiode", 47_250)), memory)
+                listOf(ThermalZone("CPU", 41_000), ThermalZone("Tdiode", 47_250)), memory, null)
         assertEquals(828_000, s.busiestKhz)
+        assertFalse(s.onLp)
         assertEquals("Tdiode", s.hottest!!.name)
         assertEquals(0f, s.cores[2].load, 0f)
         assertEquals(0.75, memory.usedFraction, 1e-9)
         assertEquals(0.25, memory.swapFraction, 1e-9)
+    }
+
+    @Test
+    fun clusterTime() {
+        assertEquals(0.25, ClusterTime(3_000, 1_000, 6).lpShare, 1e-9)
+        assertEquals(0.0, ClusterTime(0, 0, 0).lpShare, 0.0)
     }
 }

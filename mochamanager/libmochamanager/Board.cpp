@@ -25,11 +25,13 @@
 
 #include <cinttypes>
 #include <cstdio>
+#include <iterator>
 #include <memory>
 #include <sstream>
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/parseint.h>
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
@@ -47,6 +49,8 @@ constexpr const char* kAcOnline = "/sys/class/power_supply/ac/online";
 constexpr const char* kIioDevices = "/sys/bus/iio/devices";
 constexpr const char* kCpus = "/sys/devices/system/cpu";
 constexpr const char* kCluster = "/sys/kernel/cluster/active";
+constexpr const char* kCpuquietEnable = "/sys/devices/system/cpu/cpuquiet/tegra_cpuquiet/enable";
+constexpr const char* kHotplugStats = "/sys/kernel/debug/tegra_hotplug/stats";
 constexpr const char* kGpuDevfreq = "/sys/class/devfreq/gk20a.0/";
 constexpr const char* kGpu = "/sys/devices/platform/gk20a.0/";
 constexpr const char* kEmcRate = "/sys/kernel/tegra_emc/emc_rate";
@@ -95,6 +99,56 @@ void ReadPressure(MemoryStatus* m) {
         if (sscanf(line.c_str(), "some avg10=%f", &avg10) == 1) m->psiSome = avg10;
         else if (sscanf(line.c_str(), "full avg10=%f", &avg10) == 1) m->psiFull = avg10;
     }
+}
+
+/*
+ * cpuquiet's account of the clusters, from its debugfs file:
+ *
+ *   cpu:            G0         G1         G2         G3         LP
+ *   transitions:    7          2          2          4          6
+ *   time plugged:   189        46         41         34         5973
+ *
+ * in clock ticks. G0 is up for as long as the G cluster runs and LP for as
+ * long as the LP core does, and every switch is a transition of LP. Only
+ * cpuquiet's own switches are counted, and while it is disabled the figures
+ * stand still, so there is no account then.
+ */
+ClusterTime ReadClusterTime() {
+    ClusterTime t;
+    std::string s;
+    if (ReadLine(kCpuquietEnable) != "1" || !android::base::ReadFileToString(kHotplugStats, &s))
+        return t;
+
+    std::vector<std::string> cpus, transitions, ticks;
+    for (const auto& line : android::base::Split(s, "\n")) {
+        const size_t colon = line.find(':');
+        if (colon == std::string::npos) continue;
+        const std::string key = line.substr(0, colon);
+        std::istringstream in(line.substr(colon + 1));
+        std::vector<std::string> fields{std::istream_iterator<std::string>(in), {}};
+        if (key == "cpu") cpus = std::move(fields);
+        else if (key == "transitions") transitions = std::move(fields);
+        else if (key == "time plugged") ticks = std::move(fields);
+    }
+    if (transitions.size() != cpus.size() || ticks.size() != cpus.size()) return t;
+
+    int g = -1, lp = -1;
+    for (size_t i = 0; i < cpus.size(); i++) {
+        if (cpus[i] == "G0") g = i;
+        else if (cpus[i] == "LP") lp = i;
+    }
+    const long hz = sysconf(_SC_CLK_TCK);
+    int64_t gTicks, lpTicks;
+    if (g < 0 || lp < 0 || hz <= 0 ||
+        !android::base::ParseInt(ticks[g], &gTicks) ||
+        !android::base::ParseInt(ticks[lp], &lpTicks) ||
+        !android::base::ParseInt(transitions[lp], &t.switches))
+        return t;
+
+    t.gMs = gTicks * 1000 / hz;
+    t.lpMs = lpTicks * 1000 / hz;
+    t.present = true;
+    return t;
 }
 
 int64_t BootTimeMs() {
@@ -168,6 +222,7 @@ bool Board::ReadPower(PowerSample* sample) const {
 Snapshot Board::ReadSnapshot() const {
     Snapshot s;
     s.cluster = ReadLine(kCluster);
+    s.clusterTime = ReadClusterTime();
 
     const int cpus = sysconf(_SC_NPROCESSORS_CONF);
     for (int cpu = 0; cpu < cpus; cpu++) {

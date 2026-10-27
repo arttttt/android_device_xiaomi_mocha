@@ -39,4 +39,5 @@ parcelable Snapshot {
   long emcHz;
   vendor.arttttt.mochamanager.ThermalZone[] thermals;
   vendor.arttttt.mochamanager.MemoryStatus memory;
+  vendor.arttttt.mochamanager.ClusterTime clusterTime;
 }
