@@ -59,3 +59,6 @@ allow surfaceflinger anr_data_file:file write;
 
 # Allow GL to access ptimer_scale_factor
 allow surfaceflinger sysfs_gpu:file r_file_perms;
+
+# service.sf.present_timestamp left system_prop; see public/property.te.
+set_prop(surfaceflinger, service_sf_present_timestamp_prop)

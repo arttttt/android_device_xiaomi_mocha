@@ -49,3 +49,7 @@ dontaudit domain zygote_exec:file { audit_access getattr };
 # public/property.te. gralloc.nvgpu reads them in every process that maps a
 # buffer, and that is any process that draws or composes.
 get_prop(domain, tegra_driver_prop)
+
+# libvulkan reads whether surfaceflinger reports present times wherever a
+# Vulkan device is made; see public/property.te.
+get_prop(domain, service_sf_present_timestamp_prop)
