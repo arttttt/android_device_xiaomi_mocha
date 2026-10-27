@@ -20,9 +20,10 @@ system_restricted_prop(undervoltage_prop)
 # the allocator, the composer, and the mapper in every process that touches
 # a buffer, system or vendor: persist.tegra.* (render compression is set off
 # in system_prop.mk; the rest are left unset), persist.sys.tegra.*,
-# persist.mocha.gralloc.*, the logging switches of libnvrm and the
-# multimedia libraries, nvrm.memmgr.vbose and nvlog.*, and the blitter's,
-# nvblit.*. Set from the system build.prop, read by both
+# persist.mocha.gralloc.*, and tegra.*, which is where libnvos looks up every
+# driver's configuration keys -- tegra.NVRM_MEMMGR, tegra.nvblit.vic, the GL
+# driver's hundreds of tegra.GL_* -- as a lookup traced in the allocator, the
+# composer and the codecs showed. Set from the system build.prop, read by both
 # sides: public.
 system_public_prop(tegra_driver_prop)
 

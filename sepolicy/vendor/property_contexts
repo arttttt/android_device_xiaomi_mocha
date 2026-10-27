@@ -29,6 +29,12 @@ audio.				u:object_r:audio_prop:s0
 # audio delay property, mediacodec
 persist.renderposition.value     u:object_r:mediacodec_prop:s0
 persist.renderposition.delay     u:object_r:mediacodec_prop:s0
+# The video decoders ask whether a cast or a low-latency display is on.
+# Nothing sets either; unlabelled they read as system_prop.
+persist.sys.cast.on              u:object_r:mediacodec_prop:s0
+persist.sys.enable-ULLD          u:object_r:mediacodec_prop:s0
+sys.cast.on                      u:object_r:mediacodec_prop:s0
+sys.enable-ULLD                  u:object_r:mediacodec_prop:s0
 
 sys.perf.profile                 u:object_r:perf_profile_prop:s0
 persist.vendor.mocha.perf.profile      u:object_r:mocha_perf_profile_prop:s0 exact int
@@ -58,6 +64,10 @@ persist.sys.phs.                 u:object_r:phs_prop:s0
 # PHS's own switches, phs.*, which ussrd reads at start and nothing sets.
 # The temperatures and trips above are thermal_prop by exact name.
 phs.                             u:object_r:phs_prop:s0
+
+# PHS's power budget, which ussrd reads and nothing sets.
+persist.sys.pbc.                 u:object_r:phs_prop:s0
+persist.sys.NV_PBC_POWER_LIMIT   u:object_r:phs_prop:s0
 persist.sys.NV_POWER_MODE        u:object_r:phs_prop:s0
 
 # The camera HAL's switches; see property.te.
