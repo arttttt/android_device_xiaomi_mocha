@@ -54,6 +54,10 @@ tegra.refresh                    u:object_r:vrr_prop:s0
 
 # PHS's tuning, which ussrd reads and nothing sets.
 persist.sys.phs.                 u:object_r:phs_prop:s0
+
+# PHS's own switches, phs.*, which ussrd reads at start and nothing sets.
+# The temperatures and trips above are thermal_prop by exact name.
+phs.                             u:object_r:phs_prop:s0
 persist.sys.NV_POWER_MODE        u:object_r:phs_prop:s0
 
 # The camera HAL's switches; see property.te.
