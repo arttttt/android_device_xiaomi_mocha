@@ -1,0 +1,4 @@
+# Storage TWRP should offer that the system's fstab does not list as a mount:
+# there the card and USB drives belong to vold, which recovery does not run.
+/external_sd    vfat    /dev/block/platform/sdhci-tegra.2/by-num/p1    flags=display="MICRO SD";storage;wipeingui;removable
+/usb-otg        vfat    /dev/block/sda1 /dev/block/sda                 flags=display="USB OTG";storage;wipeingui;removable

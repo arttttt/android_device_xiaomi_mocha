@@ -1,0 +1,8 @@
+The patches OrangeFox applies to a twrp-12.1 tree, copied unchanged from
+https://gitlab.com/OrangeFox/sync.git at 03434a833701f73430cd085738ae0bf54f2231f1
+(v032), patches/patch-{manifest,system,vendor-twrp}-fox_12.1.diff.
+
+build.diff goes into build/, system.diff into system/ and vendor-twrp.diff into
+vendor/twrp/, each with patch -p1, as orangefox_sync.sh applies them; the
+post-sync action of tools/build_lineage.sh does it. To follow OrangeFox, copy
+them again from a newer commit of that repository and update the hash above.

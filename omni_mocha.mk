@@ -1,15 +1,17 @@
-## Specify phone tech before including full_phone
-$(call inherit-product, vendor/omni/config/gsm.mk)
-
-# Release name
 PRODUCT_RELEASE_NAME := mocha
 
-# Inherit device configuration
-$(call inherit-product, device/xiaomi/mocha/device_mocha.mk)
+# twrp-12.1 is the AOSP flavour of the minimal manifest: the base is
+# aosp_base_telephony with vendor/twrp, not full_base_telephony with
+# vendor/omni as on older TWRP -- vendor/omni has no 12.1 branch.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base_telephony.mk)
+$(call inherit-product, vendor/twrp/config/common.mk)
+$(call inherit-product, $(SRC_TARGET_DIR)/product/languages_full.mk)
+$(call inherit-product, device/xiaomi/mocha/device.mk)
 
-## Device identifier. This must come after all inclusions
 PRODUCT_DEVICE := mocha
 PRODUCT_NAME := omni_mocha
-PRODUCT_BRAND := xiaomi
-PRODUCT_MODEL := mocha
-PRODUCT_MANUFACTURER := xiaomi
+PRODUCT_BRAND := Xiaomi
+PRODUCT_MODEL := MI PAD
+PRODUCT_MANUFACTURER := Xiaomi
+
+ALLOW_MISSING_DEPENDENCIES := true

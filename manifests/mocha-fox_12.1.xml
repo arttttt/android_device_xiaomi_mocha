@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Local manifest for the OrangeFox fox_12.1 recovery tree. tools/build_lineage.sh
+  installs it as .repo/local_manifests/mocha.xml, on top of the twrp-12.1
+  minimal manifest of TWRP.
+
+  Note for anyone editing this file: XML forbids a double hyphen inside a
+  comment, and repo reports it only as "not well-formed (invalid token)"
+  with a line and column, never as the reason.
+-->
+<manifest>
+  <remote name="orangefox" fetch="https://gitlab.com/OrangeFox" />
+
+  <!-- One kernel serves every version: nothing in SmokeR24.1-stable is tied to
+       a platform release. The github remote comes from twrp-default.xml. -->
+  <project name="arttttt/SmokeR24.1-kernel" path="kernel/xiaomi/mocha" remote="github" revision="SmokeR24.1-stable" />
+
+  <project name="arttttt/android_device_xiaomi_mocha" path="device/xiaomi/mocha" remote="github" revision="fox_12.1" />
+
+  <!-- OrangeFox replaces bootable/recovery of TWRP with its own, and keeps its
+       build scripts in vendor/recovery. The official orangefox_sync.sh puts
+       them there with git clone after the sync; as projects of the manifest
+       one repo sync brings everything and does not trample them. The
+       Files/classic_theme submodule of vendor/recovery is not fetched, as the
+       official script has not fetched it since its v016 either. -->
+  <remove-project name="android_bootable_recovery" />
+  <project name="bootable/Recovery" path="bootable/recovery" remote="orangefox" revision="fox_12.1" />
+  <project name="vendor/recovery" path="vendor/recovery" remote="orangefox" revision="main" />
+</manifest>

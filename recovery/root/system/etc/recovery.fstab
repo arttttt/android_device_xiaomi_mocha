@@ -1,0 +1,20 @@
+# Android fstab for the recovery, from initfiles/fstab.tn8 of lineage-19.1.
+#
+# The devices, filesystems and mount options are the system's. Where a
+# partition may be ext4 or f2fs both lines stay: TWRP keeps the options of
+# each and picks the set matching what blkid finds on the partition.
+# Only what belongs to the booting system is dropped from the last column --
+# first_stage_mount, latemount, quota and encryptable=, since this recovery
+# neither mounts in a first stage nor decrypts /data.
+#<src>                                                  <mnt_point>         <type>    <mnt_flags>                                                                         <fs_mgr_flags>
+/dev/block/platform/sdhci-tegra.3/by-name/APP           /system             ext4      ro                                                     wait
+/dev/block/platform/sdhci-tegra.3/by-name/APP           /system             f2fs      ro                                                     wait
+/dev/block/platform/sdhci-tegra.3/by-name/CAC           /cache              ext4      noatime,nosuid,nodev,data=writeback,nodelalloc         wait
+/dev/block/platform/sdhci-tegra.3/by-name/CAC           /cache              f2fs      rw,nosuid,nodev,noatime,nodiratime,inline_xattr,inline_data,flush_merge	wait,check
+/dev/block/platform/sdhci-tegra.3/by-name/LNX           /boot               emmc      defaults                                               defaults
+/dev/block/platform/sdhci-tegra.3/by-name/MSC           /misc               emmc      defaults                                               defaults
+/dev/block/platform/sdhci-tegra.3/by-name/UDA           /data               ext4      noatime,nosuid,nodev,data=writeback,noauto_da_alloc    wait,check
+/dev/block/platform/sdhci-tegra.3/by-name/UDA           /data               f2fs      rw,nosuid,nodev,noatime,nodiratime,inline_xattr,inline_data,flush_merge wait,check
+/dev/block/platform/sdhci-tegra.3/by-name/USP           /staging            emmc      defaults                                               defaults
+/dev/block/platform/sdhci-tegra.3/by-name/MDA           /metadata           emmc      defaults                                               defaults
+/dev/block/platform/sdhci-tegra.3/by-name/SOS           /recovery           emmc      defaults                                               defaults

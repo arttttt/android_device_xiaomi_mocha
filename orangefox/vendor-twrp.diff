@@ -1,0 +1,48 @@
+diff --git a/build/soong/Android.bp b/build/soong/Android.bp
+--- a/build/soong/Android.bp
++++ b/build/soong/Android.bp
+@@ -196,6 +196,7 @@ soong_config_module_type {
+         "tw_support_input_aidl_haptics",
+         "tw_support_input_aidl_haptics_fix_off",
+         "tw_use_samsung_haptics",
++        "tw_no_haptics",
+ ],
+     properties: ["cflags"],
+ }
+@@ -308,6 +309,9 @@ twrp {
+         tw_use_samsung_haptics: {
+              cflags: ["-DUSE_SAMSUNG_HAPTICS"]
+         },
++        tw_no_haptics: {
++             cflags: ["-DTW_NO_HAPTICS"]
++        },
+         tw_brightness_path: {
+              cflags: ["-DTW_BRIGHTNESS_PATH=\"%s\""]
+         },
+diff --git a/config/BoardConfigSoong.mk b/config/BoardConfigSoong.mk
+--- a/config/BoardConfigSoong.mk
++++ b/config/BoardConfigSoong.mk
+@@ -37,6 +37,7 @@ EXPORT_TO_SOONG := \
+ # Documentation here:
+ # https://github.com/LineageOS/android_build_soong/commit/8328367c44085b948c003116c0ed74a047237a69
+ 
++include bootable/recovery/orangefox_soong.mk
+ SOONG_CONFIG_NAMESPACES += twrpVarsPlugin
+ 
+ SOONG_CONFIG_twrpVarsPlugin :=
+@@ -91,6 +92,7 @@ SOONG_CONFIG_twrpGlobalVars += \
+     tw_support_input_aidl_haptics_fqname \
+     tw_support_input_aidl_haptics_fix_off \
+     tw_use_samsung_haptics \
++    tw_no_haptics \
+     tw_brightness_path \
+     tw_max_brightness
+
+@@ -153,6 +155,7 @@ SOONG_CONFIG_twrpGlobalVars_tw_support_input_aidl_haptics := $(TW_SUPPORT_INPUT_
+ SOONG_CONFIG_twrpGlobalVars_tw_support_input_aidl_haptics_fqname := $(subst ",, $(TW_SUPPORT_INPUT_AIDL_HAPTICS_FQNAME))
+ SOONG_CONFIG_twrpGlobalVars_tw_support_input_aidl_haptics_fix_off := $(TW_SUPPORT_INPUT_AIDL_HAPTICS_FIX_OFF)
+ SOONG_CONFIG_twrpGlobalVars_tw_use_samsung_haptics := $(TW_USE_SAMSUNG_HAPTICS)
++SOONG_CONFIG_twrpGlobalVars_tw_no_haptics := $(TW_NO_HAPTICS)
+ SOONG_CONFIG_twrpGlobalVars_tw_brightness_path := $(subst ",, $(TW_BRIGHTNESS_PATH))
+ ifneq ($(TW_NO_SCREEN_BLANK),)
+   ifeq ($(TW_MAX_BRIGHTNESS),)

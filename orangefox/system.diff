@@ -1,0 +1,157 @@
+diff --git a/core/fs_mgr/liblp/builder.cpp b/core/fs_mgr/liblp/builder.cpp
+--- a/core/fs_mgr/liblp/builder.cpp
++++ b/core/fs_mgr/liblp/builder.cpp
+@@ -1066,6 +1066,25 @@ bool MetadataBuilder::UpdateBlockDeviceInfo(size_t index, const BlockDeviceInfo&
+     return true;
+ }
+ 
++bool MetadataBuilder::GrowBlockDevicesToLiveSize(const IPartitionOpener& opener) {
++    bool grown = false;
++    for (size_t i = 0; i < block_devices_.size(); i++) {
++        BlockDeviceInfo device_info;
++        if (!opener.GetInfo(GetBlockDevicePartitionName(i), &device_info)) {
++            continue;
++        }
++        LpMetadataBlockDevice& block_device = block_devices_[i];
++        if (device_info.size <= block_device.size) {
++            continue;
++        }
++        LINFO << "Growing block device " << i << " from " << block_device.size << " to "
++              << device_info.size;
++        block_device.size = device_info.size;
++        grown = true;
++    }
++    return grown;
++}
++
+ bool MetadataBuilder::ResizePartition(Partition* partition, uint64_t requested_size,
+                                       const std::vector<Interval>& free_region_hint) {
+     // Align the space needed up to the nearest sector.
+diff --git a/core/fs_mgr/liblp/builder_test.cpp b/core/fs_mgr/liblp/builder_test.cpp
+--- a/core/fs_mgr/liblp/builder_test.cpp
++++ b/core/fs_mgr/liblp/builder_test.cpp
+@@ -489,6 +489,43 @@ TEST_F(BuilderTest, UpdateBlockDeviceInfo) {
+     EXPECT_EQ(new_info.logical_block_size, 4096);
+ }
+ 
++namespace {
++class FixedSizeOpener : public IPartitionOpener {
++  public:
++    explicit FixedSizeOpener(uint64_t size) : size_(size) {}
++    android::base::unique_fd Open(const std::string&, int) const override { return {}; }
++    bool GetInfo(const std::string& name, BlockDeviceInfo* info) const override {
++        *info = BlockDeviceInfo(name, size_, 0, 0, 4096);
++        return true;
++    }
++    std::string GetDeviceString(const std::string& name) const override { return name; }
++
++  private:
++    uint64_t size_;
++};
++}  // namespace
++
++TEST_F(BuilderTest, GrowBlockDevicesToLiveSize) {
++    BlockDeviceInfo device_info("super", 1024 * 1024, 4096, 1024, 4096);
++    unique_ptr<MetadataBuilder> builder = MetadataBuilder::New(device_info, 1024, 1);
++    ASSERT_NE(builder, nullptr);
++
++    // Same size, nothing changes.
++    EXPECT_FALSE(builder->GrowBlockDevicesToLiveSize(FixedSizeOpener(1024 * 1024)));
++    // Smaller device, it never shrinks.
++    EXPECT_FALSE(builder->GrowBlockDevicesToLiveSize(FixedSizeOpener(512 * 1024)));
++    BlockDeviceInfo info;
++    ASSERT_TRUE(builder->GetBlockDeviceInfo("super", &info));
++    EXPECT_EQ(info.size, 1024 * 1024);
++
++    // Bigger device, it grows and the free space grows with it.
++    uint64_t before = builder->AllocatableSpace();
++    EXPECT_TRUE(builder->GrowBlockDevicesToLiveSize(FixedSizeOpener(2 * 1024 * 1024)));
++    ASSERT_TRUE(builder->GetBlockDeviceInfo("super", &info));
++    EXPECT_EQ(info.size, 2 * 1024 * 1024);
++    EXPECT_EQ(builder->AllocatableSpace(), before + 1024 * 1024);
++}
++
+ TEST_F(BuilderTest, InvalidBlockSize) {
+     BlockDeviceInfo device_info("super", 1024 * 1024, 0, 0, 513);
+     unique_ptr<MetadataBuilder> builder = MetadataBuilder::New(device_info, 1024, 1);
+diff --git a/core/fs_mgr/liblp/include/liblp/builder.h b/core/fs_mgr/liblp/include/liblp/builder.h
+--- a/core/fs_mgr/liblp/include/liblp/builder.h
++++ b/core/fs_mgr/liblp/include/liblp/builder.h
+@@ -350,6 +350,16 @@ class MetadataBuilder {
+     bool GetBlockDeviceInfo(const std::string& partition_name, BlockDeviceInfo* info) const;
+     bool UpdateBlockDeviceInfo(const std::string& partition_name, const BlockDeviceInfo& info);
+ 
++    // Raise the recorded size of each block device to its real size.
++    // It only grows the size and never shrinks it, so old partitions stay valid.
++    // Returns true if at least one device was grown.
++    //
++    // This is kept separate from UpdateBlockDeviceInfo on purpose, because that
++    // one keeps the recorded size as it is. Use this only when you know the
++    // super partition is bigger than what the current table was made for, for
++    // example when the table on the device was written for a smaller super.
++    bool GrowBlockDevicesToLiveSize(const IPartitionOpener& opener);
++
+     // Require the expanded metadata header. This is exposed for testing, and
+     // is normally only called as needed by other methods.
+     void RequireExpandedMetadataHeader();
+diff --git a/update_engine/aosp/dynamic_partition_control_android.cc b/update_engine/aosp/dynamic_partition_control_android.cc
+--- a/update_engine/aosp/dynamic_partition_control_android.cc
++++ b/update_engine/aosp/dynamic_partition_control_android.cc
+@@ -353,6 +353,16 @@ DynamicPartitionControlAndroid::LoadMetadataBuilder(
+                  << super_device;
+     return nullptr;
+   }
++  // The super table already on the device can record a smaller size than
++  // the real partition, for example when an earlier install was made for a
++  // different super size. The payload then does not fit in the recorded size
++  // even though the device has room for it.
++  // So in recovery, grow the recorded size to match the real device size.
++  // It never shrinks.
++  if (IsRecovery() && builder->GrowBlockDevicesToLiveSize(PartitionOpener())) {
++    LOG(INFO) << "Raised recorded super size to the live device size in "
++              << super_device;
++  }
+   LOG(INFO) << "Created metadata for new update from slot "
+             << BootControlInterface::SlotName(source_slot) << " in "
+             << super_device;
+diff --git a/update_engine/payload_consumer/filesystem_verifier_action.cc b/update_engine/payload_consumer/filesystem_verifier_action.cc
+--- a/update_engine/payload_consumer/filesystem_verifier_action.cc
++++ b/update_engine/payload_consumer/filesystem_verifier_action.cc
+@@ -28,6 +28,7 @@
+ #include <string>
+ #include <utility>
+ 
++#include <android-base/properties.h> // [Darth9, 20251104]
+ #include <base/bind.h>
+ #include <base/strings/string_util.h>
+ #include <brillo/data_encoding.h>
+@@ -40,6 +41,7 @@
+ #include "update_engine/common/utils.h"
+ #include "update_engine/payload_consumer/file_descriptor.h"
+ 
++using android::base::GetBoolProperty; // [Darth9, 20251104]
+ using brillo::data_encoding::Base64Encode;
+ using std::string;
+ 
+@@ -442,9 +444,18 @@ void FilesystemVerifierAction::FinishPartitionHashing() {
+         LOG(ERROR) << "New '" << partition.name
+                    << "' partition verification failed.";
+         if (partition.source_hash.empty()) {
+-          // No need to verify source if it is a full payload.
+-          Cleanup(ErrorCode::kNewRootfsVerificationError);
+-          return;
++		//  [Darth9, 20251104] - work around ROM hash verification flashing error (caused by crDroid+NikGapps on alioth)
++		if (android::base::GetProperty("ro.virtual_ab.skip_verify_source_hash", "") == "true") {
++			LOG(INFO) << "No need to verify the source (of " << partition.name
++			<< ") if it is a full payload. Continuing ...";
++			partition_index_++;
++		}
++		else { // [Darth9, 20251104]
++			// No need to verify source if it is a full payload.
++			Cleanup(ErrorCode::kNewRootfsVerificationError);
++			LOG(ERROR) << "Try re-flashing the ROM immediately.";
++			return;
++		} // [Darth9, 20251104]
+         }
+         // If we have not verified source partition yet, now that the target
+         // partition does not match, and it's not a full payload, we need to

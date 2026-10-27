@@ -1,0 +1,65 @@
+# The USB gadget of this recovery.
+#
+# The kernel has no android.c, so there is no /sys/class/android_usb: the
+# gadget lives in configfs. TWRP's init.rc builds it itself once
+# sys.usb.configfs is 1 -- g1, its strings, ffs.adb and the config -- and binds
+# it for adb, sideload and fastboot. What is here is what this board needs on
+# top of that, the lessons of 19.1's init.tn8.usb.rc, and MTP.
+#
+# The ids are TWRP's (18D1, D001 for adb, 4EE2 for mtp,adb), not the system's
+# 0955:CFxx: init.rc writes its idProduct at the moment it binds adb, so there
+# is no earlier point to put another one.
+
+on early-init
+    # init.rc sets this to 0 in its own early-init; an imported file runs after
+    # it, so this wins.
+    setprop sys.usb.configfs 1
+    # udc-core names the controller after its parent device, and board-ardbeg.c
+    # gives the one probed from udc@7d000000 the legacy name tegra-udc.0 through
+    # OF_DEV_AUXDATA. 7d000000.udc matches nothing and fails with ENODEV.
+    setprop sys.usb.controller tegra-udc.0
+
+on fs
+    # The USB version the device descriptor claims. configfs leaves it at 0,
+    # and macOS put up with "USB 0.0" until MTP sat beside adb; then every
+    # transfer on adb's endpoints failed. The controller is high-speed.
+    write /config/usb_gadget/g1/bcdUSB 0x0200
+    write /config/usb_gadget/g1/bcdDevice 0x0223
+    write /config/usb_gadget/g1/configs/b.1/MaxPower 500
+
+    # Microsoft OS descriptors: a Windows host reads the compatible id each
+    # FunctionFS daemon declares and binds MTP or WinUSB without a driver.
+    write /config/usb_gadget/g1/os_desc/b_vendor_code 0x1
+    write /config/usb_gadget/g1/os_desc/qw_sign MSFT100
+    symlink /config/usb_gadget/g1/configs/b.1 /config/usb_gadget/g1/os_desc/b.1
+
+    # MTP over FunctionFS, as on 19.1. no_disconnect keeps the rest of the
+    # gadget on the bus while the MTP server has ep0 closed.
+    mkdir /config/usb_gadget/g1/functions/ffs.mtp
+    mkdir /dev/usb-ffs/mtp 0770 mtp mtp
+    mount functionfs mtp /dev/usb-ffs/mtp rmode=0770,fmode=0660,uid=1024,gid=1024,no_disconnect=1
+
+    # The gadget driver raises the CPU minimum to 1400 MHz on every large USB
+    # request and holds it; adbd and MTP keep such reads queued.
+    write /sys/module/tegra_udc/parameters/boost_enable 0
+
+# TWRP turns MTP on by setting sys.usb.config to none and then mtp,adb. none
+# stops adbd, and nothing in init.rc starts it again for mtp,adb.
+on property:sys.usb.config=mtp,adb
+    start adbd
+
+# Bind only once both daemons have written their descriptors: adbd raises
+# sys.usb.ffs.ready, the MTP server sys.usb.ffs.mtp.ready
+# (mtp/ffs/MtpDescriptors.cpp). Binding earlier enumerates a configuration
+# that cannot answer.
+on property:sys.usb.config=mtp,adb && property:sys.usb.ffs.ready=1 && property:sys.usb.ffs.mtp.ready=1 && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0x4EE2
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "mtp_adb"
+    symlink /config/usb_gadget/g1/functions/ffs.mtp /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f2
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+# init.rc unlinks f1 on none; f2 is ours.
+on property:sys.usb.config=none && property:sys.usb.configfs=1
+    rm /config/usb_gadget/g1/configs/b.1/f2
