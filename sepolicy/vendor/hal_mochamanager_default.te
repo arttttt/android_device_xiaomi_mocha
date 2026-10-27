@@ -41,6 +41,9 @@ allow hal_mochamanager_default sysfs_batteryinfo:dir r_dir_perms;
 allow hal_mochamanager_default sysfs_batteryinfo:file r_file_perms;
 allow hal_mochamanager_default sysfs_devices_system_cpu:dir r_dir_perms;
 allow hal_mochamanager_default sysfs_devices_system_cpu:file r_file_perms;
+# The GPU's clock, which carries a type of its own for the composer's
+# governor and so left plain sysfs.
+allow hal_mochamanager_default sysfs_devfreq:file r_file_perms;
 allow hal_mochamanager_default sysfs_thermal:dir r_dir_perms;
 allow hal_mochamanager_default sysfs_thermal:file r_file_perms;
 allow hal_mochamanager_default sysfs_thermal:lnk_file read;
