@@ -237,8 +237,8 @@
     <string name="archive_title">Log archive</string>
     <string name="archive_system">logcat, every buffer</string>
     <string name="archive_kernel">dmesg</string>
-    <string name="archive_last">The previous boot (pstore)</string>
-    <string name="archive_last_sub">if it ended in a crash</string>
+    <string name="archive_last">Previous boots (pstore)</string>
+    <string name="archive_last_sub">the kernel log\'s end, the last 5</string>
     <string name="archive_crashes">Crashes and ANRs</string>
     <string name="archive_crashes_sub">the last 5 of each kind</string>
     <string name="archive_device">About the tablet</string>

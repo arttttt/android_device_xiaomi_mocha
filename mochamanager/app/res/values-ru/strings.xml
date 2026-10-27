@@ -218,8 +218,8 @@
     <string name="archive_title">Архив логов</string>
     <string name="archive_system">logcat — все буферы</string>
     <string name="archive_kernel">dmesg</string>
-    <string name="archive_last">Прошлая загрузка (pstore)</string>
-    <string name="archive_last_sub">если она закончилась сбоем</string>
+    <string name="archive_last">Прошлые загрузки (pstore)</string>
+    <string name="archive_last_sub">конец журнала ядра, последние 5</string>
     <string name="archive_crashes">Сбои и ANR</string>
     <string name="archive_crashes_sub">последние 5 каждого вида</string>
     <string name="archive_device">Сведения о планшете</string>
