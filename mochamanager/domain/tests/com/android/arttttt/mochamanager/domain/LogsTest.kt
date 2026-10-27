@@ -19,6 +19,7 @@ package com.android.arttttt.mochamanager.domain
 import com.android.arttttt.mochamanager.domain.model.LogFilter
 import com.android.arttttt.mochamanager.domain.model.LogLevel
 import com.android.arttttt.mochamanager.domain.model.LogLine
+import com.android.arttttt.mochamanager.domain.usecase.ArchiveFile
 import com.android.arttttt.mochamanager.domain.usecase.LogArchive
 import com.android.arttttt.mochamanager.domain.usecase.Redaction
 import com.android.arttttt.mochamanager.domain.usecase.tail
@@ -74,6 +75,14 @@ class LogsTest {
         val lines = (1..5).map { LogLine("line $it", LogLevel.INFO) }
         val got = lines.asFlow().tail(capacity = 3, periodMs = 10).first { it.size == 3 && it.last() == lines[4] }
         assertEquals(lines.takeLast(3), got)
+    }
+
+    @Test
+    fun aRepeatedPathIsNumbered() {
+        val files = listOf(ArchiveFile("crashes/t.txt", "1"), ArchiveFile("crashes/t.txt", "2"),
+                ArchiveFile("dmesg.txt", "3"), ArchiveFile("crashes/t.txt", "4"))
+        assertEquals(listOf("crashes/t.txt", "crashes/t-2.txt", "dmesg.txt", "crashes/t-3.txt"),
+                LogArchive.unique(files).map { it.path })
     }
 
     @Test

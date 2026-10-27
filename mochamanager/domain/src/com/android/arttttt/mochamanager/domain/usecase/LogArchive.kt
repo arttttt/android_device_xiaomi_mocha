@@ -71,15 +71,28 @@ class LogArchive(
             files += ArchiveFile("device.txt",
                     deviceReport(info, power.battery(), monitor.snapshot(), logs.properties()))
         }
-        if (!redact) return files
+        val named = unique(files)
+        if (!redact) return named
         val redaction = Redaction(info?.serial)
-        return files.map { it.copy(text = redaction.apply(it.text)) }
+        return named.map { it.copy(text = redaction.apply(it.text)) }
     }
 
     private fun record(r: CrashRecord, dir: String) = ArchiveFile("$dir/${r.tag}-${stamp(r.timeMs)}.txt", r.text)
 
     companion object {
         const val CRASHES_EACH = 5
+
+        /* A ZIP takes a path once. Records are named by their time to the
+         * second, and the system files two of a crash in the same second as
+         * often as not: a second one becomes name-2, a third name-3. */
+        fun unique(files: List<ArchiveFile>): List<ArchiveFile> {
+            val seen = HashMap<String, Int>()
+            return files.map { f ->
+                val n = (seen[f.path] ?: 0) + 1
+                seen[f.path] = n
+                if (n == 1) f else f.copy(path = f.path.substringBeforeLast('.') + "-$n." + f.path.substringAfterLast('.'))
+            }
+        }
 
         /* A time as a file name has it: 20261027-011402, by the tablet's
          * clock unless told otherwise. */
