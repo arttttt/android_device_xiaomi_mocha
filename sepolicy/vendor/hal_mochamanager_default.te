@@ -52,6 +52,11 @@ allow hal_mochamanager_default sysfs_zram:file r_file_perms;
 allow hal_mochamanager_default proc_meminfo:file r_file_perms;
 allow hal_mochamanager_default proc_pressure_mem:file r_file_perms;
 
+# How long each cluster has run is only in debugfs, in cpuquiet's file. It
+# has a label of its own, so this is that file and not debugfs at large.
+allow hal_mochamanager_default debugfs_tegra_hotplug:dir search;
+allow hal_mochamanager_default debugfs_tegra_hotplug:file r_file_perms;
+
 # The accelerometer's calibration the settings make goes where the sensors
 # HAL watches for it, in its format; the HAL takes it from there.
 allow hal_mochamanager_default sensors_vendor_data_file:dir rw_dir_perms;

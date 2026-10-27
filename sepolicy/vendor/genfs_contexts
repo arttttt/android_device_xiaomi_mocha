@@ -21,6 +21,9 @@ genfscon cifs /					u:object_r:fuse:s0
 # than in file_contexts because debugfs is mounted after init has relabelled.
 genfscon debugfs /nvmap/handles_by_pid		u:object_r:debugfs_nvmap:s0
 
+# How long each CPU cluster has run, which MiPad Manager shows.
+genfscon debugfs /tegra_hotplug			u:object_r:debugfs_tegra_hotplug:s0
+
 # The power.stats HAL's GPU residency. The rest of /sys/power is the
 # platform's, and plain sysfs.
 genfscon sysfs /power/tegra_rail_stats		u:object_r:sysfs_rail_stats:s0

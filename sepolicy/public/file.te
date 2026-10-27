@@ -170,6 +170,9 @@ type sysfs_pwm_backlight, fs_type, sysfs_type;
 # /sys/kernel/debug/nvmap/handles_by_pid
 type debugfs_nvmap, fs_type, debugfs_type, mlstrustedobject;
 
+# /sys/kernel/debug/tegra_hotplug, cpuquiet's account of the clusters
+type debugfs_tegra_hotplug, fs_type, debugfs_type;
+
 # /sys/devices/platform/bcm_ldisc/install
 type sysfs_bcm_ldisc, fs_type, sysfs_type;
 
