@@ -76,7 +76,8 @@ type sysfs_throughput, fs_type, sysfs_type;
 # /sys/module/bcmdhd/parameters/firmware_path
 type sysfs_wifi, fs_type, sysfs_type;
 
-# sys/devices/platform/gpu.0/devfreq/gpu.0/available_frequencies
+# The GPU's clock steps and its clock:
+# /sys/devices/platform/gk20a.0/devfreq/gk20a.0/{available_frequencies,cur_freq}
 type sysfs_devfreq, fs_type, sysfs_type;
 
 # Tegra Info

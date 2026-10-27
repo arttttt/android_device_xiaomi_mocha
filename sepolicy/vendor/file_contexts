@@ -183,7 +183,7 @@
 /sys/class/thermal(/.*)?				u:object_r:sysfs_thermal:s0
 /sys/devices/platform/host1x/tegradc.[0-1]/smartdimmer(/.*)	u:object_r:sysfs_smartdimmer:s0
 /sys/devices/platform/host1x/tegradc\.[0-1]/cmu_enable		u:object_r:sysfs_cmu:s0
-/sys/devices/platform/gpu.0/devfreq/gpu.0/available_frequencies		u:object_r:sysfs_devfreq:s0
+/sys/devices/platform/gk20a\.0/devfreq/gk20a\.0/(available_frequencies|cur_freq)	u:object_r:sysfs_devfreq:s0
 
 # What the health HAL reads, under the type S gives it for that
 # (system/sepolicy/public/hal_health.te): the chargers, an extcon device, and
