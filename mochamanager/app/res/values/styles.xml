@@ -32,7 +32,10 @@
         <item name="trackCornerRadius">4dp</item>
     </style>
 
+    <!-- The full width of the window: Material keeps a sheet to 640dp, a
+         narrow strip in the middle of a tablet. -->
     <style name="Widget.MochaManager.BottomSheet" parent="Widget.MaterialComponents.BottomSheet.Modal">
+        <item name="android:maxWidth">@null</item>
         <item name="backgroundTint">@color/surface</item>
         <item name="shapeAppearance">@style/Shape.MochaManager.Sheet</item>
     </style>
