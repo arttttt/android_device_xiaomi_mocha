@@ -19,6 +19,7 @@ package com.android.arttttt.mochamanager.data
 import android.os.Build
 import com.android.arttttt.mochamanager.domain.model.AccelCalibration
 import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.repository.CalibrationRepository
 import com.android.arttttt.mochamanager.domain.repository.DeviceRepository
 import com.android.arttttt.mochamanager.domain.repository.MonitorRepository
@@ -48,8 +49,8 @@ class ServiceDeviceRepository(
 class ServicePowerRepository(private val service: ServiceSource) : PowerRepository {
     override suspend fun sample() = service.call { it.readPower() }?.toDomain()
     override suspend fun battery() = service.call { it.battery }?.toDomain()
-    override suspend fun setChargingDisabled(disabled: Boolean) =
-            service.call { it.setChargingDisabled(disabled) } != null
+    override suspend fun setPowerMode(mode: PowerMode) =
+            service.call { it.setPowerMode(mode.code) } != null
 }
 
 class ServiceMonitorRepository(private val service: ServiceSource) : MonitorRepository {

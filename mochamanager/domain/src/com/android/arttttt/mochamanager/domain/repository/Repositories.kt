@@ -20,6 +20,7 @@ import com.android.arttttt.mochamanager.domain.model.AccelCalibration
 import com.android.arttttt.mochamanager.domain.model.Battery
 import com.android.arttttt.mochamanager.domain.model.DeviceInfo
 import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.model.PowerSample
 import com.android.arttttt.mochamanager.domain.model.RefreshMode
 import com.android.arttttt.mochamanager.domain.model.SensorInfo
@@ -41,7 +42,7 @@ interface DeviceRepository {
 interface PowerRepository {
     suspend fun sample(): PowerSample?
     suspend fun battery(): Battery?
-    suspend fun setChargingDisabled(disabled: Boolean): Boolean
+    suspend fun setPowerMode(mode: PowerMode): Boolean
 }
 
 interface ProfileRepository {

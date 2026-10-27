@@ -49,7 +49,8 @@ internal fun AidlBattery.toDomain() = Battery(
             usbOnline -> Supply.USB
             else -> Supply.NONE
         },
-        chargingDisabled)
+        chargingDisabled,
+        inputOpen)
 
 internal fun AidlSnapshot.toDomain() = Snapshot(
         cluster,

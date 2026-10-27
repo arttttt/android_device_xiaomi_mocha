@@ -16,14 +16,17 @@
 
 package com.android.arttttt.mochamanager.domain
 
+import com.android.arttttt.mochamanager.domain.model.Battery
 import com.android.arttttt.mochamanager.domain.model.ClusterTime
 import com.android.arttttt.mochamanager.domain.model.CpuCore
 import com.android.arttttt.mochamanager.domain.model.DeviceInfo
 import com.android.arttttt.mochamanager.domain.model.Gpu
 import com.android.arttttt.mochamanager.domain.model.Memory
 import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
+import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.model.RefreshMode
 import com.android.arttttt.mochamanager.domain.model.Snapshot
+import com.android.arttttt.mochamanager.domain.model.Supply
 import com.android.arttttt.mochamanager.domain.model.ThermalZone
 import com.android.arttttt.mochamanager.domain.usecase.History
 import com.android.arttttt.mochamanager.domain.usecase.Level
@@ -100,6 +103,18 @@ class ModelsTest {
         assertEquals(0f, s.cores[2].load, 0f)
         assertEquals(0.75, memory.usedFraction, 1e-9)
         assertEquals(0.25, memory.swapFraction, 1e-9)
+    }
+
+    @Test
+    fun powerMode() {
+        fun battery(disabled: Boolean, open: Boolean) =
+                Battery(80, "Discharging", "Good", 4_000_000, 400_000, 300, 3_000_000, 3_800_000,
+                        4_000_000, 10, Supply.USB, disabled, open)
+        assertEquals(PowerMode.CHARGE, battery(disabled = false, open = false).powerMode)
+        assertEquals(PowerMode.HOLD, battery(disabled = true, open = false).powerMode)
+        /* An open input runs the tablet on the battery whatever the switch. */
+        assertEquals(PowerMode.BATTERY, battery(disabled = true, open = true).powerMode)
+        assertEquals(PowerMode.BATTERY, battery(disabled = false, open = true).powerMode)
     }
 
     @Test

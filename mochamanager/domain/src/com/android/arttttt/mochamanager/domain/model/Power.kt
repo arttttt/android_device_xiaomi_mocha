@@ -29,6 +29,17 @@ data class PowerSample(
 
 enum class Supply { NONE, USB, AC }
 
+/* Where the tablet takes its power from; codes as the service has them. */
+enum class PowerMode(val code: Int) {
+    /* The supply runs the tablet and charges the battery. */
+    CHARGE(0),
+    /* The supply runs the tablet, the battery holds its charge. */
+    HOLD(1),
+    /* The battery runs the tablet with the cable in: the charger's input is
+     * open. Not kept across a restart. */
+    BATTERY(2),
+}
+
 data class Battery(
     val capacityPct: Int,
     val status: String,
@@ -42,7 +53,16 @@ data class Battery(
     val cycleCount: Int,
     val supply: Supply,
     val chargingDisabled: Boolean,
+    /* The charger's input is open (HIZ). */
+    val inputOpen: Boolean,
 ) {
+    val powerMode: PowerMode
+        get() = when {
+            inputOpen -> PowerMode.BATTERY
+            chargingDisabled -> PowerMode.HOLD
+            else -> PowerMode.CHARGE
+        }
+
     /* What is left of the design capacity, in percent; null when the gauge
      * gives no design capacity. */
     val wearPercent: Double?
