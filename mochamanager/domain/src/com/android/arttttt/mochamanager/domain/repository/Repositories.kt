@@ -18,7 +18,12 @@ package com.android.arttttt.mochamanager.domain.repository
 
 import com.android.arttttt.mochamanager.domain.model.AccelCalibration
 import com.android.arttttt.mochamanager.domain.model.Battery
+import com.android.arttttt.mochamanager.domain.model.CrashKind
+import com.android.arttttt.mochamanager.domain.model.CrashRecord
 import com.android.arttttt.mochamanager.domain.model.DeviceInfo
+import com.android.arttttt.mochamanager.domain.model.LogBuffer
+import com.android.arttttt.mochamanager.domain.model.LogKind
+import com.android.arttttt.mochamanager.domain.model.LogLine
 import com.android.arttttt.mochamanager.domain.model.PerformanceProfile
 import com.android.arttttt.mochamanager.domain.model.PowerMode
 import com.android.arttttt.mochamanager.domain.model.PowerSample
@@ -79,4 +84,17 @@ interface CalibrationRepository {
     suspend fun calibration(): AccelCalibration?
     suspend fun save(calibration: AccelCalibration): Boolean
     suspend fun reset(): Boolean
+}
+
+interface LogRepository {
+    /* The log as it grows while collected: its last lines first, then each
+     * new one. buffers only matter for the system log. */
+    fun follow(kind: LogKind, buffers: Set<LogBuffer>): Flow<LogLine>
+    /* All of the log there is now, as text. */
+    suspend fun dump(kind: LogKind, buffers: Set<LogBuffer>): String?
+    /* The system's records of these kinds, at most limit of each, oldest
+     * first. */
+    suspend fun crashes(kinds: Set<CrashKind>, limit: Int): List<CrashRecord>
+    /* The properties a report on the tablet names. */
+    suspend fun properties(): Map<String, String>
 }
