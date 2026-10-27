@@ -42,8 +42,9 @@ data class ArchiveFile(val path: String, val text: String)
  * The files of a log archive, of the parts asked for. The system log is
  * every buffer of it there is; the crashes are the system's own records of
  * tombstones, ANRs and apps that crashed, the last few of each; the last
- * kernel log is what the kernel left in pstore when the boot before this one
- * ended badly. A part with nothing in it is no file.
+ * kernel logs are the ends of the boots before this one, as the kernel left
+ * them in pstore -- one is filed at every boot, whatever ended the last. A
+ * part with nothing in it is no file.
  */
 class LogArchive(
     private val logs: LogRepository,
