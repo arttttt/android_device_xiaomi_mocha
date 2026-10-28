@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--
+	Navigation defaults for a tablet with hardware keys.
+
+	OrangeFox ships gestures on and its on-screen navbar hidden. Here the
+	back, home and menu keys under the panel do the same job, and the home
+	gesture is a strip along the bottom edge, right above them. So by default
+	both are off: the navbar stays hidden and the bottom strip is gone. The
+	values are the ones the theme itself writes for that choice (navbar off,
+	gestures off).
+
+	Only a default: ui.xml reads the user's own Fox/.navbar/navbar.xml first
+	and this file only when there is none, and the device's recovery/root is
+	copied after OrangeFox has prepared its theme, so this replaces the theme's
+	themes/navbar.xml and nothing else.
+-->
+<recovery>
+	<variables>
+		<variable name="navbar_disable" value="1"/>
+		<variable name="navbar_disable_add" value="144"/>
+		<variable name="screen_h" value="%screen_original_h%+144"/>
+		<variable name="real_gestures_enable" value="0"/>
+	</variables>
+</recovery>
