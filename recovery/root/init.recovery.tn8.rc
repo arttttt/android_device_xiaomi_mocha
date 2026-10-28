@@ -1,5 +1,6 @@
 on init
 	start watchdogd
+	start hwservicemanager
 
 	# The eMMC under both names it can have. This kernel names the controller
 	# sdhci-tegra.3 (OF_DEV_AUXDATA in board-ardbeg.c); a kernel left to the
@@ -45,3 +46,23 @@ on init
 service watchdogd /system/bin/watchdogd 10 110
     class core
     seclabel u:r:watchdogd:s0
+
+# Battery. Recovery reads the level through the health HAL, and libhidl in
+# the recovery process waits for hwservicemanager.ready with no time limit
+# once /dev/hwbinder exists, which it does here. TWRP has its own
+# hwservicemanager.rc for this, but builds it only for A/B, dynamic
+# partitions or TW_INCLUDE_CRYPTO, none of which this tree has, so without
+# the service below the battery thread hangs and the level is never shown.
+# The definition is TWRP's, word for word.
+service hwservicemanager /system/bin/hwservicemanager
+    user root
+    group root
+    onrestart setprop hwservicemanager.ready false
+    disabled
+    seclabel u:r:recovery:s0
+
+# The HAL that serves the level. TWRP defines health-hal-2-1 in
+# /system/etc/init but starts it nowhere. It registers with hwservicemanager,
+# so it waits for it, as the recovery process does.
+on property:hwservicemanager.ready=true
+    start health-hal-2-1
