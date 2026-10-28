@@ -10,6 +10,12 @@ TARGET_BOARD_PLATFORM := tegra
 TARGET_BOOTLOADER_BOARD_NAME := mocha
 TARGET_NO_BOOTLOADER := true
 
+# Binder API
+# As on 19.1: the kernel is built without ANDROID_BINDER_IPC_32BIT, and 12.1
+# only links libbinder with 64-bit binder -- its arm32 version script names
+# the symbols of that ABI, and with the 32-bit one the link fails on them.
+TARGET_USES_64_BIT_BINDER := true
+
 # Kernel
 # loglevel=4 for the same reason as on 19.1: at the default console level the
 # kernel's pin-debug spam goes out over synchronous 115200-baud printk.
