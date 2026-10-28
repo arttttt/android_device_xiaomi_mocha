@@ -1,17 +1,23 @@
 on init
 	start watchdogd
 
-	# The eMMC and the card slot under both names they can have. This kernel
-	# names the controllers sdhci-tegra.3 and sdhci-tegra.2 (OF_DEV_AUXDATA in
-	# board-ardbeg.c); a kernel left to the device tree alone names them after
-	# their addresses. The fstab says sdhci-tegra.N, while releasetools of 19.1
-	# and zips made for other ROMs look under 700b0600.sdhci. Of each pair the
-	# link whose name already exists fails harmlessly, the other supplies the
-	# missing one.
+	# The eMMC under both names it can have. This kernel names the controller
+	# sdhci-tegra.3 (OF_DEV_AUXDATA in board-ardbeg.c); a kernel left to the
+	# device tree alone names it after its address. The fstab says
+	# sdhci-tegra.3, while releasetools of 19.1 and zips made for other ROMs
+	# look under 700b0600.sdhci. The link whose name already exists fails
+	# harmlessly, the other supplies the missing one -- but only if the real
+	# directory is already there. Made before ueventd creates it, the two
+	# links point at each other, ueventd can no longer create by-name inside,
+	# and recovery sees no partitions. The wait is for that: with this kernel
+	# it returns at once, under the other naming it times out after 5 s and
+	# the second link covers it.
+	# The card slot gets no links: the card may be inserted after boot, and a
+	# link made before then breaks it the same way. twrp.flags names it under
+	# both names instead.
+	wait /dev/block/platform/sdhci-tegra.3
 	symlink /dev/block/platform/sdhci-tegra.3 /dev/block/platform/700b0600.sdhci
 	symlink /dev/block/platform/700b0600.sdhci /dev/block/platform/sdhci-tegra.3
-	symlink /dev/block/platform/sdhci-tegra.2 /dev/block/platform/700b0400.sdhci
-	symlink /dev/block/platform/700b0400.sdhci /dev/block/platform/sdhci-tegra.2
 
 	write /sys/block/mmcblk0/queue/read_ahead_kb 128
 	write /sys/module/workqueue/parameters/power_efficient 1
