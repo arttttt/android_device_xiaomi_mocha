@@ -168,6 +168,14 @@ config_fox121() {
     : "${KERNEL_TOOLCHAIN:=/home/artem/Projects/toolchain/linaro-4.9.4/bin}"
     : "${TARGET_KERNEL_CROSS_COMPILE_PREFIX:=arm-linux-gnueabihf-}"
     export KERNEL_TOOLCHAIN TARGET_KERNEL_CROSS_COMPILE_PREFIX
+
+    # Mocha has no vendor partition, so root/vendor is a link to
+    # /system/vendor, while the recovery modules install real files under
+    # recovery/root/vendor/etc. Copying root over recovery, rsync cannot turn
+    # that non-empty directory into the link and the ramdisk step fails
+    # ("cannot delete non-empty directory: root/vendor"). With this set,
+    # bootable/recovery of OrangeFox makes root/vendor a directory instead.
+    export OF_MANUAL_ROOT_VENDOR_ERROR_FIX=1
 }
 
 #==============================================================================
