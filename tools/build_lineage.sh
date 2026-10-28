@@ -176,6 +176,12 @@ config_fox121() {
     # ("cannot delete non-empty directory: root/vendor"). With this set,
     # bootable/recovery of OrangeFox makes root/vendor a directory instead.
     export OF_MANUAL_ROOT_VENDOR_ERROR_FIX=1
+
+    # With gzip the ramdisk alone is 16.7 MB and the image does not fit the
+    # 20 MiB partition; LZMA brings the ramdisk to about 11.4 MB. OrangeFox
+    # turns this into BOARD_RAMDISK_USE_LZMA, the legacy .lzma format, which
+    # the kernel reads since SmokeR24.1-stable enables RD_LZMA.
+    export OF_USE_LZMA_COMPRESSION=1
 }
 
 #==============================================================================
