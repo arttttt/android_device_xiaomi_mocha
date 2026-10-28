@@ -85,7 +85,7 @@ TW_THEME := portrait_hdpi
 # leds/button-backlight, is the backlight of the capacitive keys.
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/lcd-backlight/brightness"
 TW_MAX_BRIGHTNESS := 255
-TW_DEFAULT_BRIGHTNESS := 128
+TW_DEFAULT_BRIGHTNESS := 64
 # CPU-therm is the first zone in the device tree, but the number a zone gets
 # depends on the order the drivers register them; check thermal_zone*/type on
 # the device.
