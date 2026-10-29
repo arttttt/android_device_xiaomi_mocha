@@ -1,7 +1,17 @@
 # Storage TWRP should offer that the system's fstab does not list as a mount:
 # there the card and USB drives belong to vold, which recovery does not run.
-# The card is named under both names its controller can have, as the
-# alternate device of the entry: TWRP looks for it again on every mount, so a
-# card inserted after boot is found under either one.
-/external_sd    vfat    /dev/block/platform/sdhci-tegra.2/by-num/p1 /dev/block/platform/700b0400.sdhci/by-num/p1    flags=display="MICRO SD";storage;wipeingui;removable
+#
+# The card is the first partition under the card's controller. The ueventd of
+# 12 makes no by-num links any more, and a card has no partition names for
+# by-name, so what is left is the node under the controller's directory. The
+# number comes from the order the kernel finds the cards in; the eMMC is found
+# first, but kept under the card's controller the path can never lead to it --
+# should the number change, the card just does not mount. It is named under
+# both names its controller can have, as the alternate device of the entry:
+# TWRP looks for it again on every mount, so a card inserted after boot is
+# found under either one. That leaves no place for the whole disk, so a card
+# without a partition table is not mounted.
+# vfat is only the default: TWRP reads the real type with blkid, and sdfat
+# in the kernel mounts both FAT and exFAT.
+/external_sd    vfat    /dev/block/platform/sdhci-tegra.2/mmcblk1p1 /dev/block/platform/700b0400.sdhci/mmcblk1p1    flags=display="MICRO SD";storage;wipeingui;removable
 /usb-otg        vfat    /dev/block/sda1 /dev/block/sda                 flags=display="USB OTG";storage;wipeingui;removable
