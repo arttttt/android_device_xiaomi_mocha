@@ -1,3 +1,12 @@
+# The system partition comes from recovery.fstab; this line only adds flags.
+# OrangeFox leaves system out of backup and wipe unless asked to, and here it
+# is a plain partition that can be backed up and wiped like any other. TWRP
+# turns /system into /system_root before it looks for flags, so that is the
+# name the line goes by; the device and filesystem columns are not read.
+# The ro from the fstab does not stand in the way of a restore: TWRP mounts
+# the partition read-write for it by itself.
+/system_root    ext4    /dev/block/platform/sdhci-tegra.3/by-name/APP    flags=backup=1;wipeingui
+
 # Storage TWRP should offer that the system's fstab does not list as a mount:
 # there the card and USB drives belong to vold, which recovery does not run.
 #
