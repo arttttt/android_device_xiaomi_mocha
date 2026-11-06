@@ -22,27 +22,26 @@ again.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- .../CompositionEngine/src/OutputLayer.cpp     | 142 ++++++++++++++++++
- 1 file changed, 142 insertions(+)
+ .../CompositionEngine/src/OutputLayer.cpp     | 140 ++++++++++++++++++
+ 1 file changed, 140 insertions(+)
 
 diff --git a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
-index 7d7c937..17370c2 100644
+index c6a8c1103f..b664e3a015 100644
 --- a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
 +++ b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
-@@ -25,7 +25,11 @@
- #include <compositionengine/impl/OutputCompositionState.h>
+@@ -26,8 +26,10 @@
  #include <compositionengine/impl/OutputLayer.h>
  #include <compositionengine/impl/OutputLayerCompositionState.h>
-+#include <algorithm>
+ #include <algorithm>
 +#include <array>
  #include <cstdint>
-+#include <cstring>
+ #include <cstring>
 +#include <optional>
+ #include <string>
+ #include <vector>
  
- // TODO(b/129481165): remove the #pragma below and fix conversion issues
- #pragma clang diagnostic push
-@@ -52,6 +56,123 @@ FloatRect reduce(const FloatRect& win, const Region& exclude) {
-     return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
+@@ -111,6 +113,123 @@ std::vector<uint8_t> effectInDisplaySpace(const std::string& name,
+     return out;
  }
  
 +// The key a composer declares to be told how to draw a layer turned by an
@@ -165,7 +164,7 @@ index 7d7c937..17370c2 100644
  } // namespace
  
  std::unique_ptr<OutputLayer> createOutputLayer(const compositionengine::Output& output,
-@@ -407,6 +528,27 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
+@@ -466,6 +585,27 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
                sourceCrop.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
      }
  

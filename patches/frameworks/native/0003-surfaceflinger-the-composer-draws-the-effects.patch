@@ -13,9 +13,13 @@ composition any more -- rounded corners in OutputLayer; shadows, blur
 and stretch in Layer. Only HDR Y410 still goes to the GPU. Every effect
 is handed to the composer instead, as generic layer metadata, one key
 each under org.lineageos.mocha.: rounded_corners, shadow, blur and
-stretch, as floats in display space (stretch in the layer's own space,
-as RenderEngine takes it); the layout is spelled out above
-writeEffectsMetadata. A key is sent only once the composer declares it,
+stretch, as floats; the layout is spelled out above
+writeEffectsMetadata. Layer writes their rectangles and lengths in the
+layer stack's space, and OutputLayer takes them into the display's on
+the way out, as it does the display frame: the composer draws in the
+panel's axes, which a turned display does not share with the layer
+stack (stretch stays in the layer's own space, as RenderEngine takes
+it). A key is sent only once the composer declares it,
 so nothing reaches the composer that it would refuse, and then every
 frame, all zero when the layer has no such effect, since generic
 metadata cannot unset a key.
@@ -24,7 +28,7 @@ A composer that has not declared a key shows the layer without that
 effect.
 
 diff --git a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
-index 87be750..7d7c937 100644
+index 87be750569..c6a8c1103f 100644
 --- a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
 +++ b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
 @@ -15,6 +15,7 @@
@@ -35,7 +39,96 @@ index 87be750..7d7c937 100644
  #include <android-base/stringprintf.h>
  #include <compositionengine/DisplayColorProfile.h>
  #include <compositionengine/LayerFECompositionState.h>
-@@ -692,8 +693,13 @@ void OutputLayer::detectDisallowedCompositionTypeChange(hal::Composition from,
+@@ -24,7 +25,11 @@
+ #include <compositionengine/impl/OutputCompositionState.h>
+ #include <compositionengine/impl/OutputLayer.h>
+ #include <compositionengine/impl/OutputLayerCompositionState.h>
++#include <algorithm>
+ #include <cstdint>
++#include <cstring>
++#include <string>
++#include <vector>
+ 
+ // TODO(b/129481165): remove the #pragma below and fix conversion issues
+ #pragma clang diagnostic push
+@@ -51,6 +56,61 @@ FloatRect reduce(const FloatRect& win, const Region& exclude) {
+     return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
+ }
+ 
++// A value of one of the effect keys Layer::writeEffectsMetadata fills, its
++// rectangles and lengths taken from the layer stack's space into the
++// display's; the value of any other key, an effect the layer does not have
++// (all zero) or a value of the wrong length, as it came.
++std::vector<uint8_t> effectInDisplaySpace(const std::string& name,
++                                          const std::vector<uint8_t>& value,
++                                          const ui::Transform& displayTransform) {
++    if (value.size() % sizeof(float) != 0) {
++        return value;
++    }
++    std::vector<float> v(value.size() / sizeof(float));
++    memcpy(v.data(), value.data(), value.size());
++    if (std::all_of(v.begin(), v.end(), [](float f) { return f == 0.f; })) {
++        return value;
++    }
++
++    // Where the key keeps them: the index of each rectangle's left, and of
++    // each length.
++    std::vector<size_t> rects;
++    std::vector<size_t> lengths;
++    if (name == "org.lineageos.mocha.rounded_corners" && v.size() == 5) {
++        rects = {0};
++        lengths = {4};
++    } else if (name == "org.lineageos.mocha.shadow" && v.size() == 17) {
++        rects = {0};
++        lengths = {4, 16};
++    } else if (name == "org.lineageos.mocha.blur" && v.size() >= 2 &&
++               v.size() == 2 + 10 * static_cast<size_t>(v[1])) {
++        lengths = {0};
++        for (size_t region = 2; region < v.size(); region += 10) {
++            lengths.insert(lengths.end(), {region, region + 1, region + 2, region + 3, region + 4});
++            rects.push_back(region + 6);
++        }
++    } else {
++        return value;
++    }
++
++    for (const size_t i : rects) {
++        const FloatRect r =
++                displayTransform.transform(FloatRect(v[i], v[i + 1], v[i + 2], v[i + 3]));
++        v[i] = r.left;
++        v[i + 1] = r.top;
++        v[i + 2] = r.right;
++        v[i + 3] = r.bottom;
++    }
++    const float scale = (displayTransform.getScaleX() + displayTransform.getScaleY()) / 2.f;
++    for (const size_t i : lengths) {
++        v[i] *= scale;
++    }
++
++    std::vector<uint8_t> out(value.size());
++    memcpy(out.data(), v.data(), out.size());
++    return out;
++}
++
+ } // namespace
+ 
+ std::unique_ptr<OutputLayer> createOutputLayer(const compositionengine::Output& output,
+@@ -457,8 +517,13 @@ void OutputLayer::writeOutputIndependentGeometryStateToHWC(
+               to_string(error).c_str(), static_cast<int32_t>(error));
+     }
+ 
++    // The effects come in the layer stack's space; the composer is told
++    // them in the display's, as it is told the display frame.
++    const ui::Transform& displayTransform = getOutput().getState().transform;
+     for (const auto& [name, entry] : outputIndependentState.metadata) {
+-        if (auto error = hwcLayer->setLayerGenericMetadata(name, entry.mandatory, entry.value);
++        const std::vector<uint8_t> value =
++                effectInDisplaySpace(name, entry.value, displayTransform);
++        if (auto error = hwcLayer->setLayerGenericMetadata(name, entry.mandatory, value);
+             error != hal::Error::NONE) {
+             ALOGE("[%s] Failed to set generic metadata %s %s (%d)", getLayerFE().getDebugName(),
+                   name.c_str(), to_string(error).c_str(), static_cast<int32_t>(error));
+@@ -692,8 +757,13 @@ void OutputLayer::detectDisallowedCompositionTypeChange(hal::Composition from,
  }
  
  bool OutputLayer::isClientCompositionForced(bool isPeekingThrough) const {
@@ -50,8 +143,111 @@ index 87be750..7d7c937 100644
  }
  
  void OutputLayer::applyDeviceCompositionTypeChange(hal::Composition compositionType) {
+diff --git a/services/surfaceflinger/CompositionEngine/tests/OutputLayerTest.cpp b/services/surfaceflinger/CompositionEngine/tests/OutputLayerTest.cpp
+index c8c6012ef9..84e15505d1 100644
+--- a/services/surfaceflinger/CompositionEngine/tests/OutputLayerTest.cpp
++++ b/services/surfaceflinger/CompositionEngine/tests/OutputLayerTest.cpp
+@@ -24,6 +24,8 @@
+ #include <gtest/gtest.h>
+ #include <log/log.h>
+ 
++#include <cstring>
++
+ #include <renderengine/mock/RenderEngine.h>
+ #include <ui/PixelFormat.h>
+ #include "MockHWC2.h"
+@@ -1220,6 +1222,89 @@ TEST_F(OutputLayerWriteStateToHWCTest, roundedCornersPeekingThroughAllowsDeviceC
+               mOutputLayer.getState().hwc->hwcCompositionType);
+ }
+ 
++// The effects Layer::writeEffectsMetadata fills come in the layer stack's
++// space and are sent to the composer in the display's.
++struct OutputLayerEffectsMetadataTest : public OutputLayerWriteStateToHWCTest {
++    static constexpr const char* kCornersKey = "org.lineageos.mocha.rounded_corners";
++    static constexpr const char* kShadowKey = "org.lineageos.mocha.shadow";
++    static constexpr const char* kBlurKey = "org.lineageos.mocha.blur";
++
++    static std::vector<uint8_t> blob(const std::vector<float>& v) {
++        std::vector<uint8_t> b(v.size() * sizeof(float));
++        memcpy(b.data(), v.data(), b.size());
++        return b;
++    }
++
++    OutputLayerEffectsMetadataTest() {
++        mLayerFEState.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
++        expectGeometryCommonCalls();
++        expectPerFrameCommonCalls();
++        expectSetHdrMetadataAndBufferCalls();
++        expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
++        EXPECT_CALL(*mLayerFE, hasRoundedCorners()).WillRepeatedly(Return(false));
++        // Any other key is not these tests' business.
++        EXPECT_CALL(*mHwcLayer, setLayerGenericMetadata(_, _, _))
++                .Times(testing::AnyNumber())
++                .WillRepeatedly(Return(hal::Error::NONE));
++    }
++
++    void put(const char* key, const std::vector<float>& v) {
++        mLayerFEState.metadata[key] = {false, blob(v)};
++    }
++
++    void expectSent(const char* key, const std::vector<float>& v) {
++        EXPECT_CALL(*mHwcLayer, setLayerGenericMetadata(std::string(key), false, blob(v)))
++                .WillOnce(Return(hal::Error::NONE));
++    }
++
++    void write() {
++        mOutputLayer.writeStateToHWC(/*includeGeometry*/ true, /*skipLayer*/ false, 0,
++                                     /*zIsOverridden*/ false, /*isPeekingThrough*/ false);
++    }
++
++    // A 2048x1536 layer stack on a 1536x2048 panel, turned a quarter: the
++    // device's landscape.
++    static ui::Transform landscape() { return ui::Transform{ui::Transform::ROT_90, 1536, 2048}; }
++};
++
++TEST_F(OutputLayerEffectsMetadataTest, roundedCornersTurnWithTheDisplay) {
++    mOutputState.transform = landscape();
++    // The recents card: its frame on the panel is 320,307-1328,1741.
++    put(kCornersKey, {307, 208, 1741, 1216, 4});
++    expectSent(kCornersKey, {320, 307, 1328, 1741, 4});
++    write();
++}
++
++TEST_F(OutputLayerEffectsMetadataTest, anAbsentEffectAndOtherKeysGoAsTheyCame) {
++    mOutputState.transform = landscape();
++    put(kShadowKey, std::vector<float>(17, 0.f));
++    expectSent(kShadowKey, std::vector<float>(17, 0.f));
++    // A value of the wrong length is not read by the key's layout.
++    put(kCornersKey, {307, 208, 1741, 1216});
++    expectSent(kCornersKey, {307, 208, 1741, 1216});
++    write();
++}
++
++TEST_F(OutputLayerEffectsMetadataTest, blurRegionsTurnWithTheDisplay) {
++    mOutputState.transform = landscape();
++    // Background radius, one region: radius, corners TL TR BL BR, alpha,
++    // left, top, right, bottom.
++    put(kBlurKey, {10, 1, 20, 1, 2, 3, 4, 0.5f, 307, 208, 1741, 1216});
++    expectSent(kBlurKey, {10, 1, 20, 1, 2, 3, 4, 0.5f, 320, 307, 1328, 1741});
++    write();
++}
++
++TEST_F(OutputLayerEffectsMetadataTest, lengthsScaleWithTheDisplay) {
++    ui::Transform twice;
++    twice.set(2.f, 0.f, 0.f, 2.f);
++    mOutputState.transform = twice;
++    put(kCornersKey, {10, 20, 30, 40, 4});
++    expectSent(kCornersKey, {20, 40, 60, 80, 8});
++    put(kBlurKey, {10, 1, 20, 1, 2, 3, 4, 0.5f, 10, 20, 30, 40});
++    expectSent(kBlurKey, {20, 1, 40, 2, 4, 6, 8, 0.5f, 20, 40, 60, 80});
++    write();
++}
++
+ /*
+  * OutputLayer::writeCursorPositionToHWC()
+  */
 diff --git a/services/surfaceflinger/Layer.cpp b/services/surfaceflinger/Layer.cpp
-index 45875c1..2d74bb9 100644
+index 9c97cedcb7..6b750935cb 100644
 --- a/services/surfaceflinger/Layer.cpp
 +++ b/services/surfaceflinger/Layer.cpp
 @@ -36,6 +36,7 @@
@@ -62,7 +258,7 @@ index 45875c1..2d74bb9 100644
  #include <gui/BufferItem.h>
  #include <gui/LayerDebugInfo.h>
  #include <gui/Surface.h>
-@@ -493,13 +494,112 @@ void Layer::preparePerFrameCompositionState() {
+@@ -493,13 +494,115 @@ void Layer::preparePerFrameCompositionState() {
      // Force client composition for special cases known only to the front-end.
      // Rounded corners no longer force client composition, since we may use a
      // hole punch so that the layer will appear to have rounded corners.
@@ -88,10 +284,12 @@ index 45875c1..2d74bb9 100644
 +}
 +
 +// The effects as the composer needs them, one generic metadata key each, as
-+// little-endian floats in display space. A key the composer did not declare
-+// is not sent, so nothing reaches it that it would refuse; a declared key is
-+// sent every frame, all zero when the layer has no such effect, because
-+// generic metadata has no way to unset a key once set.
++// little-endian floats in the layer stack's space; OutputLayer takes their
++// rectangles and lengths into the display's on the way out, since a turned
++// display's axes are not the layer stack's. A key the composer did not
++// declare is not sent, so nothing reaches it that it would refuse; a
++// declared key is sent every frame, all zero when the layer has no such
++// effect, because generic metadata has no way to unset a key once set.
 +//
 +//   rounded_corners  left, top, right, bottom of the rounded crop; radius
 +//   shadow           left, top, right, bottom of the caster; length;
@@ -99,7 +297,8 @@ index 45875c1..2d74bb9 100644
 +//                    light radius. The colours are the global ones, not yet
 +//                    scaled by the caster's alpha, and the light is the
 +//                    global one -- SurfaceFlinger centres it on the display
-+//                    horizontally, so x is the composer's to place.
++//                    horizontally, so x is the composer's to place; it is
++//                    left in the layer stack's space.
 +//   blur             background blur radius; region count; then per region
 +//                    blur radius, corner radii TL, TR, BL, BR, alpha (layer
 +//                    alpha applied), left, top, right, bottom
@@ -178,10 +377,10 @@ index 45875c1..2d74bb9 100644
  
  void Layer::prepareCursorCompositionState() {
 diff --git a/services/surfaceflinger/Layer.h b/services/surfaceflinger/Layer.h
-index 4085993..b2bd96d 100644
+index e91b11f8a3..b9e5c0b4e9 100644
 --- a/services/surfaceflinger/Layer.h
 +++ b/services/surfaceflinger/Layer.h
-@@ -916,6 +916,8 @@ protected:
+@@ -921,6 +921,8 @@ protected:
      virtual std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
              compositionengine::LayerFE::ClientCompositionTargetSettings&);
      virtual void preparePerFrameCompositionState();
