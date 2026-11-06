@@ -103,6 +103,12 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilt/firmware/tos-psci-0.2.img:install/firmware-update/tos-psci-0.2.img
 
+# The bootloaders of MIUI V9.2.4.0, as Xiaomi signed them for its own
+# recovery package, carried the same way and for the same reason; see
+# releasetools.py for how they are installed.
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilt/firmware/bootloader-miui-V9.2.4.0.blob:install/firmware-update/bootloader-miui-V9.2.4.0.blob
+
 # Graphics
 #
 # Our own allocator, which answers to gralloc.tegra and opens the vendor blob
