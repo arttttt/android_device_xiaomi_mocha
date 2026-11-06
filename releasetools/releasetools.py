@@ -68,9 +68,12 @@ e07800ba...88c14af. It holds EBT and RBL (bootloader.bin), NVC and RMB
 flashes. It holds no TOS, so it does not undo the one above, and no BCT, so
 the memory parameters stay the ones the board shipped with.
 
-It is staged only when EBT, NVC or WB0 differ from it. Applying it rewrites
-the BCT, and a board that loses power right then is one for RCM: a risk
-worth taking once, on a board that needs it, and not on every install.
+It is staged only when a partition it holds differs from it. Applying it
+rewrites the BCT, and a board that loses power right then is one for RCM: a
+risk worth taking once, on a board that needs it, and not on every install.
+Every partition counts, the copies RBL and RMB among them: nothing boots
+from a copy while the first is good, but a bad copy is exactly what is left
+after an update that did not finish, and staging the blob is what mends it.
 
 MSC is refused: it is the boot control block, which recovery writes during
 the very install that would be overwriting it.
@@ -92,12 +95,6 @@ import struct
 
 TOS_IMAGE = "install/firmware-update/tos-psci-0.2.img"
 BLOB_IMAGE = "install/firmware-update/bootloader-miui-V9.2.4.0.blob"
-
-# The partitions whose images decide whether the blob is staged: the two
-# bootloaders and the LP0 resume code. RBL and RMB are copies that nothing
-# boots while EBT and NVC are good, and DFI is the USB 3 controller's
-# firmware, which no bootloader version changed.
-BLOB_CHECKED = ("EBT", "NVC", "WB0")
 
 # Where the partitions can be reached, best first. Every entry was read off
 # a device sitting in the recovery this runs in -- TWRP 3.2.1, omni_mocha
@@ -206,8 +203,8 @@ def _write_tos(info):
 
 def _stage_bootloaders(info):
     images = _blob_images(_read_image(info, BLOB_IMAGE))
-    present = " && ".join(_holds(partition, images[partition])
-                          for partition in BLOB_CHECKED)
+    present = " && ".join(_holds(partition, image)
+                          for partition, image in images.items())
     info.script.AppendExtra(
         'if ' + present + ' then\n'
         '  ui_print("The bootloaders are already MIUI V9.2.4.0\'s.");\n'
