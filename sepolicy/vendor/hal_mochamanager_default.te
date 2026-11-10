@@ -52,11 +52,6 @@ allow hal_mochamanager_default sysfs_zram:file r_file_perms;
 allow hal_mochamanager_default proc_meminfo:file r_file_perms;
 allow hal_mochamanager_default proc_pressure_mem:file r_file_perms;
 
-# How long each cluster has run is only in debugfs, in cpuquiet's file. It
-# has a label of its own, so this is that file and not debugfs at large.
-allow hal_mochamanager_default debugfs_tegra_hotplug:dir search;
-allow hal_mochamanager_default debugfs_tegra_hotplug:file r_file_perms;
-
 # The charger's input, opened for "on battery" and closed again, and read
 # back for the mode in force.
 allow hal_mochamanager_default sysfs_charger_input:file rw_file_perms;
