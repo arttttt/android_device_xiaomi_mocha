@@ -122,9 +122,6 @@ class LogArchive(
                         for (c in s.cores) {
                             appendLine("cpu${c.id}: " + if (c.online) "${c.curKhz} kHz ${c.governor}" else "offline")
                         }
-                        s.clusterTime?.let {
-                            appendLine("cluster time: G ${it.gMs} ms, LP ${it.lpMs} ms, ${it.switches} switches")
-                        }
                         appendLine("gpu: ${s.gpu.curHz} Hz, load ${s.gpu.loadPermille} permille")
                         for (t in s.thermals) appendLine("thermal ${t.name}: ${t.milliCelsius} mC")
                     }

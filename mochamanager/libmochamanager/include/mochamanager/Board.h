@@ -92,13 +92,6 @@ struct MemoryStatus {
     float psiFull = 0;
 };
 
-struct ClusterTime {
-    bool present = false;
-    int64_t gMs = 0;
-    int64_t lpMs = 0;
-    int switches = 0;
-};
-
 struct Snapshot {
     std::string cluster;
     std::vector<CpuCore> cores;
@@ -106,7 +99,6 @@ struct Snapshot {
     int64_t emcHz = 0;
     std::vector<ThermalZone> thermals;
     MemoryStatus memory;
-    ClusterTime clusterTime;
 };
 
 enum Profile {

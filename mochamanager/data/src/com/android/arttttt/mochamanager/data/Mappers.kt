@@ -18,7 +18,6 @@ package com.android.arttttt.mochamanager.data
 
 import com.android.arttttt.mochamanager.domain.model.AccelCalibration
 import com.android.arttttt.mochamanager.domain.model.Battery
-import com.android.arttttt.mochamanager.domain.model.ClusterTime
 import com.android.arttttt.mochamanager.domain.model.CpuCore
 import com.android.arttttt.mochamanager.domain.model.DeviceInfo
 import com.android.arttttt.mochamanager.domain.model.Gpu
@@ -61,8 +60,7 @@ internal fun AidlSnapshot.toDomain() = Snapshot(
         memory.let {
             Memory(it.totalKb, it.availableKb, it.nvmapUsedKb, it.swapTotalKb, it.swapFreeKb,
                     it.zramOrigBytes, it.zramComprBytes, it.psiSome, it.psiFull)
-        },
-        clusterTime.takeIf { it.present }?.let { ClusterTime(it.gMs, it.lpMs, it.switches) })
+        })
 
 internal fun AidlCalibration.toDomain() =
         AccelCalibration(present, offset.toList(), scale.toList(), madeMs)
