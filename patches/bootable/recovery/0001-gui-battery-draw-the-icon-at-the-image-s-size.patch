@@ -1,0 +1,105 @@
+From 063913a2dad95b8ca75cb67b4a3521a8d2d6e732 Mon Sep 17 00:00:00 2001
+From: arttttt <artem-bambalov@yandex.ru>
+Date: Wed, 25 Nov 2026 17:32:51 +0200
+Subject: [PATCH] gui: battery: draw the icon at the image's size, not the
+ placement's
+
+The placement and the offsets inside the battery icon are scaled along
+each axis on its own, the images, which keep their aspect ratio, by the
+smaller of the two factors. On a screen whose proportions differ from
+the theme's 9:16 the two part ways: on a 1536x2048 tablet the theme
+scales by 1.42 across and 1.07 down, the placement comes out a third
+wider than the image, and the blit, as wide as the placement, repeats
+the image's left edge past its right one -- half a second battery next
+to the first.
+
+Blit and lay out the icon by the image's own size, and bring the fill
+of the classic style and the bolt to the image's scale, using the
+reference image over the placement, which the theme sets to the
+image's own size. On a 9:16 screen both factors agree and nothing
+changes.
+---
+ gui/battery.cpp | 42 ++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 36 insertions(+), 6 deletions(-)
+
+diff --git a/gui/battery.cpp b/gui/battery.cpp
+index 9fca830..27cc2ed 100644
+--- a/gui/battery.cpp
++++ b/gui/battery.cpp
+@@ -58,6 +58,8 @@ GUIBattery::GUIBattery(xml_node<>* node)
+ 	mFontHeight = 0;
+ 	xml_node <> *child;
+ 	mImg100 = mImg75 = mImg50 = mImg25 = mImg15 = mImgc15 = mImg5 = mImg = mLowImg = NULL;
++	mCharge = NULL;
++	mDX = mDY = mDW = mDH = mCX = mCY = mCW = mCH = 0;
+ 
+ 	if (!node)
+ 		return;
+@@ -109,7 +111,26 @@ GUIBattery::GUIBattery(xml_node<>* node)
+ 	// Load the placement
+ 	LoadPlacement(FindNode(node, "placement"), &mRenderX, &mRenderY, &mRenderW, &mRenderH, &mPlacement);
+ 	SetPlacement(TOP_LEFT);
+-	
++
++	// The placement and the offsets inside the icon are scaled along each
++	// axis on its own, the images -- all of them keep their aspect ratio --
++	// by the smaller of the two factors. Where the screen's proportions
++	// differ from the theme's the two part ways: on a 4:3 tablet the
++	// placement comes out a third wider than the image. The theme gives
++	// the placement the image's own size, so the image over the placement
++	// is what brings the offsets inside the icon to the image's scale.
++	ImageResource* ref = mStateMode ? mImg100 : mImg;
++	if (ref && ref->GetResource() && mRenderW > 0 && mRenderH > 0) {
++		int refW = ref->GetWidth();
++		int refH = ref->GetHeight();
++		mDX = mDX * refW / mRenderW;
++		mDW = mDW * refW / mRenderW;
++		mCX = mCX * refW / mRenderW;
++		mDY = mDY * refH / mRenderH;
++		mDH = mDH * refH / mRenderH;
++		mCY = mCY * refH / mRenderH;
++	}
++
+ 	mDX += mRenderX;
+ 	mDY += mRenderY;
+ 	mCX += mRenderX;
+@@ -145,8 +166,6 @@ int GUIBattery::Render(void)
+ 	int textW = twrpTruetype::gr_ttf_measureEx(mBatteryPercentStr.c_str(), fontResource);
+ 	
+ 	if (mBatteryIcon == 1) {
+-		int iconRealX = textW + mPadding + mRenderW;
+-
+ 		if (mStateMode) {
+ 				if (mBatteryPercent > 75) finalImage = mImg100;
+ 			else if (mBatteryPercent > 50) finalImage = mImg75 ;
+@@ -157,13 +176,24 @@ int GUIBattery::Render(void)
+ 			else 				           finalImage = mImg5  ;
+ 		} else {
+ 			finalImage = (mBatteryPercent > 15 || mBatteryCharge == 1) ? mImg : mLowImg;
+-			int height = mDH * mBatteryPercent / 100;
+-			gr_fill(mDX - iconRealX, mDY+mDH-height, mDW + 1, height + 1);
+ 		}
+ 
+ 		if (!finalImage || !finalImage->GetResource())
+ 			return -1;
+-		gr_blit(finalImage->GetResource(), 0, 0, mRenderW, mRenderH, mRenderX - iconRealX, mRenderY);
++
++		// Drawn and laid out by the image's own size, not the placement's:
++		// a blit wider than the image repeats its left edge past the right
++		// one (see the constructor for why the two differ).
++		int iconW = finalImage->GetWidth();
++		int iconH = finalImage->GetHeight();
++		int iconRealX = textW + mPadding + iconW;
++
++		if (!mStateMode) {
++			int height = mDH * mBatteryPercent / 100;
++			gr_fill(mDX - iconRealX, mDY+mDH-height, mDW + 1, height + 1);
++		}
++
++		gr_blit(finalImage->GetResource(), 0, 0, iconW, iconH, mRenderX - iconRealX, mRenderY);
+ 
+ 
+ 		if (!mCharge || !mCharge->GetResource())
+-- 
+2.56.1
+
