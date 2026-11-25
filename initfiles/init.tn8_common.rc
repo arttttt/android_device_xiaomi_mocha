@@ -24,14 +24,25 @@ on fs
 on init
     setprop keyguard.no_require_sim true
 
-service charger /charger
-    group graphics input
-    seclabel u:r:healthd:s0
+# Off-mode charging: the bootloader boots with androidboot.mode=charger when
+# a cable comes in while the board is off, and init starts this instead of
+# Android. Since R the charger is /system/bin/charger; /charger was a link in
+# the ramdisk root, which no longer exists, so init found nothing to start and
+# the bootloader's logo stayed on screen. The charger's own domain comes from
+# its file's label. The service is the one
+# hardware/interfaces/health/2.1/README.md gives, plus graphics for
+# /dev/graphics/fb0: minui draws through fbdev here, there is no DRM. It gets
+# /dev/kmsg from init, as only root may open it.
+service charger /system/bin/charger
     class charger
+    user system
+    group system graphics wakelock input
+    capabilities SYS_BOOT
+    file /dev/kmsg w
 
+# /system is mounted by first stage init before anything here runs.
 on charger
     setprop sys.usb.config mtp
-    mount ext4 /dev/block/platform/sdhci-tegra.3/by-name/APP /system wait ro
     write /sys/devices/system/cpu/cpuquiet/tegra_cpuquiet/enable 0
     write /sys/devices/system/cpu/cpuquiet/tegra_cpuquiet/no_lp -1
     write /sys/devices/system/cpu/cpu2/online 0

@@ -261,13 +261,6 @@ TARGET_LD_SHIM_LIBS += /system/vendor/lib/libnvRSDriver.so|libshim_rs.so
 # what t124-common does for the same blob on 18.1.
 TARGET_LD_SHIM_LIBS += /system/vendor/lib/libglcore.so|libutilscallstack.so
 
-# Offmode Charging
-BOARD_CHARGER_DISABLE_INIT_BLANK := true
-BACKLIGHT_PATH := "/sys/class/backlight/lcd-backlight/brightness"
-RED_LED_PATH := "/sys/class/leds/red/brightness"
-GREEN_LED_PATH := "/sys/class/leds/green/brightness"
-BLUE_LED_PATH := "/sys/class/leds/blue/brightness"
-
 # Lineage's charging control, through its default health HAL
 # (hardware/lineage/interfaces/health). The charger holds charging off when
 # disabled_by_user is 1 -- at /CE, PMIC GPIO7, and in its register -- while
