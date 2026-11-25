@@ -86,6 +86,11 @@ TW_THEME := portrait_hdpi
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/lcd-backlight/brightness"
 TW_MAX_BRIGHTNESS := 255
 TW_DEFAULT_BRIGHTNESS := 64
+# The capacitive keys have a backlight of their own, which on the system the
+# light HAL drives and here nothing would. As the secondary path it gets the
+# level the screen gets and goes dark with it; the LED class caps the value
+# at the keys' maximum of 100.
+TW_SECONDARY_BRIGHTNESS_PATH := "/sys/class/leds/button-backlight/brightness"
 # CPU-therm is the first zone in the device tree, but the number a zone gets
 # depends on the order the drivers register them; check thermal_zone*/type on
 # the device.
