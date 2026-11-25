@@ -20,7 +20,7 @@ cc_binary {
         "Backlight.cpp",
         "Light.cpp",
         "NotificationLed.cpp",
-        "Palette.cpp",
+        "PulseProgram.cpp",
         "service.cpp",
     ],
     shared_libs: [

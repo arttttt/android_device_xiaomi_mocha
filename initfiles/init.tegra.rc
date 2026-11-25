@@ -110,8 +110,13 @@ on boot
     chown system system /sys/devices/platform/host1x/tegradc.0/nvdps
     chown system system /sys/class/graphics/fb0/device/nvdps
 
-# LP5521
-    chown system system /sys/bus/i2c/drivers/lp5521/0-0032/select_engine
+# LP5521: the light HAL writes each channel's pulse program and runs it
+    chown system system /sys/bus/i2c/drivers/lp5521/0-0032/engine1_load
+    chown system system /sys/bus/i2c/drivers/lp5521/0-0032/engine2_load
+    chown system system /sys/bus/i2c/drivers/lp5521/0-0032/engine3_load
+    chown system system /sys/bus/i2c/drivers/lp5521/0-0032/engine1_mode
+    chown system system /sys/bus/i2c/drivers/lp5521/0-0032/engine2_mode
+    chown system system /sys/bus/i2c/drivers/lp5521/0-0032/engine3_mode
     chown system system /sys/bus/i2c/drivers/lp5521/0-0032/run_engine
 
 # TLK storage service

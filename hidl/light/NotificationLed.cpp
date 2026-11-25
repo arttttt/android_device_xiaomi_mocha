@@ -22,27 +22,39 @@
 
 #include <string>
 
+#include "PulseProgram.h"
+
 namespace android {
 namespace hardware {
 namespace light {
 namespace V2_0 {
 namespace implementation {
 
-static const std::string RED = "/sys/class/leds/red/brightness";
-static const std::string GREEN = "/sys/class/leds/green/brightness";
-static const std::string BLUE = "/sys/class/leds/blue/brightness";
+namespace {
 
-/* The chip's pattern engine: which channels it drives, and whether it runs. */
-static const std::string SELECT_ENGINE =
-        "/sys/bus/i2c/drivers/lp5521/0-0032/select_engine";
-static const std::string RUN_ENGINE =
-        "/sys/bus/i2c/drivers/lp5521/0-0032/run_engine";
+const std::string CHIP = "/sys/bus/i2c/drivers/lp5521/0-0032/";
 
-static Rgb unpack(uint32_t colour) {
-    return {static_cast<uint8_t>((colour >> 16) & 0xff),
-            static_cast<uint8_t>((colour >> 8) & 0xff),
-            static_cast<uint8_t>(colour & 0xff)};
-}
+/* One of the diode's three colours: its brightness under direct control,
+ * and the engine that runs it otherwise. */
+struct Channel {
+    std::string brightness;
+    std::string engineMode;
+    std::string engineLoad;
+};
+
+const std::array<Channel, 3> CHANNELS = {{
+    {"/sys/class/leds/red/brightness", CHIP + "engine1_mode", CHIP + "engine1_load"},
+    {"/sys/class/leds/green/brightness", CHIP + "engine2_mode", CHIP + "engine2_load"},
+    {"/sys/class/leds/blue/brightness", CHIP + "engine3_mode", CHIP + "engine3_load"},
+}};
+
+/* 1 starts every engine holding a fresh program, all in one write; 0 hands
+ * the channels back to direct control. */
+const std::string RUN_ENGINE = CHIP + "run_engine";
+
+const std::string DISABLED = "disabled";
+
+}  // namespace
 
 void NotificationLed::show(uint32_t colour, uint32_t onMs, uint32_t offMs) {
     colour &= 0x00ffffff;
@@ -51,13 +63,15 @@ void NotificationLed::show(uint32_t colour, uint32_t onMs, uint32_t offMs) {
 
     clear();
 
-    Rgb wanted = unpack(colour);
-    bool blinking = onMs > 0 && offMs > 0;
+    Levels levels = {static_cast<uint8_t>((colour >> 16) & 0xff),
+                     static_cast<uint8_t>((colour >> 8) & 0xff),
+                     static_cast<uint8_t>(colour & 0xff)};
+    bool flashing = onMs > 0 && offMs > 0;
 
-    if (blinking) {
-        showBlinking(Palette::nearest(wanted));
+    if (flashing) {
+        showPulsing(levels, onMs + offMs);
     } else {
-        showSteady(wanted);
+        showSteady(levels);
     }
 
     remember(colour, onMs, offMs);
@@ -81,42 +95,52 @@ void NotificationLed::remember(uint32_t colour, uint32_t onMs, uint32_t offMs) {
     mOffMs = offMs;
 }
 
-/* Stop the engine and put every channel out.
+/* Stop the engines and put every channel out.
  *
- * Nothing waits between these writes: the driver orders them itself and sits
- * out the chip's settling times, which are microseconds, inside its worker. */
+ * A running engine may not go straight back to direct control (the
+ * datasheet's RUN Program section), and run_engine 0 stops only the last
+ * engine the driver was given -- so each is disabled first, which also
+ * rewinds its program, and then all three are handed back. Nothing waits
+ * between these writes: the driver orders them itself and sits out the
+ * chip's settling times, which are microseconds, inside its worker. */
 void NotificationLed::clear() const {
+    for (const Channel& channel : CHANNELS) mocha::sysfs::write(channel.engineMode, DISABLED);
+
     mocha::sysfs::write(RUN_ENGINE, 0);
-    mocha::sysfs::write(RED, 0);
-    mocha::sysfs::write(GREEN, 0);
-    mocha::sysfs::write(BLUE, 0);
+
+    for (const Channel& channel : CHANNELS) mocha::sysfs::write(channel.brightness, 0);
 }
 
-void NotificationLed::showSteady(Rgb colour) const {
-    mocha::sysfs::write(RED, colour.r);
-    mocha::sysfs::write(GREEN, colour.g);
-    mocha::sysfs::write(BLUE, colour.b);
+void NotificationLed::showSteady(const Levels& levels) const {
+    for (size_t i = 0; i < CHANNELS.size(); i++) {
+        mocha::sysfs::write(CHANNELS[i].brightness, levels[i]);
+    }
 }
 
-/* Hand the colour to the engine, which then blinks it without us.
+/* Give every channel the colour uses a program of its own, then start them
+ * together.
  *
- * A channel is named to the engine if the colour uses it at all; the engine
- * drives the named ones together, which is why the colour has to be one it
- * can hold -- see Palette.
- *
- * The rhythm asked for is not passed on, because there is nowhere to pass it:
- * the engine runs a pattern the driver programmed into the chip, and what we
- * choose is whether it runs, not how fast. A request to blink twice a second
- * and one to blink every five both come out the same. The old code clamped
- * the two durations to between one and seven seconds before remembering them,
- * which looked like it was doing something -- but it never wrote them
- * anywhere either, and since it compared the unclamped values against the
- * clamped ones, any request outside that range was treated as new every time
- * and reprogrammed the diode for nothing. */
-void NotificationLed::showBlinking(Rgb colour) const {
-    if (colour.r) mocha::sysfs::write(SELECT_ENGINE, 1);
-    if (colour.g) mocha::sysfs::write(SELECT_ENGINE, 2);
-    if (colour.b) mocha::sysfs::write(SELECT_ENGINE, 3);
+ * engineN_load is synchronous: the driver puts the engine into its load
+ * mode and writes the program before the write returns, so run_engine
+ * finds all of them ready. select_engine, which this used to go through,
+ * read the program from /vendor/firmware/lp5521 on a worker of its own and
+ * had the one breath for every request: no brighter than half scale, which
+ * the driver's logarithmic dimming makes barely visible, the same speed
+ * whatever was asked, and only in the colours a single program could hold
+ * on all three channels at once. */
+void NotificationLed::showPulsing(const Levels& levels, uint32_t periodMs) const {
+    uint8_t together = 0;
+
+    for (size_t i = 0; i < CHANNELS.size(); i++) {
+        if (levels[i]) together |= 1u << i;
+    }
+
+    for (size_t i = 0; i < CHANNELS.size(); i++) {
+        if (levels[i] == 0) continue;
+
+        mocha::sysfs::write(CHANNELS[i].engineLoad,
+                            PulseProgram::forChannel(i, together, levels[i], periodMs));
+    }
 
     mocha::sysfs::write(RUN_ENGINE, 1);
 }
